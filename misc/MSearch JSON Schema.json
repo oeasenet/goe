@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IndexAttributeConfigMap",
+  "type": "object",
+  "patternProperties": {
+    "^[a-zA-Z_]+$": {
+      "$ref": "#/definitions/IndexAttributeConfig"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "IndexAttributeConfig": {
+      "type": "object",
+      "properties": {
+        "searchable_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "filterable_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sortable_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "displayed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "searchable_fields"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
