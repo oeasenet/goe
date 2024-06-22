@@ -32,3 +32,21 @@ Currently, GOE only supports MongoDB. Will support more SQL databases in the fut
 
 - [ ] Code Generator, to generate the project structure and code.
 - [ ] gRPC Support, based on Buf.
+
+## Quick Start
+
+```shell
+go get -u go.oease.dev/goe
+```
+
+```go
+package main
+
+import (
+	"go.oease.dev/goe"
+)
+
+func main() {
+	app := goe.NewApp()
+}
+```
