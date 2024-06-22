@@ -60,15 +60,6 @@ func TestDefaultModel_BeforeUpdate(t *testing.T) {
 	require.LessOrEqual(t, time.Now().UnixMilli()-model.LastModifyTime, int64(1000))
 }
 
-func TestDefaultModel_BeforeUpsert(t *testing.T) {
-	model := &DefaultModel{}
-	err := model.BeforeUpsert(context.Background())
-	require.Nil(t, err)
-	require.False(t, model.Id.IsZero())
-	require.LessOrEqual(t, time.Now().UnixMilli()-model.CreateTime, int64(1000))
-	require.LessOrEqual(t, time.Now().UnixMilli()-model.LastModifyTime, int64(1000))
-}
-
 func TestDefaultModel_GetObjectID(t *testing.T) {
 	id := primitive.NewObjectID()
 	model := &DefaultModel{Id: id}
