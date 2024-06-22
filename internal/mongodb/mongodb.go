@@ -11,7 +11,7 @@ import (
 )
 
 // col is a helper function that returns a MongoDB collection based on the provided model or collection name.
-func (m *Mongodb) col(nameORmodel any) *omgo.Collection {
+func (m *MongoDB) col(nameORmodel any) *omgo.Collection {
 	//check if model is the default model interface
 	model, ok := nameORmodel.(IDefaultModel)
 	if ok && model.ColName() != "" && model.ColName() != "not_implemented" {
@@ -29,15 +29,15 @@ func (m *Mongodb) col(nameORmodel any) *omgo.Collection {
 }
 
 // ctx is a helper function that returns a new context with a default timeout.
-func (m *Mongodb) ctx() context.Context {
+func (m *MongoDB) ctx() context.Context {
 	return m.newCtx()
 }
 
 // FindPage is a method that finds a page of documents in a MongoDB collection based on the provided filter.
 // It returns the total number of documents and the total number of pages.
-func (m *Mongodb) FindPage(model IDefaultModel, filter any, res any, pageSize int64, currentPage int64, option ...*FindPageOption) (totalDoc int64, totalPage int64) {
+func (m *MongoDB) FindPage(model IDefaultModel, filter any, res any, pageSize int64, currentPage int64, option ...*FindPageOption) (totalDoc int64, totalPage int64) {
 	if !m.initialized {
-		m.logger.Error("Must initialize Mongodb first, by calling NewMongodb() method")
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
 		return 0, 0
 	}
 
@@ -106,9 +106,9 @@ func (m *Mongodb) FindPage(model IDefaultModel, filter any, res any, pageSize in
 }
 
 // FindOne is a method that finds a single document in a MongoDB collection based on the provided filter.
-func (m *Mongodb) FindOne(model IDefaultModel, filter any, res any) (bool, error) {
+func (m *MongoDB) FindOne(model IDefaultModel, filter any, res any) (bool, error) {
 	if !m.initialized {
-		return false, errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return false, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
 	if reflect.TypeOf(res).Kind() != reflect.Ptr {
@@ -131,9 +131,9 @@ func (m *Mongodb) FindOne(model IDefaultModel, filter any, res any) (bool, error
 }
 
 // FindById is a method that finds a single document in a MongoDB collection based on the provided id.
-func (m *Mongodb) FindById(model IDefaultModel, id string, res any) (bool, error) {
+func (m *MongoDB) FindById(model IDefaultModel, id string, res any) (bool, error) {
 	if !m.initialized {
-		return false, errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return false, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
 	if reflect.TypeOf(res).Kind() != reflect.Ptr {
@@ -154,18 +154,18 @@ func (m *Mongodb) FindById(model IDefaultModel, id string, res any) (bool, error
 }
 
 // Insert is a method that inserts a single document into a MongoDB collection.
-func (m *Mongodb) Insert(model IDefaultModel) (*omgo.InsertOneResult, error) {
+func (m *MongoDB) Insert(model IDefaultModel) (*omgo.InsertOneResult, error) {
 	if !m.initialized {
-		return nil, errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return nil, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
 	return m.col(model).InsertOne(m.ctx(), model, options.InsertOneOptions{InsertHook: model})
 }
 
 // Update is a method that updates a single document in a MongoDB collection.
-func (m *Mongodb) Update(model IDefaultModel) error {
+func (m *MongoDB) Update(model IDefaultModel) error {
 	if !m.initialized {
-		return errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 	// create a filter
 	f := bson.M{}
@@ -182,9 +182,9 @@ func (m *Mongodb) Update(model IDefaultModel) error {
 }
 
 // Delete is a method that deletes a single document from a MongoDB collection.
-func (m *Mongodb) Delete(model IDefaultModel) error {
+func (m *MongoDB) Delete(model IDefaultModel) error {
 	if !m.initialized {
-		return errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
 	// check if model has an ID or has the document been found
@@ -196,9 +196,9 @@ func (m *Mongodb) Delete(model IDefaultModel) error {
 }
 
 // Aggregate is a method that performs an aggregation pipeline operation on a MongoDB collection.
-func (m *Mongodb) Aggregate(model IDefaultModel, pipeline any, res any) error {
+func (m *MongoDB) Aggregate(model IDefaultModel, pipeline any, res any) error {
 	if !m.initialized {
-		return errors.New("must initialize Mongodb first, by calling NewMongodb() method")
+		return errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
 	if reflect.TypeOf(res).Kind() != reflect.Ptr {

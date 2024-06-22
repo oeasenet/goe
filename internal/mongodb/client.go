@@ -6,18 +6,18 @@ import (
 	"time"
 )
 
-type Mongodb struct {
+type MongoDB struct {
 	initialized bool
 	client      *omgo.Client
 	dbName      string
 	logger      Logger
 }
 
-// NewMongoDB returns a new instance of Mongodb connected to the specified database.
+// NewMongoDB returns a new instance of MongoDB connected to the specified database.
 // It takes a connection URI, database name, and an optional logger as parameters.
 // If no logger is provided, it uses a default logger.
-// It returns a pointer to Mongodb and an error if there is any.
-func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*Mongodb, error) {
+// It returns a pointer to MongoDB and an error if there is any.
+func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*MongoDB, error) {
 	ctx := context.Background()
 	client, err := omgo.NewClient(ctx, &omgo.Config{
 		Uri:      connectionUri,
@@ -26,7 +26,7 @@ func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*M
 	if err != nil {
 		return nil, err
 	}
-	m := &Mongodb{
+	m := &MongoDB{
 		client: client,
 		dbName: databaseName,
 	}
@@ -44,7 +44,7 @@ func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*M
 // It takes a timeout duration as a parameter.
 // If an error occurs while creating the context with the timeout, it logs the error and returns a new context without a timeout.
 // It returns the created context.
-func (m *Mongodb) newCtxWithTimeout(timeout time.Duration) context.Context {
+func (m *MongoDB) newCtxWithTimeout(timeout time.Duration) context.Context {
 	ctx, err := context.WithTimeout(context.Background(), timeout)
 	if err != nil {
 		m.logger.Error(err)
@@ -57,12 +57,12 @@ func (m *Mongodb) newCtxWithTimeout(timeout time.Duration) context.Context {
 // newCtx returns a new context with a default timeout of 10 seconds. It internally calls newCtxWithTimeout with the specified duration.
 // It doesn't take any parameters.
 // It returns the created context.
-func (m *Mongodb) newCtx() context.Context {
+func (m *MongoDB) newCtx() context.Context {
 	return m.newCtxWithTimeout(10 * time.Second)
 }
 
 // Close closes the connection to the database.
-func (m *Mongodb) Close() error {
+func (m *MongoDB) Close() error {
 	if err := m.client.Close(m.newCtx()); err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (m *Mongodb) Close() error {
 }
 
 // Ping checks the connection to the database.
-func (m *Mongodb) Ping() error {
+func (m *MongoDB) Ping() error {
 	if err := m.client.Ping(10); err != nil {
 		return err
 	}

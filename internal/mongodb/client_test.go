@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func SetupDefaultConnection() *mongodb.Mongodb {
+func SetupDefaultConnection() *mongodb.MongoDB {
 	mdb, err := mongodb.NewMongoDB("mongodb://localhost:27017/", "wshop_test")
 	if err != nil {
 		panic(err)

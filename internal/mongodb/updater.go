@@ -8,12 +8,12 @@ import (
 type updater struct {
 	collectionModel IDefaultModel
 	ctx             context.Context
-	m               *Mongodb
+	m               *MongoDB
 	hasResult       bool
 	err             error
 }
 
-func (m *Mongodb) UseUpdater(model IDefaultModel) *updater {
+func (m *MongoDB) UseUpdater(model IDefaultModel) *updater {
 	return &updater{
 		collectionModel: model,
 		ctx:             m.ctx(),
