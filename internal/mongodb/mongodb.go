@@ -153,6 +153,23 @@ func (m *MongoDB) FindById(model IDefaultModel, id string, res any) (bool, error
 	return true, nil
 }
 
+// FindWithCursor is a method that returns an omgo.CursorI interface based on the provided model and filter.
+// If the MongoDB instance is not initialized, it logs an error and returns nil.
+// If the filter is nil, it uses an empty filter (bson.D{}) by default.
+// It returns the cursor object.
+func (m *MongoDB) FindWithCursor(model IDefaultModel, filter any) omgo.CursorI {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+		return nil
+	}
+
+	if filter == nil {
+		filter = bson.D{}
+	}
+
+	return m.col(model).Find(m.ctx(), filter).Cursor()
+}
+
 // Insert is a method that inserts a single document into a MongoDB collection.
 func (m *MongoDB) Insert(model IDefaultModel) (*omgo.InsertOneResult, error) {
 	if !m.initialized {
