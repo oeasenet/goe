@@ -2,7 +2,7 @@ package event
 
 import (
 	"context"
-	"go.oease.dev/goe/internal/event/bus"
+	"go.oease.dev/goe/modules/event/bus"
 )
 
 type frameworkEvent struct {

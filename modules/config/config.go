@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/joho/godotenv"
-	"go.oease.dev/goe/internal/utils"
+	"go.oease.dev/goe/core/utils"
 	"os"
 	"strconv"
 	"strings"

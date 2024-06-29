@@ -2,7 +2,7 @@ package mongodb_test
 
 import (
 	"github.com/stretchr/testify/require"
-	"go.oease.dev/goe/internal/mongodb"
+	"go.oease.dev/goe/modules/mongodb"
 	"testing"
 )
 
