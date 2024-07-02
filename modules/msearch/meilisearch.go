@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/meilisearch/meilisearch-go"
-	"reflect"
+	"go.oease.dev/goe/utils"
 	"time"
 )
 
@@ -76,8 +76,8 @@ func (ms *MSearch) WaitForTaskSuccess(taskUID int64) error {
 // Note: This method depends on the MSearch.WaitForTaskSuccess method for waiting
 // for the task to complete. Please refer to the documentation of that method for more details.
 func (ms *MSearch) AddDoc(indexName string, docPtr any) error {
-	if reflect.ValueOf(docPtr).Kind() != reflect.Ptr {
-		return errors.New("docPtr must be a pointer")
+	if !utils.CheckIfPointer(docPtr) {
+		return errors.New("docPtr must be a non-nil pointer")
 	}
 	resp, err := ms.client.Index(indexName).AddDocuments(docPtr)
 	if err != nil {
@@ -106,10 +106,10 @@ func (ms *MSearch) DelDoc(indexName string, docId string) error {
 // It then calls the UpdateDocuments function of the client's Index with the docPtr.
 // If there's an error during the update process, it returns the error.
 // Finally, it calls WaitForTaskSuccess with the TaskUID from the response,
-// to wait for the update task to complete.
+// to wait for the update task to complete.underlying concrete type
 func (ms *MSearch) UpdateDoc(indexName string, docPtr any) error {
-	if reflect.ValueOf(docPtr).Kind() != reflect.Ptr {
-		return errors.New("docPtr must be a pointer")
+	if !utils.CheckIfPointer(docPtr) {
+		return errors.New("docPtr must be a non-nil pointer")
 	}
 	resp, err := ms.client.Index(indexName).UpdateDocuments(docPtr)
 	if err != nil {
@@ -119,8 +119,8 @@ func (ms *MSearch) UpdateDoc(indexName string, docPtr any) error {
 }
 
 func (ms *MSearch) GetDoc(indexName string, docId string, bindResult any) (bool, error) {
-	if reflect.ValueOf(bindResult).Kind() != reflect.Ptr {
-		return false, errors.New("bindResult must be a pointer")
+	if !utils.CheckIfPointer(bindResult) {
+		return false, errors.New("bindResult must be a non-nil pointer")
 	}
 	err := ms.client.Index(indexName).GetDocument(docId, nil, bindResult)
 	if err != nil {

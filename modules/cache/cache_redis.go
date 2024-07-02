@@ -4,7 +4,7 @@ import (
 	"errors"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/storage/redis/v3"
-	"reflect"
+	"go.oease.dev/goe/utils"
 	"runtime"
 	"time"
 )
@@ -42,8 +42,8 @@ func (r *RedisCache) Get(key string) []byte {
 }
 
 func (r *RedisCache) GetBind(key string, bindPtr any) error {
-	if reflect.TypeOf(bindPtr).Kind() != reflect.Ptr {
-		return errors.New("bindPtr must be a pointer")
+	if !utils.CheckIfPointer(bindPtr) {
+		return errors.New("bindPtr must be a non-nil pointer")
 	}
 	res, err := r.store.Get(key)
 	if err != nil {
@@ -58,8 +58,8 @@ func (r *RedisCache) Set(key string, value []byte, expire time.Duration) error {
 }
 
 func (r *RedisCache) SetBind(key string, bindPtr any, expire time.Duration) error {
-	if reflect.TypeOf(bindPtr).Kind() != reflect.Ptr {
-		return errors.New("bindPtr must be a pointer")
+	if !utils.CheckIfPointer(bindPtr) {
+		return errors.New("bindPtr must be a non-nil pointer")
 	}
 	b, err := json.Marshal(bindPtr)
 	if err != nil {

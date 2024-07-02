@@ -5,9 +5,9 @@ import (
 	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.oease.dev/goe/utils"
 	"go.oease.dev/omgo"
 	"go.oease.dev/omgo/options"
-	"reflect"
 )
 
 // col is a helper function that returns a MongoDB collection based on the provided model or collection name.
@@ -41,8 +41,8 @@ func (m *MongoDB) FindPage(model IDefaultModel, filter any, res any, pageSize in
 		return 0, 0
 	}
 
-	if reflect.TypeOf(res).Kind() != reflect.Ptr {
-		m.logger.Error("res must be a pointer")
+	if !utils.CheckIfPointer(res) {
+		m.logger.Error("bindPtr must be a non-nil pointer")
 		return 0, 0
 	}
 
@@ -111,8 +111,8 @@ func (m *MongoDB) FindOne(model IDefaultModel, filter any, res any) (bool, error
 		return false, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
-	if reflect.TypeOf(res).Kind() != reflect.Ptr {
-		return false, errors.New("res must be a pointer")
+	if !utils.CheckIfPointer(res) {
+		return false, errors.New("res must be a non-nil pointer")
 	}
 
 	if filter == nil {
@@ -136,8 +136,8 @@ func (m *MongoDB) FindById(model IDefaultModel, id string, res any) (bool, error
 		return false, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
-	if reflect.TypeOf(res).Kind() != reflect.Ptr {
-		return false, errors.New("res must be a pointer")
+	if !utils.CheckIfPointer(res) {
+		return false, errors.New("res must be a non-nil pointer")
 	}
 
 	err := m.col(model).Find(m.ctx(), bson.M{"_id": MustHexToObjectId(id)}).One(res)
@@ -218,8 +218,8 @@ func (m *MongoDB) Aggregate(model IDefaultModel, pipeline any, res any) error {
 		return errors.New("must initialize MongoDB first, by calling NewMongodb() method")
 	}
 
-	if reflect.TypeOf(res).Kind() != reflect.Ptr {
-		return errors.New("res must be a pointer")
+	if !utils.CheckIfPointer(res) {
+		return errors.New("res must be a non-nil pointer")
 	}
 
 	return m.col(model).Aggregate(m.ctx(), pipeline).All(res)
