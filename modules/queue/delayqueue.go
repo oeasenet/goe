@@ -3,7 +3,7 @@ package queue
 import (
 	"errors"
 	"fmt"
-	"go.oease.dev/goe/core/utils"
+	"go.oease.dev/goe/utils"
 	"log"
 	"strconv"
 	"sync"
