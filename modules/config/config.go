@@ -9,35 +9,21 @@ import (
 	"strings"
 )
 
-type Config interface {
-	Get(string) string
-	GetString(key string) string
-	GetInt(key string) int
-	GetBool(key string) bool
-	GetStringSlice(key string) []string
-	GetIntSlice(key string) []int
-	GetBoolSlice(key string) []bool
-
-	GetOrDefaultString(key string, defaultValue string) string
-	GetOrDefaultInt(key string, defaultValue int) int
-	GetOrDefaultBool(key string, defaultValue bool) bool
-}
-
 const (
 	defaultFileName         = "/.env"
 	defaultOverrideFileName = "/.local.env"
 )
 
-type config struct {
+type Config struct {
 }
 
-func New(folder string) Config {
-	c := &config{}
+func New(folder string) *Config {
+	c := &Config{}
 	c.read(folder)
 	return c
 }
 
-func (c *config) read(folder string) {
+func (c *Config) read(folder string) {
 	var (
 		defaultFile  = folder + defaultFileName
 		overrideFile = folder + defaultOverrideFileName
@@ -76,15 +62,15 @@ func (c *config) read(folder string) {
 	}
 }
 
-func (c *config) Get(key string) string {
+func (c *Config) Get(key string) string {
 	return os.Getenv(key)
 }
 
-func (c *config) GetString(key string) string {
+func (c *Config) GetString(key string) string {
 	return c.Get(key)
 }
 
-func (c *config) GetInt(key string) int {
+func (c *Config) GetInt(key string) int {
 	val, err := utils.Convert(c.GetString(key), strconv.Atoi, 0)
 	if err != nil {
 		return 0
@@ -92,7 +78,7 @@ func (c *config) GetInt(key string) int {
 	return *val
 }
 
-func (c *config) GetBool(key string) bool {
+func (c *Config) GetBool(key string) bool {
 	val, err := utils.Convert(c.GetString(key), strconv.ParseBool, false)
 	if err != nil {
 		return false
@@ -100,7 +86,7 @@ func (c *config) GetBool(key string) bool {
 	return *val
 }
 
-func (c *config) GetStringSlice(key string) []string {
+func (c *Config) GetStringSlice(key string) []string {
 	str := c.GetString(key)
 	if str == "" {
 		return nil
@@ -112,7 +98,7 @@ func (c *config) GetStringSlice(key string) []string {
 	return strArr
 }
 
-func (c *config) GetIntSlice(key string) []int {
+func (c *Config) GetIntSlice(key string) []int {
 	str := c.GetString(key)
 	if str == "" {
 		return nil
@@ -130,7 +116,7 @@ func (c *config) GetIntSlice(key string) []int {
 	return intArr
 }
 
-func (c *config) GetBoolSlice(key string) []bool {
+func (c *Config) GetBoolSlice(key string) []bool {
 	str := c.GetString(key)
 	if str == "" {
 		return nil
@@ -148,14 +134,14 @@ func (c *config) GetBoolSlice(key string) []bool {
 	return boolArr
 }
 
-func (c *config) GetOrDefaultString(key string, defaultValue string) string {
+func (c *Config) GetOrDefaultString(key string, defaultValue string) string {
 	if val := c.GetString(key); val != "" {
 		return val
 	}
 	return defaultValue
 }
 
-func (c *config) GetOrDefaultInt(key string, defaultValue int) int {
+func (c *Config) GetOrDefaultInt(key string, defaultValue int) int {
 	val, err := utils.Convert(c.GetString(key), strconv.Atoi, defaultValue)
 	if err != nil {
 		return defaultValue
@@ -166,7 +152,7 @@ func (c *config) GetOrDefaultInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func (c *config) GetOrDefaultBool(key string, defaultValue bool) bool {
+func (c *Config) GetOrDefaultBool(key string, defaultValue bool) bool {
 	val, err := utils.Convert(c.GetString(key), strconv.ParseBool, defaultValue)
 	if err != nil {
 		return defaultValue
