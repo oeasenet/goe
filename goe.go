@@ -1,14 +1,96 @@
 package goe
 
+import (
+	"go.oease.dev/goe/contracts"
+	"go.oease.dev/goe/core"
+	"go.oease.dev/goe/modules/config"
+	"go.oease.dev/goe/modules/log"
+)
+
 type App struct {
+	configs   *core.GoeConfig
+	container *core.Container
 }
 
 var appInstance *App
 
-func NewApp() *App {
-
+func NewApp() error {
+	configModule := config.New("./configs")
+	appEnv := configModule.GetOrDefaultString("APP_ENV", "dev")
+	var logModule *log.Log
+	if appEnv == "dev" {
+		logModule = log.New(log.LevelDev)
+	} else {
+		logModule = log.New(log.LevelProd)
+	}
+	app := &App{}
+	err := app.applyEnvConfig(configModule)
+	if err != nil {
+		return err
+	}
+	app.container = core.NewContainer(configModule, logModule, app.configs)
+	appInstance = app
+	return nil
 }
 
-func (app *App) ApplyEnvConfig() {
+// applyEnvConfig applies environment configuration to the App instance.
+// It populates the configs field with values from the configModule parameter.
+// It returns an error if there is an issue applying the configuration.
+func (app *App) applyEnvConfig(configModule *config.Config) error {
+	app.configs = &core.GoeConfig{
+		Features: &core.GoeConfigFeatures{
+			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
+			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_SYNC_ENABLED", false),
+			SMTPMailerEnabled:   configModule.GetOrDefaultBool("SMTP_MAILER_ENABLED", false),
+		},
+		MongoDB: &core.GoeConfigMongodb{
+			URI: configModule.GetOrDefaultString("MONGODB_URI", ""),
+			DB:  configModule.GetOrDefaultString("MONGODB_DB", ""),
+		},
+		Redis: &core.GoeConfigRedis{
+			Host:     configModule.GetOrDefaultString("REDIS_HOST", ""),
+			Port:     configModule.GetOrDefaultInt("REDIS_PORT", 0),
+			Username: configModule.GetOrDefaultString("REDIS_USERNAME", ""),
+			Password: configModule.GetOrDefaultString("REDIS_PASSWORD", ""),
+		},
+		Meilisearch: &core.GoeConfigMeilisearch{
+			Endpoint: configModule.GetOrDefaultString("MEILISEARCH_ENDPOINT", ""),
+			ApiKey:   configModule.GetOrDefaultString("MEILISEARCH_API_KEY", ""),
+		},
+		Mailer: &core.GoeConfigMailer{
+			Host:      configModule.GetOrDefaultString("SMTP_HOST", ""),
+			Port:      configModule.GetOrDefaultInt("SMTP_PORT", 0),
+			Username:  configModule.GetOrDefaultString("SMTP_USERNAME", ""),
+			Password:  configModule.GetOrDefaultString("SMTP_PASSWORD", ""),
+			Tls:       configModule.GetOrDefaultBool("SMTP_TLS", false),
+			LocalName: configModule.GetOrDefaultString("SMTP_LOCAL_NAME", ""),
+			FromEmail: configModule.GetOrDefaultString("SMTP_FROM_EMAIL", ""),
+			FromName:  configModule.GetOrDefaultString("SMTP_FROM_NAME", ""),
+		},
+	}
+	return nil
+}
 
+func UseDB() contracts.MongoDB {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetMongo()
+}
+
+func UseLog() contracts.Logger {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetLogger()
+}
+
+func UseCfg() contracts.Config {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetConfig()
 }

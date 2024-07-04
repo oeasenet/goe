@@ -1,67 +1,85 @@
 package core
 
-//
-//import (
-//	"github.com/samber/do/v2"
-//	"oease.dev/pkg/goe/config"
-//	"oease.dev/pkg/goe/logging"
-//	"oease.dev/pkg/goe/modules/mongo"
-//	"os"
-//)
-//
-//// Container is the interface for putting all global accessible objects together
-//type Container interface {
-//	UseConfig() config.Config
-//	UseFiber()
-//	UseMongoDB()
-//	UseRedis()
-//	UseLogger() logging.Logger
-//	UseMq()
-//	UseCache()
-//	UseSearch()
-//	UseMailer()
-//	UseEventBus()
-//
-//	GetFrameworkVersion() string
-//}
-//
-//type container struct {
-//	goeConfig *config.GoeConfig
-//	logger    logging.Logger
-//	config    config.Config
-//	injector  *do.RootScope
-//}
-//
-//func NewContainer(cfg *config.GoeConfig) Container {
-//	c := &container{}
-//	c.goeConfig = cfg
-//	c.init()
-//	return c
-//}
-//
-//// init initializes the container, take all the necessary steps to make all modules ready.
-//func (c *container) init() {
-//	// init logger
-//	log := logging.New()
-//
-//	// init config
-//	envFolder := os.Getenv("ENV_HOME")
-//	if envFolder == "" {
-//		envFolder = "."
-//	}
-//	envCfg := config.New(envFolder, log)
-//	// check log level, if different create new log instance
-//	if envCfg.GetAppEnv() == "prod" {
-//		log.Close()
-//		log = logging.New(logging.LevelProd)
-//	}
-//
-//	// base core modules init completed
-//
-//	// init dependency injection core
-//	c.injector = do.New()
-//	goePackages := do.Package(
-//		do.Lazy(func(injector do.Injector) (*mongo.GoeMongo, error) { return mongo.NewGoeMongo(injector) }),
-//	)
-//	c.injector.Scope("goe", goePackages)
-//}
+import (
+	"go.oease.dev/goe/contracts"
+	"go.oease.dev/goe/modules/msearch"
+)
+
+type Container struct {
+	config      contracts.Config
+	mongo       contracts.MongoDB
+	mailer      contracts.Mailer
+	meilisearch contracts.Meilisearch
+	logger      contracts.Logger
+	queue       contracts.Queue
+	appConfig   *GoeConfig
+}
+
+func NewContainer(config contracts.Config, logger contracts.Logger, appConfig *GoeConfig) *Container {
+	return &Container{
+		config:    config,
+		logger:    logger,
+		appConfig: appConfig,
+	}
+}
+
+func (c *Container) InitMongo() {
+	// Initialize MongoDB
+	mdb, err := NewGoeMongoDB(c.appConfig, c.logger)
+	if err != nil {
+		c.logger.Panic("Failed to initialize MongoDB: ", err)
+		return
+	} else {
+		c.mongo = mdb
+	}
+}
+
+func (c *Container) InitMeilisearch() {
+	if c.appConfig.Features.MeilisearchEnabled {
+		if c.appConfig.Meilisearch.ApiKey == "" {
+			c.logger.Panic("meilisearch api key is required")
+			return
+		}
+		if c.appConfig.Meilisearch.Endpoint == "" {
+			c.logger.Panic("meilisearch endpoint is required")
+			return
+		}
+		ms := msearch.NewMSearch(c.appConfig.Meilisearch.Endpoint, c.appConfig.Meilisearch.ApiKey, c.logger)
+		if ms == nil {
+			c.logger.Panic("Failed to initialize Meilisearch")
+			return
+		}
+		c.meilisearch = ms
+		if c.appConfig.Features.SearchDBSyncEnabled {
+			err := c.mongo.(*GoeMongoDB).SetMeilisearch(ms)
+			if err != nil {
+				c.logger.Panic("Failed to bind Meilisearch to MongoDB: ", err)
+				return
+			}
+		}
+	}
+}
+
+func (c *Container) GetConfig() contracts.Config {
+	return c.config
+}
+
+func (c *Container) GetMongo() contracts.MongoDB {
+	return c.mongo
+}
+
+func (c *Container) GetMailer() contracts.Mailer {
+	return c.mailer
+}
+
+func (c *Container) GetMeilisearch() contracts.Meilisearch {
+	return c.meilisearch
+}
+
+func (c *Container) GetLogger() contracts.Logger {
+	return c.logger
+}
+
+func (c *Container) GetQueue() contracts.Queue {
+	return c.queue
+}

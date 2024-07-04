@@ -10,13 +10,9 @@ type GoeConfig struct {
 }
 
 type GoeConfigFeatures struct {
-	MongoDBEnabled       bool `json:"mongo_db_enabled"`
-	RedisEnabled         bool `json:"redis_enabled"`
-	MeilisearchEnabled   bool `json:"meilisearch_enabled"`
-	MSearchDBSyncEnabled bool `json:"m_search_db_sync_enabled"`
-	SMTPMailerEnabled    bool `json:"smtp_mailer_enabled"`
-	RedisMQEnabled       bool `json:"redis_mq_enabled"`
-	CacheEnabled         bool `json:"cache_enabled"`
+	MeilisearchEnabled  bool `json:"meilisearch_enabled"`
+	SearchDBSyncEnabled bool `json:"search_db_sync_enabled"`
+	SMTPMailerEnabled   bool `json:"smtp_mailer_enabled"`
 }
 
 type GoeConfigMongodb struct {
