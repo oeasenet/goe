@@ -114,3 +114,7 @@ func (c *Container) GetLogger() contracts.Logger {
 func (c *Container) GetQueue() contracts.Queue {
 	return c.queue
 }
+
+func (c *Container) GetCache() contracts.Cache {
+	return c.cache
+}

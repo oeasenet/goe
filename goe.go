@@ -30,6 +30,21 @@ func NewApp() error {
 	}
 	app.container = core.NewContainer(configModule, logModule, app.configs)
 	appInstance = app
+
+	// Initialize MongoDB
+	appInstance.container.InitMongo()
+
+	// Initialize Meilisearch
+	if appInstance.configs.Features.MeilisearchEnabled {
+		appInstance.container.InitMeilisearch()
+	}
+
+	// Init Queue
+	appInstance.container.InitQueue()
+
+	// Init Cache
+	appInstance.container.InitCache()
+
 	return nil
 }
 
@@ -100,4 +115,28 @@ func UseCfg() contracts.Config {
 		return nil
 	}
 	return appInstance.container.GetConfig()
+}
+
+func UseMQ() contracts.Queue {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetQueue()
+}
+
+func UseCache() contracts.Cache {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetCache()
+}
+
+func UseSearch() contracts.Meilisearch {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetMeilisearch()
 }
