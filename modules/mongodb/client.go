@@ -36,6 +36,11 @@ func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*M
 		// Default logger
 		m.logger = newDefaultLogger()
 	}
+
+	if m.Ping() != nil {
+		return nil, err
+	}
+
 	m.initialized = true
 	return m, nil
 }
