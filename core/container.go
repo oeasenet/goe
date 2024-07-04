@@ -8,12 +8,12 @@ import (
 
 type Container struct {
 	config      contracts.Config
-	mongo       contracts.MongoDB
-	mailer      contracts.Mailer
-	meilisearch contracts.Meilisearch
 	logger      contracts.Logger
+	mongo       contracts.MongoDB
+	meilisearch contracts.Meilisearch
 	queue       contracts.Queue
 	cache       contracts.Cache
+	mailer      contracts.Mailer
 	appConfig   *GoeConfig
 }
 
@@ -71,6 +71,22 @@ func (c *Container) InitCache() {
 		}
 	} else {
 		c.logger.Panic("Failed to initialize Redis Cache: missing required redis configuration")
+		return
+	}
+}
+
+func (c *Container) InitQueue() {
+	// Initialize Queue
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 && c.appConfig.Redis.Username != "" && c.appConfig.Redis.Password != "" {
+		q, err := NewGoeQueue(c.appConfig, c.logger)
+		if err != nil {
+			c.logger.Panic("Failed to initialize Redis MQ: ", err)
+			return
+		} else {
+			c.queue = q
+		}
+	} else {
+		c.logger.Panic("Failed to initialize Redis MQ: missing required redis configuration")
 		return
 	}
 }
