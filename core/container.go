@@ -2,6 +2,7 @@ package core
 
 import (
 	"go.oease.dev/goe/contracts"
+	"go.oease.dev/goe/modules/cache"
 	"go.oease.dev/goe/modules/msearch"
 )
 
@@ -12,6 +13,7 @@ type Container struct {
 	meilisearch contracts.Meilisearch
 	logger      contracts.Logger
 	queue       contracts.Queue
+	cache       contracts.Cache
 	appConfig   *GoeConfig
 }
 
@@ -57,6 +59,19 @@ func (c *Container) InitMeilisearch() {
 				return
 			}
 		}
+	}
+}
+
+func (c *Container) InitCache() {
+	// Initialize Cache
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 && c.appConfig.Redis.Username != "" && c.appConfig.Redis.Password != "" {
+		c.cache = cache.NewRedisCache(c.appConfig.Redis.Host, c.appConfig.Redis.Port, c.appConfig.Redis.Username, c.appConfig.Redis.Password, RedisDBCache, c.logger)
+		if c.cache == nil {
+			c.logger.Panic("Failed to initialize Redis Cache")
+		}
+	} else {
+		c.logger.Panic("Failed to initialize Redis Cache: missing required redis configuration")
+		return
 	}
 }
 
