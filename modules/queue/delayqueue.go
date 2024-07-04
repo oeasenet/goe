@@ -24,7 +24,7 @@ type DelayQueue struct {
 	garbageKey    string // set: message id
 	useHashTag    bool
 	ticker        *time.Ticker
-	logger        *log.Logger
+	logger        Logger
 	close         chan struct{}
 
 	maxConsumeDuration time.Duration // default 5 seconds
@@ -120,7 +120,7 @@ func NewQueue0(name string, cli RedisCli, opts ...interface{}) *DelayQueue {
 		close:              nil,
 		maxConsumeDuration: 5 * time.Second,
 		msgTTL:             time.Hour,
-		logger:             log.Default(),
+		logger:             newDefaultLogger(),
 		defaultRetryCount:  3,
 		fetchInterval:      time.Second,
 		concurrent:         1,
@@ -135,7 +135,7 @@ func (q *DelayQueue) WithCallback(callback CallbackFunc) *DelayQueue {
 }
 
 // WithLogger customizes logger for queue
-func (q *DelayQueue) WithLogger(logger *log.Logger) *DelayQueue {
+func (q *DelayQueue) WithLogger(logger Logger) *DelayQueue {
 	q.logger = logger
 	return q
 }
@@ -345,7 +345,7 @@ func (q *DelayQueue) batchCallback(ids []string) {
 		for _, id := range ids {
 			err := q.callback(id)
 			if err != nil {
-				q.logger.Printf("consume msg %s failed: %v", id, err)
+				q.logger.Errorf("consume msg %s failed: %v", id, err)
 			}
 		}
 		return
@@ -367,7 +367,7 @@ func (q *DelayQueue) batchCallback(ids []string) {
 			for id := range ch {
 				err := q.callback(id)
 				if err != nil {
-					q.logger.Printf("consume msg %s failed: %v", id, err)
+					q.logger.Errorf("consume msg %s failed: %v", id, err)
 				}
 			}
 		}()

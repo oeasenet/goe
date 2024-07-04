@@ -1,8 +1,6 @@
 package queue
 
 import (
-	"log"
-
 	"github.com/redis/go-redis/v9"
 )
 
@@ -27,7 +25,7 @@ func NewMonitor(name string, cli *redis.Client, opts ...interface{}) *Monitor {
 }
 
 // WithLogger customizes logger for queue
-func (m *Monitor) WithLogger(logger *log.Logger) *Monitor {
+func (m *Monitor) WithLogger(logger Logger) *Monitor {
 	m.inner.logger = logger
 	return m
 }
@@ -60,7 +58,7 @@ func (m *Monitor) ListenEvent(listener EventListener) (func(), error) {
 		for payload := range sub {
 			event, err := decodeEvent(payload)
 			if err != nil {
-				m.inner.logger.Printf("[listen event] %v\n", event)
+				m.inner.logger.Debugf("[listen event] %v\n", event)
 			} else {
 				listener.OnEvent(event)
 			}
