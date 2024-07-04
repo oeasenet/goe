@@ -40,7 +40,7 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 	app.configs = &core.GoeConfig{
 		Features: &core.GoeConfigFeatures{
 			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
-			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_SYNC_ENABLED", false),
+			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_DB_SYNC", false),
 			SMTPMailerEnabled:   configModule.GetOrDefaultBool("SMTP_MAILER_ENABLED", false),
 		},
 		MongoDB: &core.GoeConfigMongodb{
@@ -66,6 +66,13 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			LocalName: configModule.GetOrDefaultString("SMTP_LOCAL_NAME", ""),
 			FromEmail: configModule.GetOrDefaultString("SMTP_FROM_EMAIL", ""),
 			FromName:  configModule.GetOrDefaultString("SMTP_FROM_NAME", ""),
+		},
+		Queue: &core.GoeConfigQueue{
+			ConcurrentWorkers:  configModule.GetOrDefaultInt("QUEUE_CONCURRENCY", 1),
+			FetchInterval:      configModule.GetOrDefaultInt("QUEUE_FETCH_INTERVAL", 1),
+			FetchLimit:         configModule.GetOrDefaultInt("QUEUE_FETCH_LIMIT", 0),
+			MaxConsumeDuration: configModule.GetOrDefaultInt("QUEUE_MAX_CONSUME_DURATION", 5),
+			DefaultRetries:     configModule.GetOrDefaultInt("QUEUE_DEFAULT_RETRIES", 3),
 		},
 	}
 	return nil

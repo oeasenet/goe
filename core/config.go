@@ -44,4 +44,9 @@ type GoeConfigMailer struct {
 }
 
 type GoeConfigQueue struct {
+	ConcurrentWorkers  int `json:"concurrent_workers"`
+	FetchInterval      int `json:"fetch_interval"`
+	FetchLimit         int `json:"fetch_limit"`
+	MaxConsumeDuration int `json:"max_consume_duration"`
+	DefaultRetries     int `json:"default_retries"`
 }
