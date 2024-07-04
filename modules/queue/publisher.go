@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -28,7 +27,7 @@ func NewPublisher(name string, cli *redis.Client, opts ...interface{}) *Publishe
 }
 
 // WithLogger customizes logger for queue
-func (p *Publisher) WithLogger(logger *log.Logger) *Publisher {
+func (p *Publisher) WithLogger(logger Logger) *Publisher {
 	p.inner.logger = logger
 	return p
 }
