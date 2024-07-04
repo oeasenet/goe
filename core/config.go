@@ -1,12 +1,20 @@
 package core
 
 type GoeConfig struct {
+	App         *AppConfigs
 	Features    *GoeConfigFeatures
 	MongoDB     *GoeConfigMongodb
 	Redis       *GoeConfigRedis
 	Meilisearch *GoeConfigMeilisearch
 	Mailer      *GoeConfigMailer
 	Queue       *GoeConfigQueue
+	Http        *GoeConfigHttp
+}
+
+type AppConfigs struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Env     string `json:"env"`
 }
 
 type GoeConfigFeatures struct {
@@ -49,4 +57,16 @@ type GoeConfigQueue struct {
 	FetchLimit         int `json:"fetch_limit"`
 	MaxConsumeDuration int `json:"max_consume_duration"`
 	DefaultRetries     int `json:"default_retries"`
+}
+
+type GoeConfigHttp struct {
+	Port            string   `json:"port"`
+	ServerHeader    string   `json:"server_header"`
+	BodyLimit       int      `json:"body_limit"`
+	Concurrency     int      `json:"concurrency"`
+	ProxyHeader     string   `json:"proxy_header"`
+	TrustProxyCheck bool     `json:"trust_proxy_check"`
+	TrustProxies    []string `json:"trust_proxies"`
+	ReduceMemory    bool     `json:"reduce_memory"`
+	IPValidation    bool     `json:"ip_validation"`
 }

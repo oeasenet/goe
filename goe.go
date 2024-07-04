@@ -1,6 +1,7 @@
 package goe
 
 import (
+	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/core"
 	"go.oease.dev/goe/modules/config"
@@ -50,6 +51,9 @@ func NewApp() error {
 		appInstance.container.InitMailer()
 	}
 
+	// Init Fiber
+	appInstance.container.InitFiber()
+
 	return nil
 }
 
@@ -58,6 +62,11 @@ func NewApp() error {
 // It returns an error if there is an issue applying the configuration.
 func (app *App) applyEnvConfig(configModule *config.Config) error {
 	app.configs = &core.GoeConfig{
+		App: &core.AppConfigs{
+			Name:    configModule.GetOrDefaultString("APP_NAME", "GoeApp"),
+			Version: configModule.GetOrDefaultString("APP_VERSION", "v1.0.0"),
+			Env:     configModule.GetOrDefaultString("APP_ENV", "dev"),
+		},
 		Features: &core.GoeConfigFeatures{
 			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
 			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_DB_SYNC", false),
@@ -93,6 +102,17 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			FetchLimit:         configModule.GetOrDefaultInt("QUEUE_FETCH_LIMIT", 0),
 			MaxConsumeDuration: configModule.GetOrDefaultInt("QUEUE_MAX_CONSUME_DURATION", 5),
 			DefaultRetries:     configModule.GetOrDefaultInt("QUEUE_DEFAULT_RETRIES", 3),
+		},
+		Http: &core.GoeConfigHttp{
+			Port:            configModule.GetOrDefaultString("HTTP_PORT", "3000"),
+			ServerHeader:    configModule.GetOrDefaultString("HTTP_SERVER_HEADER", "GoeAppServer/v1"),
+			BodyLimit:       configModule.GetOrDefaultInt("HTTP_BODY_LIMIT", fiber.DefaultBodyLimit),
+			Concurrency:     configModule.GetOrDefaultInt("HTTP_CONCURRENCY", fiber.DefaultConcurrency),
+			ProxyHeader:     configModule.GetOrDefaultString("HTTP_PROXY_HEADER", ""),
+			TrustProxyCheck: configModule.GetOrDefaultBool("HTTP_TRUSTED_PROXY_CHECK", false),
+			TrustProxies:    configModule.GetStringSlice("HTTP_TRUSTED_PROXIES"),
+			IPValidation:    configModule.GetOrDefaultBool("HTTP_IP_VALIDATION", false),
+			ReduceMemory:    configModule.GetOrDefaultBool("HTTP_REDUCE_MEMORY", false),
 		},
 	}
 	return nil
@@ -152,6 +172,14 @@ func UseMailer() contracts.Mailer {
 		return nil
 	}
 	return appInstance.container.GetMailer()
+}
+
+func UseFiber() contracts.GoeFiber {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetFiber()
 }
 
 func Close() {

@@ -14,6 +14,7 @@ type Container struct {
 	queue       contracts.Queue
 	cache       contracts.Cache
 	mailer      contracts.Mailer
+	fiber       contracts.GoeFiber
 	appConfig   *GoeConfig
 }
 
@@ -111,6 +112,15 @@ func (c *Container) InitMailer() {
 	}
 }
 
+func (c *Container) InitFiber() {
+	fb := NewGoeFiber(c.appConfig, c.logger)
+	if fb == nil {
+		c.logger.Panic("Failed to initialize Fiber")
+		return
+	}
+	c.fiber = fb
+}
+
 func (c *Container) GetConfig() contracts.Config {
 	return c.config
 }
@@ -137,6 +147,10 @@ func (c *Container) GetQueue() contracts.Queue {
 
 func (c *Container) GetCache() contracts.Cache {
 	return c.cache
+}
+
+func (c *Container) GetFiber() contracts.GoeFiber {
+	return c.fiber
 }
 
 func (c *Container) Close() error {
