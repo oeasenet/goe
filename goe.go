@@ -153,3 +153,11 @@ func UseMailer() contracts.Mailer {
 	}
 	return appInstance.container.GetMailer()
 }
+
+func Close() {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return
+	}
+	appInstance.container.Close()
+}

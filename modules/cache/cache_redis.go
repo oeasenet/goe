@@ -68,3 +68,11 @@ func (r *RedisCache) SetBind(key string, bindPtr any, expire time.Duration) erro
 	}
 	return r.store.Set(key, b, expire)
 }
+
+func (r *RedisCache) Delete(key string) error {
+	return r.store.Delete(key)
+}
+
+func (r *RedisCache) Close() error {
+	return r.store.Close()
+}

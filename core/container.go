@@ -138,3 +138,16 @@ func (c *Container) GetQueue() contracts.Queue {
 func (c *Container) GetCache() contracts.Cache {
 	return c.cache
 }
+
+func (c *Container) Close() error {
+	if c.mongo != nil {
+		c.mongo.(*GoeMongoDB).mongodbInstance.Close()
+	}
+	if c.queue != nil {
+		c.queue.(*GoeQueue).Close()
+	}
+	if c.cache != nil {
+		c.cache.(*cache.RedisCache).Close()
+	}
+	return nil
+}
