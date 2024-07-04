@@ -45,6 +45,11 @@ func NewApp() error {
 	// Init Cache
 	appInstance.container.InitCache()
 
+	// Init Mailer
+	if appInstance.configs.Features.SMTPMailerEnabled {
+		appInstance.container.InitMailer()
+	}
+
 	return nil
 }
 
@@ -139,4 +144,12 @@ func UseSearch() contracts.Meilisearch {
 		return nil
 	}
 	return appInstance.container.GetMeilisearch()
+}
+
+func UseMailer() contracts.Mailer {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetMailer()
 }
