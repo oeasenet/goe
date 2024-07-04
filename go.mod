@@ -6,17 +6,17 @@ require (
 	github.com/domodwyer/mailyak/v3 v3.6.2
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.2
-	github.com/gofiber/storage/redis/v3 v3.1.1
+	github.com/gofiber/storage/redis/v3 v3.1.2
 	github.com/gookit/goutil v0.6.15
 	github.com/gookit/validate v1.5.2
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.26.3
+	github.com/meilisearch/meilisearch-go v0.27.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/redis/go-redis/v9 v9.5.3
 	github.com/rs/xid v1.5.0
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf
 	github.com/stretchr/testify v1.9.0
-	go.mongodb.org/mongo-driver v1.15.1
+	go.mongodb.org/mongo-driver v1.16.0
 	go.oease.dev/omgo v0.0.0-20240622022518-60728eda9c97
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.26.0

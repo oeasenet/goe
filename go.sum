@@ -20,6 +20,8 @@ github.com/gofiber/fiber/v3 v3.0.0-beta.2 h1:mVVgt8PTaHGup3NGl/+7U7nEoZaXJ5OComV
 github.com/gofiber/fiber/v3 v3.0.0-beta.2/go.mod h1:w7sdfTY0okjZ1oVH6rSOGvuACUIt0By1iK0HKUb3uqM=
 github.com/gofiber/storage/redis/v3 v3.1.1 h1:dkmeTv8qmM6giR65yTAxXN4lP1UU/h7uXuWuQoJOjdI=
 github.com/gofiber/storage/redis/v3 v3.1.1/go.mod h1:BQ/vdV/MJKi8tcLvHfvBPXiM4pzitDx5YqqDz/XvF0I=
+github.com/gofiber/storage/redis/v3 v3.1.2 h1:qYHSRbkRQCD9HovLOOoswe+DoGF28/hwD4d8kmxDNcs=
+github.com/gofiber/storage/redis/v3 v3.1.2/go.mod h1:bwSKrd5Ux2blqXVT8tWOYTmZbFDMZR8dztn7rarDZiU=
 github.com/gofiber/utils/v2 v2.0.0-beta.4 h1:1gjbVFFwVwUb9arPcqiB6iEjHBwo7cHsyS41NeIW3co=
 github.com/gofiber/utils/v2 v2.0.0-beta.4/go.mod h1:sdRsPU1FXX6YiDGGxd+q2aPJRMzpsxdzCXo9dz+xtOY=
 github.com/golang-jwt/jwt/v4 v4.5.0 h1:7cYmW1XlMY7h7ii7UhUyChSgS5wUJEnm9uZVTGqOWzg=
@@ -58,6 +60,8 @@ github.com/mattn/go-runewidth v0.0.15 h1:UNAjwbU9l54TA3KzvqLGxwWjHmMgBUVhBiTjelZ
 github.com/mattn/go-runewidth v0.0.15/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/meilisearch/meilisearch-go v0.26.3 h1:EYt+C1n7IvjKzgXM3xqce5iJzNBq33F7ayZOKx96TKY=
 github.com/meilisearch/meilisearch-go v0.26.3/go.mod h1:SxuSqDcPBIykjWz1PX+KzsYzArNLSCadQodWs8extS0=
+github.com/meilisearch/meilisearch-go v0.27.0 h1:lDFq8WzbsZCtt3/byr7GFqfOygWF5iy9TtDgzJo0Ds8=
+github.com/meilisearch/meilisearch-go v0.27.0/go.mod h1:SxuSqDcPBIykjWz1PX+KzsYzArNLSCadQodWs8extS0=
 github.com/montanaflynn/stats v0.7.1 h1:etflOAAHORrCC44V+aR6Ftzort912ZU+YLiSTuV8eaE=
 github.com/montanaflynn/stats v0.7.1/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
 github.com/olekukonko/tablewriter v0.0.5 h1:P2Ga83D34wi1o9J6Wh1mRuqd4mF/x/lgBS7N7AbDhec=
@@ -103,6 +107,8 @@ github.com/youmark/pkcs8 v0.0.0-20240424034433-3c2c7870ae76/go.mod h1:SQliXeA7Dh
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.mongodb.org/mongo-driver v1.15.1 h1:l+RvoUOoMXFmADTLfYDm7On9dRm7p4T80/lEQM+r7HU=
 go.mongodb.org/mongo-driver v1.15.1/go.mod h1:Vzb0Mk/pa7e6cWw85R4F/endUC3u0U9jGcNU603k65c=
+go.mongodb.org/mongo-driver v1.16.0 h1:tpRsfBJMROVHKpdGyc1BBEzzjDUWjItxbVSZ8Ls4BQ4=
+go.mongodb.org/mongo-driver v1.16.0/go.mod h1:oB6AhJQvFQL4LEHyXi6aJzQJtBiTQHiAd83l0GdFaiw=
 go.oease.dev/omgo v0.0.0-20240622022518-60728eda9c97 h1:mdolzewBwKuo/AvYaBjX9/UD8mzXGf5lCB0U7fw74wA=
 go.oease.dev/omgo v0.0.0-20240622022518-60728eda9c97/go.mod h1:gHy8Nqh46ul5WEzDYNiKTy+ptgxlX4VZOZqgsnlyaww=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
