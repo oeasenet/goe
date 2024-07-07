@@ -68,7 +68,7 @@ func (m *MongoDB) newCtx() context.Context {
 
 // Close closes the connection to the database.
 func (m *MongoDB) Close() error {
-	if err := m.client.Close(m.newCtx()); err != nil {
+	if err := m.client.Close(context.Background()); err != nil {
 		return err
 	}
 	return nil

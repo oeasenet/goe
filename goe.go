@@ -8,6 +8,10 @@ import (
 	"go.oease.dev/goe/core"
 	"go.oease.dev/goe/modules/config"
 	"go.oease.dev/goe/modules/log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 type App struct {
@@ -193,24 +197,29 @@ func Run() error {
 	if appInstance.running {
 		return errors.New("app is already running")
 	}
-	appInstance.gracefulCtx = context.Background()
+	go func() {
+		err := appInstance.container.GetFiber().App().Listen(":"+appInstance.configs.Http.Port, fiber.ListenConfig{
+			DisableStartupMessage: true,
+			EnablePrefork:         false,
+			EnablePrintRoutes:     false,
+			OnShutdownError: func(err error) {
+				appInstance.container.GetLogger().Error("Shutdown error: ", err)
+			},
+		})
+		if err != nil {
+			appInstance.running = false
+			appInstance.container.GetLogger().Panic("Server error: ", err)
+		}
+	}()
 	appInstance.running = true
-	err := appInstance.container.GetFiber().App().Listen(":"+appInstance.configs.Http.Port, fiber.ListenConfig{
-		GracefulContext:       appInstance.gracefulCtx,
-		DisableStartupMessage: true,
-		EnablePrefork:         false,
-		EnablePrintRoutes:     false,
-		OnShutdownError: func(err error) {
-			appInstance.container.GetLogger().Error("Shutdown error: ", err)
-		},
-		OnShutdownSuccess: func() {
-			appInstance.container.GetLogger().Info("Server has shutdown successfully!")
-		},
-	})
-	if err != nil {
+	newShutdownHook().Close(func() {
 		appInstance.running = false
-		return err
-	}
+		err := appInstance.container.GetFiber().App().ShutdownWithTimeout(20 * time.Second)
+		if err != nil {
+			appInstance.container.GetLogger().Error("Server shutdown error: ", err)
+		}
+		appInstance.container.GetLogger().Info("Server has shutdown successfully!")
+	})
 	return nil
 }
 
@@ -223,4 +232,49 @@ func AddShutdownHook(hookHandlers ...func() error) error {
 	}
 	appInstance.container.GetFiber().App().Hooks().OnShutdown(hookHandlers...)
 	return nil
+}
+
+// thanks to https://github.com/xinliangnote/go-gin-api
+
+var _ hook = (*sdhook)(nil)
+
+// Hook a graceful shutdown hook, default with signals of SIGINT and SIGTERM
+type hook interface {
+	// WithSignals add more signals into hook
+	WithSignals(signals ...syscall.Signal) hook
+
+	// Close register shutdown handles
+	Close(funcs ...func())
+}
+
+type sdhook struct {
+	ctx chan os.Signal
+}
+
+// NewHook create a Hook instance
+func newShutdownHook() hook {
+	hook := &sdhook{
+		ctx: make(chan os.Signal, 1),
+	}
+
+	return hook.WithSignals(syscall.SIGINT, syscall.SIGTERM)
+}
+
+func (h *sdhook) WithSignals(signals ...syscall.Signal) hook {
+	for _, s := range signals {
+		signal.Notify(h.ctx, s)
+	}
+
+	return h
+}
+
+func (h *sdhook) Close(funcs ...func()) {
+	select {
+	case <-h.ctx:
+	}
+	signal.Stop(h.ctx)
+
+	for _, f := range funcs {
+		f()
+	}
 }

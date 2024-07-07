@@ -120,6 +120,7 @@ func (c *Container) InitFiber() {
 		return
 	}
 	fb.App().Hooks().OnShutdown(func() error {
+		c.logger.Info("Shutting down the server...")
 		return c.Close()
 	})
 	fb.App().Hooks().OnListen(func(data fiber.ListenData) error {
