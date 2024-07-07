@@ -234,8 +234,7 @@ func AddShutdownHook(hookHandlers ...func() error) error {
 	return nil
 }
 
-// thanks to https://github.com/xinliangnote/go-gin-api
-
+// thanks to https://github.com/xinliangnote/go-gin-api for the shutdown hook implementation
 var _ hook = (*sdhook)(nil)
 
 // Hook a graceful shutdown hook, default with signals of SIGINT and SIGTERM
@@ -246,7 +245,6 @@ type hook interface {
 	// Close register shutdown handles
 	Close(funcs ...func())
 }
-
 type sdhook struct {
 	ctx chan os.Signal
 }
@@ -259,7 +257,6 @@ func newShutdownHook() hook {
 
 	return hook.WithSignals(syscall.SIGINT, syscall.SIGTERM)
 }
-
 func (h *sdhook) WithSignals(signals ...syscall.Signal) hook {
 	for _, s := range signals {
 		signal.Notify(h.ctx, s)
@@ -267,7 +264,6 @@ func (h *sdhook) WithSignals(signals ...syscall.Signal) hook {
 
 	return h
 }
-
 func (h *sdhook) Close(funcs ...func()) {
 	select {
 	case <-h.ctx:
