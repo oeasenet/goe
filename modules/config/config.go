@@ -32,9 +32,9 @@ func (c *Config) read(folder string) {
 
 	err := godotenv.Load(defaultFile)
 	if err != nil {
-		fmt.Printf("Failed to load config from file: %v, Err: %v", defaultFile, err)
+		fmt.Printf("Failed to load config from file: %v, Err: %v \n", defaultFile, err)
 	} else {
-		fmt.Printf("Loaded config from file: %v", defaultFile)
+		fmt.Printf("Loaded config from file: %v \n", defaultFile)
 	}
 
 	switch env {
@@ -43,21 +43,21 @@ func (c *Config) read(folder string) {
 		// by configs present in file '.local.env'
 		err = godotenv.Overload(overrideFile)
 		if err != nil {
-			fmt.Printf("Failed to load config from file: %v, Err: %v", overrideFile, err)
+			fmt.Printf("Failed to load config from file: %v, Err: %v \n", overrideFile, err)
 		} else {
-			fmt.Printf("Loaded config from file: %v", overrideFile)
+			fmt.Printf("Loaded config from file: %v \n", overrideFile)
 		}
 
 	default:
 		// If 'APP_ENV' is set to x, then GoFr will read '.env' from configs directory, and then it will be overwritten
 		// by configs present in file '.x.env'
-		overrideFile = fmt.Sprintf("%s/.%s.env", folder, env)
+		overrideFile = fmt.Sprintf("%s/.%s.env \n", folder, env)
 
 		err = godotenv.Overload(overrideFile)
 		if err != nil {
-			fmt.Printf("Failed to load config from file: %v, Err: %v", overrideFile, err)
+			fmt.Printf("Failed to load config from file: %v, Err: %v \n", overrideFile, err)
 		} else {
-			fmt.Printf("Loaded config from file: %v", overrideFile)
+			fmt.Printf("Loaded config from file: %v \n", overrideFile)
 		}
 	}
 }
