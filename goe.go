@@ -1,6 +1,8 @@
 package goe
 
 import (
+	"context"
+	"errors"
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/core"
@@ -9,8 +11,10 @@ import (
 )
 
 type App struct {
-	configs   *core.GoeConfig
-	container *core.Container
+	configs     *core.GoeConfig
+	container   *core.Container
+	running     bool
+	gracefulCtx context.Context
 }
 
 var appInstance *App
@@ -182,10 +186,41 @@ func UseFiber() contracts.GoeFiber {
 	return appInstance.container.GetFiber()
 }
 
-func Close() {
+func Run() error {
 	if appInstance == nil {
-		panic("must initialize App first, by calling NewApp() method")
-		return
+		return errors.New("must initialize App first, by calling NewApp() method")
 	}
-	appInstance.container.Close()
+	if appInstance.running {
+		return errors.New("app is already running")
+	}
+	appInstance.gracefulCtx = context.Background()
+	appInstance.running = true
+	err := appInstance.container.GetFiber().App().Listen(":"+appInstance.configs.Http.Port, fiber.ListenConfig{
+		GracefulContext:       appInstance.gracefulCtx,
+		DisableStartupMessage: true,
+		EnablePrefork:         false,
+		EnablePrintRoutes:     false,
+		OnShutdownError: func(err error) {
+			appInstance.container.GetLogger().Error("Shutdown error: ", err)
+		},
+		OnShutdownSuccess: func() {
+			appInstance.container.GetLogger().Info("Server has shutdown successfully!")
+		},
+	})
+	if err != nil {
+		appInstance.running = false
+		return err
+	}
+	return nil
+}
+
+func AddShutdownHook(hookHandlers ...func() error) error {
+	if appInstance == nil {
+		return errors.New("must initialize App first, by calling NewApp() method")
+	}
+	if appInstance.running {
+		return errors.New("app is already running, shutdown hook must be added before calling Run()")
+	}
+	appInstance.container.GetFiber().App().Hooks().OnShutdown(hookHandlers...)
+	return nil
 }

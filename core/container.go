@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/modules/cache"
 	"go.oease.dev/goe/modules/msearch"
@@ -118,6 +119,18 @@ func (c *Container) InitFiber() {
 		c.logger.Panic("Failed to initialize Fiber")
 		return
 	}
+	fb.App().Hooks().OnShutdown(func() error {
+		return c.Close()
+	})
+	fb.App().Hooks().OnListen(func(data fiber.ListenData) error {
+		err := c.queue.(*GoeQueue).Start()
+		if err != nil {
+			c.logger.Panic("Failed to start MQ: ", err)
+			return err
+		}
+		c.logger.Infof("Server is running on http://%s:%s", data.Host, data.Port)
+		return err
+	})
 	c.fiber = fb
 }
 
@@ -153,6 +166,7 @@ func (c *Container) GetFiber() contracts.GoeFiber {
 	return c.fiber
 }
 
+// Close closes the container and its dependencies. DON'T NEED TO CALL THIS METHOD MANUALLY, IT WILL BE CALLED AUTOMATICALLY WHEN THE APP SHUTS DOWN.
 func (c *Container) Close() error {
 	if c.mongo != nil {
 		c.mongo.(*GoeMongoDB).mongodbInstance.Close()
