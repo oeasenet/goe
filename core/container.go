@@ -65,7 +65,7 @@ func (c *Container) InitMeilisearch() {
 
 func (c *Container) InitCache() {
 	// Initialize Cache
-	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 && c.appConfig.Redis.Username != "" && c.appConfig.Redis.Password != "" {
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 {
 		c.cache = cache.NewRedisCache(c.appConfig.Redis.Host, c.appConfig.Redis.Port, c.appConfig.Redis.Username, c.appConfig.Redis.Password, RedisDBCache, c.logger)
 		if c.cache == nil {
 			c.logger.Panic("Failed to initialize Redis Cache")
@@ -78,7 +78,7 @@ func (c *Container) InitCache() {
 
 func (c *Container) InitQueue() {
 	// Initialize Queue
-	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 && c.appConfig.Redis.Username != "" && c.appConfig.Redis.Password != "" {
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 {
 		q, err := NewGoeQueue(c.appConfig, c.logger)
 		if err != nil {
 			c.logger.Panic("Failed to initialize Redis MQ: ", err)

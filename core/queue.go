@@ -20,7 +20,7 @@ type GoeQueue struct {
 }
 
 func NewGoeQueue(appConfig *GoeConfig, logger contracts.Logger) (*GoeQueue, error) {
-	if appConfig.Redis.Host != "" && appConfig.Redis.Port != 0 && appConfig.Redis.Username != "" && appConfig.Redis.Password != "" {
+	if appConfig.Redis.Host != "" && appConfig.Redis.Port != 0 {
 		redisCli := redis.NewClient(&redis.Options{
 			Addr:     fmt.Sprintf("%s:%d", appConfig.Redis.Host, appConfig.Redis.Port),
 			Username: appConfig.Redis.Username,
