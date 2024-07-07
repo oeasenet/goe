@@ -1,0 +1,19 @@
+{
+  "example_collection": {
+    "displayed_fields": [
+      "username",
+      "email",
+      "timestamp"
+    ],
+    "searchable_fields": [
+      "username",
+      "email"
+    ],
+    "filterable_fields": [
+      "name"
+    ],
+    "sortable_fields": [
+      "timestamp"
+    ]
+  }
+}
