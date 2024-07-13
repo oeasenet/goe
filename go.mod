@@ -7,7 +7,7 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.3
 	github.com/gofiber/storage/redis/v3 v3.1.2
-	github.com/gookit/goutil v0.6.15
+	github.com/gookit/goutil v0.6.16
 	github.com/gookit/validate v1.5.2
 	github.com/joho/godotenv v1.5.1
 	github.com/meilisearch/meilisearch-go v0.27.0
