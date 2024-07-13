@@ -2,8 +2,8 @@ package mail
 
 type EmailClient struct {
 	mailer   *SmtpClient
-	fromName string
-	fromAddr string
+	FromName string
+	FromAddr string
 }
 
 func NewMailer(host string, port int, username string, password string, tls bool, fromName string, fromAddress string, localName string) *EmailClient {
@@ -17,6 +17,8 @@ func NewMailer(host string, port int, username string, password string, tls bool
 			authMethod: SmtpAuthPlain,
 			localName:  localName,
 		},
+		FromName: fromName,
+		FromAddr: fromAddress,
 	}
 	return emailClient
 }

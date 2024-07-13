@@ -53,18 +53,18 @@ func (g *GoeMailer) sendMailQueueConsumer(payload string) bool {
 	// make msg and process file attachments
 	// send email directly
 	msg := &moduleMail.Message{
-		From:        s.from,
-		To:          s.toAddresses,
-		Bcc:         s.bccAddresses,
-		Cc:          s.ccAddresses,
-		Subject:     s.emailSubject,
-		HTML:        s.bodyHTML,
-		Text:        s.bodyText,
-		Headers:     s.emailHeaders,
+		From:        s.From,
+		To:          s.ToAddresses,
+		Bcc:         s.BccAddresses,
+		Cc:          s.CcAddresses,
+		Subject:     s.EmailSubject,
+		HTML:        s.BodyHTML,
+		Text:        s.BodyText,
+		Headers:     s.EmailHeaders,
 		Attachments: map[string]io.Reader{},
 	}
 	// process attachments
-	for name, path := range s.emailAttachments {
+	for name, path := range s.EmailAttachments {
 		read, err := utils.FilePathToIOReader(path)
 		if err != nil {
 			g.logger.Error("failed to read attachment file: ", err)
@@ -85,58 +85,59 @@ func (g *GoeMailer) sendMailQueueConsumer(payload string) bool {
 
 type sender struct {
 	ml               *GoeMailer        `json:"-"`
-	from             *mail.Address     `json:"from"`
-	toAddresses      []*mail.Address   `json:"to"`
-	bccAddresses     []*mail.Address   `json:"bcc"`
-	ccAddresses      []*mail.Address   `json:"cc"`
-	emailSubject     string            `json:"subject"`
-	bodyHTML         string            `json:"html"`
-	bodyText         string            `json:"text"`
-	emailHeaders     map[string]string `json:"headers"`
-	emailAttachments map[string]string `json:"attachments"`
+	From             *mail.Address     `json:"From"`
+	ToAddresses      []*mail.Address   `json:"to"`
+	BccAddresses     []*mail.Address   `json:"bcc"`
+	CcAddresses      []*mail.Address   `json:"cc"`
+	EmailSubject     string            `json:"subject"`
+	BodyHTML         string            `json:"html"`
+	BodyText         string            `json:"text"`
+	EmailHeaders     map[string]string `json:"headers"`
+	EmailAttachments map[string]string `json:"attachments"`
 }
 
 func (s *sender) To(t *[]*mail.Address) contracts.EmailSender {
-	s.toAddresses = *t
+	s.ToAddresses = *t
 	return s
 }
 
 func (s *sender) Bcc(b *[]*mail.Address) contracts.EmailSender {
-	s.bccAddresses = *b
+	s.BccAddresses = *b
 	return s
 }
 
 func (s *sender) Cc(c *[]*mail.Address) contracts.EmailSender {
-	s.ccAddresses = *c
+	s.CcAddresses = *c
 	return s
 }
 
 func (s *sender) Subject(sub string) contracts.EmailSender {
-	s.emailSubject = sub
+	s.EmailSubject = sub
 	return s
 }
 
 func (s *sender) HTML(html string) contracts.EmailSender {
-	s.bodyHTML = html
+	s.BodyHTML = html
 	return s
 }
 
 func (s *sender) Text(text string) contracts.EmailSender {
-	s.bodyText = text
+	s.BodyText = text
 	return s
 }
 
 func (s *sender) Headers(h map[string]string) contracts.EmailSender {
-	s.emailHeaders = h
+	s.EmailHeaders = h
 	return s
 }
 
 func (s *sender) Attachments(a map[string]string) contracts.EmailSender {
-	s.emailAttachments = a
+	s.EmailAttachments = a
 	return s
 }
 
 func (s *sender) Send(useQueue ...bool) error {
+	s.From = &mail.Address{Name: s.ml.appConfig.Mailer.FromName, Address: s.ml.appConfig.Mailer.FromEmail}
 	//default to use queue unless specified not to use
 	isQueue := true
 	if len(useQueue) > 0 {
@@ -148,18 +149,18 @@ func (s *sender) Send(useQueue ...bool) error {
 	} else {
 		// send email directly
 		msg := &moduleMail.Message{
-			From:        s.from,
-			To:          s.toAddresses,
-			Bcc:         s.bccAddresses,
-			Cc:          s.ccAddresses,
-			Subject:     s.emailSubject,
-			HTML:        s.bodyHTML,
-			Text:        s.bodyText,
-			Headers:     s.emailHeaders,
+			From:        s.From,
+			To:          s.ToAddresses,
+			Bcc:         s.BccAddresses,
+			Cc:          s.CcAddresses,
+			Subject:     s.EmailSubject,
+			HTML:        s.BodyHTML,
+			Text:        s.BodyText,
+			Headers:     s.EmailHeaders,
 			Attachments: map[string]io.Reader{},
 		}
 		// process attachments
-		for name, path := range s.emailAttachments {
+		for name, path := range s.EmailAttachments {
 			read, err := utils.FilePathToIOReader(path)
 			if err != nil {
 				return err
