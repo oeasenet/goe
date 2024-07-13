@@ -137,9 +137,10 @@ func (s *sender) Attachments(a map[string]string) contracts.EmailSender {
 }
 
 func (s *sender) Send(useQueue ...bool) error {
-	isQueue := false
-	if len(useQueue) > 0 && useQueue[0] {
-		isQueue = true
+	//default to use queue unless specified not to use
+	isQueue := true
+	if len(useQueue) > 0 {
+		isQueue = useQueue[0]
 	}
 	if isQueue {
 		// publish message to queue
