@@ -7,7 +7,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/modules/queue"
-	"go.oease.dev/goe/utils"
 	"sync"
 	"time"
 )
@@ -86,9 +85,6 @@ func (g *GoeQueue) PushRaw(queueName contracts.QueueName, payload string) error 
 }
 
 func (g *GoeQueue) Push(queueName contracts.QueueName, payloadPtr any) error {
-	if utils.CheckIfPointer(payloadPtr) {
-		return errors.New("payload must be a pointer")
-	}
 	rqm, ok := g.queues.Load(queueName)
 	if !ok {
 		return errors.New("queue not found")
@@ -105,9 +101,6 @@ func (g *GoeQueue) Push(queueName contracts.QueueName, payloadPtr any) error {
 }
 
 func (g *GoeQueue) PushDelayed(queueName contracts.QueueName, payloadPtr any, delayDuration time.Duration) error {
-	if utils.CheckIfPointer(payloadPtr) {
-		return errors.New("payload must be a pointer")
-	}
 	rqm, ok := g.queues.Load(queueName)
 	if !ok {
 		return errors.New("queue not found")
@@ -148,9 +141,6 @@ func (g *GoeQueue) PushScheduledRaw(queueName contracts.QueueName, payload strin
 }
 
 func (g *GoeQueue) PushScheduled(queueName contracts.QueueName, payloadPtr any, t time.Time) error {
-	if utils.CheckIfPointer(payloadPtr) {
-		return errors.New("payload must be a pointer")
-	}
 	rqm, ok := g.queues.Load(queueName)
 	if !ok {
 		return errors.New("queue not found")
