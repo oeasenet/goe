@@ -41,10 +41,12 @@ func NewApp() error {
 	appInstance = app
 
 	// Initialize MongoDB
-	appInstance.container.InitMongo()
+	if appInstance.configs.Features.MongoDBEnabled {
+		appInstance.container.InitMongo()
+	}
 
 	// Initialize Meilisearch
-	if appInstance.configs.Features.MeilisearchEnabled {
+	if appInstance.configs.Features.MeilisearchEnabled && appInstance.configs.Features.MongoDBEnabled {
 		appInstance.container.InitMeilisearch()
 	}
 
@@ -76,6 +78,7 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			Env:     configModule.GetOrDefaultString("APP_ENV", "dev"),
 		},
 		Features: &core.GoeConfigFeatures{
+			MongoDBEnabled:      configModule.GetOrDefaultBool("MONGODB_ENABLED", false),
 			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
 			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_DB_SYNC", false),
 			SMTPMailerEnabled:   configModule.GetOrDefaultBool("SMTP_MAILER_ENABLED", false),

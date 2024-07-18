@@ -18,6 +18,7 @@ type AppConfigs struct {
 }
 
 type GoeConfigFeatures struct {
+	MongoDBEnabled      bool `json:"mongodb_enabled"`
 	MeilisearchEnabled  bool `json:"meilisearch_enabled"`
 	SearchDBSyncEnabled bool `json:"search_db_sync_enabled"`
 	SMTPMailerEnabled   bool `json:"smtp_mailer_enabled"`
