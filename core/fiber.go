@@ -130,19 +130,19 @@ func (gf *GoeFiber) GoeFiberErrorHandler(ctx fiber.Ctx, err error) error {
 	}
 
 	// If the format is forced to text through query parameter, then return the response in that format
-	if ctx.Query("format") == "json" {
+	if ctx.Query("format") == "text" {
 		ctx.Response().Header.SetContentType(fiber.MIMETextPlain)
 		return ctx.SendString(message)
 	}
 
 	// If the format is not forced, then check the accept header
-	if ctx.Accepts() == fiber.MIMEApplicationJSON {
+	if ctx.Accepts(fiber.MIMEApplicationJSON) == fiber.MIMEApplicationJSON {
 		return ctx.JSON(fiber.Map{
 			"message": message,
 		})
 	}
 
-	if ctx.Accepts() == fiber.MIMETextPlain {
+	if ctx.Accepts(fiber.MIMETextPlain) == fiber.MIMETextPlain {
 		ctx.Response().Header.SetContentType(fiber.MIMETextPlain)
 		return ctx.SendString(message)
 	}
