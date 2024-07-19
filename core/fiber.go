@@ -135,6 +135,12 @@ func (gf *GoeFiber) GoeFiberErrorHandler(ctx fiber.Ctx, err error) error {
 		return ctx.SendString(message)
 	}
 
+	if ctx.Accepts(fiber.MIMETextHTML) == fiber.MIMETextHTML {
+		// default response, html error page
+		ctx.Response().Header.SetContentType(fiber.MIMETextHTML)
+		return ctx.SendString(ErrorPage(fmt.Sprintf("ERROR %d", respCode), fmt.Sprintf("%d", respCode), message, "/"))
+	}
+
 	// If the format is not forced, then check the accept header
 	if ctx.Accepts(fiber.MIMEApplicationJSON) == fiber.MIMEApplicationJSON {
 		return ctx.JSON(fiber.Map{

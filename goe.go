@@ -217,10 +217,10 @@ func Run() error {
 	appInstance.running = true
 	newShutdownHook().Close(func() {
 		appInstance.running = false
-		err := appInstance.container.GetFiber().App().ShutdownWithTimeout(20 * time.Second)
-		if err != nil {
-			appInstance.container.GetLogger().Error("Server shutdown error: ", err)
-		}
+		_ = appInstance.container.GetFiber().App().ShutdownWithTimeout(5 * time.Second)
+		//if err != nil {
+		//	appInstance.container.GetLogger().Error("Server shutdown error: ", err)
+		//}
 		appInstance.container.GetLogger().Info("Server has shutdown successfully!")
 	})
 	return nil
