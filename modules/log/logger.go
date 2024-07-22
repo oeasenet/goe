@@ -26,6 +26,6 @@ func New(level ...Level) *Log {
 		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 	j.zapLogger, _ = zapCfg.Build()
-	j.zapSugar = j.zapLogger.Sugar().WithOptions(zap.AddCallerSkip(2))
+	j.zapSugar = j.zapLogger.Sugar().WithOptions(zap.AddCallerSkip(1))
 	return j
 }
