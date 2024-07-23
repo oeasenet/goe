@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"go.oease.dev/omgo"
-	"time"
 )
 
 type MongoDB struct {
@@ -45,25 +44,11 @@ func NewMongoDB(connectionUri string, databaseName string, logger ...Logger) (*M
 	return m, nil
 }
 
-// newCtxWithTimeout returns a new context with the specified timeout.
-// It takes a timeout duration as a parameter.
-// If an error occurs while creating the context with the timeout, it logs the error and returns a new context without a timeout.
-// It returns the created context.
-func (m *MongoDB) newCtxWithTimeout(timeout time.Duration) context.Context {
-	ctx, err := context.WithTimeout(context.Background(), timeout)
-	if err != nil {
-		m.logger.Error(err)
-		// Return a new context without timeout
-		return context.Background()
-	}
-	return ctx
-}
-
-// newCtx returns a new context with a default timeout of 10 seconds. It internally calls newCtxWithTimeout with the specified duration.
+// newCtx returns a new context.
 // It doesn't take any parameters.
 // It returns the created context.
 func (m *MongoDB) newCtx() context.Context {
-	return m.newCtxWithTimeout(10 * time.Second)
+	return context.Background()
 }
 
 // Close closes the connection to the database.
