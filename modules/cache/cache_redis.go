@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"errors"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/storage/redis/v3"
 	"runtime"
@@ -45,6 +46,10 @@ func (r *RedisCache) GetBind(key string, bindPtr any) error {
 		r.logger.Error(err)
 		return err
 	}
+	if res == nil {
+		bindPtr = nil
+		return nil
+	}
 	return json.Unmarshal(res, bindPtr)
 }
 
@@ -53,6 +58,9 @@ func (r *RedisCache) Set(key string, value []byte, expire time.Duration) error {
 }
 
 func (r *RedisCache) SetBind(key string, bindPtr any, expire time.Duration) error {
+	if bindPtr == nil {
+		return errors.New("bindPtr is nil")
+	}
 	b, err := json.Marshal(bindPtr)
 	if err != nil {
 		r.logger.Error(err)
