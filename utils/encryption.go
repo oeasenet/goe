@@ -16,7 +16,9 @@ type DataEncryptionUtils struct {
 
 func UseEncryption(key string) *DataEncryptionUtils {
 	if key == "" {
-		key = "OEASE$GOE@2024"
+		// default key, has to be 32 characters
+		// key = "OEASE$GOE@2024"
+		key = "bda0b4de2fc68638dcac98a6603f6d2f"
 	}
 	return &DataEncryptionUtils{key: []byte(key)}
 }
