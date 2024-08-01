@@ -19,12 +19,20 @@ type Container struct {
 	appConfig   *GoeConfig
 }
 
+var goeContainerInstance *Container
+
+func UseGoeContainer() *Container {
+	return goeContainerInstance
+}
+
 func NewContainer(config contracts.Config, logger contracts.Logger, appConfig *GoeConfig) *Container {
-	return &Container{
+	goeConfigInstance = appConfig
+	goeContainerInstance = &Container{
 		config:    config,
 		logger:    logger,
 		appConfig: appConfig,
 	}
+	return goeContainerInstance
 }
 
 func (c *Container) InitMongo() {

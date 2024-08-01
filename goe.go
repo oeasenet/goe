@@ -125,6 +125,16 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			IPValidation:    configModule.GetOrDefaultBool("HTTP_IP_VALIDATION", false),
 			ReduceMemory:    configModule.GetOrDefaultBool("HTTP_REDUCE_MEMORY", false),
 		},
+		S3: &core.GoeConfigS3{
+			Endpoint:     configModule.GetOrDefaultString("S3_ENDPOINT", ""),
+			AccessKey:    configModule.GetOrDefaultString("S3_ACCESS_KEY", ""),
+			SecretKey:    configModule.GetOrDefaultString("S3_SECRET_KEY", ""),
+			Bucket:       configModule.GetOrDefaultString("S3_BUCKET_NAME", ""),
+			Region:       configModule.GetOrDefaultString("S3_REGION", ""),
+			BucketLookup: configModule.GetOrDefaultString("S3_BUCKET_LOOKUP", "path"),
+			UseSSL:       configModule.GetOrDefaultBool("S3_USE_SSL", false),
+			Token:        configModule.GetOrDefaultString("S3_TOKEN", ""),
+		},
 	}
 	return nil
 }

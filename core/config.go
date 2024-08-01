@@ -1,5 +1,11 @@
 package core
 
+var goeConfigInstance *GoeConfig
+
+func UseGoeConfig() *GoeConfig {
+	return goeConfigInstance
+}
+
 type GoeConfig struct {
 	App         *AppConfigs
 	Features    *GoeConfigFeatures
@@ -9,6 +15,7 @@ type GoeConfig struct {
 	Mailer      *GoeConfigMailer
 	Queue       *GoeConfigQueue
 	Http        *GoeConfigHttp
+	S3          *GoeConfigS3
 }
 
 type AppConfigs struct {
@@ -58,6 +65,17 @@ type GoeConfigQueue struct {
 	FetchLimit         int `json:"fetch_limit"`
 	MaxConsumeDuration int `json:"max_consume_duration"`
 	DefaultRetries     int `json:"default_retries"`
+}
+
+type GoeConfigS3 struct {
+	Endpoint     string `json:"endpoint"`
+	AccessKey    string `json:"access_key"`
+	SecretKey    string `json:"secret_key"`
+	Bucket       string `json:"bucket"`
+	Region       string `json:"region"`
+	BucketLookup string `json:"bucket_lookup"`
+	UseSSL       bool   `json:"use_ssl"`
+	Token        string `json:"token"`
 }
 
 type GoeConfigHttp struct {
