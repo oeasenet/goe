@@ -135,6 +135,12 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			UseSSL:       configModule.GetOrDefaultBool("S3_USE_SSL", false),
 			Token:        configModule.GetOrDefaultString("S3_TOKEN", ""),
 		},
+		OIDC: &core.GoeOIDCConfig{
+			AppId:     configModule.Get("OIDC_APP_ID"),
+			AppSecret: configModule.Get("OIDC_APP_SECRET"),
+			AppScopes: configModule.GetStringSlice("OIDC_APP_SCOPES"),
+			Issuer:    configModule.Get("OIDC_ISSUER"),
+		},
 	}
 	return nil
 }

@@ -16,6 +16,7 @@ type GoeConfig struct {
 	Queue       *GoeConfigQueue
 	Http        *GoeConfigHttp
 	S3          *GoeConfigS3
+	OIDC        *GoeOIDCConfig
 }
 
 type AppConfigs struct {
@@ -76,6 +77,13 @@ type GoeConfigS3 struct {
 	BucketLookup string `json:"bucket_lookup"`
 	UseSSL       bool   `json:"use_ssl"`
 	Token        string `json:"token"`
+}
+
+type GoeOIDCConfig struct {
+	AppId     string   `json:"app_id"`
+	AppSecret string   `json:"app_secret"`
+	AppScopes []string `json:"app_scopes"`
+	Issuer    string   `json:"issuer"`
 }
 
 type GoeConfigHttp struct {

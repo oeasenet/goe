@@ -3,6 +3,7 @@ module go.oease.dev/goe
 go 1.22
 
 require (
+	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/domodwyer/mailyak/v3 v3.6.2
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.3
@@ -24,6 +25,7 @@ require (
 	go.oease.dev/omgo v1.0.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.27.0
+	golang.org/x/oauth2 v0.21.0
 )
 
 require (
@@ -33,6 +35,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
