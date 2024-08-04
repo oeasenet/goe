@@ -32,6 +32,37 @@ func (m *MongoDB) ctx() context.Context {
 	return m.newCtx()
 }
 
+// Find retrieves documents from a MongoDB collection based on the provided filter and model.
+// It returns an omgo.QueryI interface that can be used to further specify the query.
+// If the MongoDB instance is not initialized, it logs an error and returns nil.
+// If the filter is nil, it uses an empty filter (bson.D{}) by default.
+// The returned query can be used to add projections, limits, sorting, and other query modifiers.
+// Example usage:
+//
+//	query := mongo.Find(model, bson.M{"name": "John"})
+//	query.Select(bson.M{"age": 1})
+//	query.Sort(bson.M{"age": -1})
+//	query.Skip(5)
+//	query.Limit(10)
+//	cursor := query.Cursor()
+//	for cursor.Next(context.Background()) {
+//	  var result *MyModel
+//	  cursor.Decode(&result)
+//	  // process the result
+//	}
+func (m *MongoDB) Find(model IDefaultModel, filter any) omgo.QueryI {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+		return nil
+	}
+
+	if filter == nil {
+		filter = bson.D{}
+	}
+
+	return m.col(model).Find(m.ctx(), filter)
+}
+
 // FindPage is a method that finds a page of documents in a MongoDB collection based on the provided filter.
 // It returns the total number of documents and the total number of pages.
 func (m *MongoDB) FindPage(model IDefaultModel, filter any, res any, pageSize int64, currentPage int64, option ...*FindPageOption) (totalDoc int64, totalPage int64) {

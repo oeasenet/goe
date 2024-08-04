@@ -42,6 +42,10 @@ func (g *GoeMongoDB) SetMeilisearch(meilisearch *msearch.MSearch) error {
 	return nil
 }
 
+func (g *GoeMongoDB) Find(model mongodb.IDefaultModel, filter any) omgo.QueryI {
+	return g.mongodbInstance.Find(model, filter)
+}
+
 func (g *GoeMongoDB) FindPage(model mongodb.IDefaultModel, filter any, res any, pageSize int64, currentPage int64, option ...*mongodb.FindPageOption) (totalDoc int64, totalPage int64) {
 	return g.mongodbInstance.FindPage(model, filter, res, pageSize, currentPage, option...)
 }

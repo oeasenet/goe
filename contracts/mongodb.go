@@ -6,6 +6,7 @@ import (
 )
 
 type MongoDB interface {
+	Find(model mongodb.IDefaultModel, filter any) omgo.QueryI
 	FindPage(model mongodb.IDefaultModel, filter any, res any, pageSize int64, currentPage int64, option ...*mongodb.FindPageOption) (totalDoc int64, totalPage int64)
 	FindOne(model mongodb.IDefaultModel, filter any, res any) (bool, error)
 	FindById(model mongodb.IDefaultModel, id string, res any) (bool, error)
