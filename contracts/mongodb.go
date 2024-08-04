@@ -12,6 +12,7 @@ type MongoDB interface {
 	FindById(model mongodb.IDefaultModel, id string, res any) (bool, error)
 	FindWithCursor(model mongodb.IDefaultModel, filter any) omgo.CursorI
 	Insert(model mongodb.IDefaultModel) (*omgo.InsertOneResult, error)
+	InsertMany(model mongodb.IDefaultModel, docs []any) (*omgo.InsertManyResult, error)
 	Update(model mongodb.IDefaultModel) error
 	Delete(model mongodb.IDefaultModel) error
 	Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error

@@ -76,6 +76,22 @@ func (g *GoeMongoDB) Insert(model mongodb.IDefaultModel) (*omgo.InsertOneResult,
 	return g.mongodbInstance.Insert(model)
 }
 
+func (g *GoeMongoDB) InsertMany(model mongodb.IDefaultModel, docs []any) (*omgo.InsertManyResult, error) {
+	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
+		if g.msearchInstance != nil {
+			for _, doc := range docs {
+				err := g.msearchInstance.AddDoc(model.ColName(), doc)
+				if err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			return nil, errors.New("meilisearch instance is not set")
+		}
+	}
+	return g.mongodbInstance.InsertMany(model, docs)
+}
+
 func (g *GoeMongoDB) Update(model mongodb.IDefaultModel) error {
 	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
 		if g.msearchInstance != nil {

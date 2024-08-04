@@ -196,6 +196,34 @@ func (m *MongoDB) Insert(model IDefaultModel) (*omgo.InsertOneResult, error) {
 	return m.col(model).InsertOne(m.ctx(), model, options.InsertOneOptions{InsertHook: model})
 }
 
+// InsertMany inserts multiple documents into a MongoDB collection based on the provided model and slice of documents.
+// It returns the result of the insert operation and an error if any.
+// If the MongoDB instance is not initialized, it logs an error and returns nil.
+// Example usage:
+//
+//	model := MyModel{}
+//	docs := []MyModel{
+//		{Name: "Jane", Age: 25},
+//		{Name: "Doe", Age: 35},
+//	}
+//	result, err := mongo.InsertMany(&model, docs)
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Println(result.InsertedIDs)
+//
+// Parameter model: The model or collection name.
+// Parameter docs: The slice of documents to be inserted.
+// Returns: *omgo.InsertManyResult, error
+func (m *MongoDB) InsertMany(model IDefaultModel, docs []any) (*omgo.InsertManyResult, error) {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+		return nil, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
+	}
+
+	return m.col(model).InsertMany(m.ctx(), docs, options.InsertManyOptions{InsertHook: model})
+}
+
 // Update is a method that updates a single document in a MongoDB collection.
 func (m *MongoDB) Update(model IDefaultModel) error {
 	if !m.initialized {
