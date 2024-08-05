@@ -63,6 +63,7 @@ func (g *GoeMongoDB) FindWithCursor(model mongodb.IDefaultModel, filter any) omg
 }
 
 func (g *GoeMongoDB) Insert(model mongodb.IDefaultModel) (*omgo.InsertOneResult, error) {
+	ior, err := g.mongodbInstance.Insert(model)
 	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
 		if g.msearchInstance != nil {
 			err := g.msearchInstance.AddDoc(model.ColName(), model)
@@ -73,10 +74,11 @@ func (g *GoeMongoDB) Insert(model mongodb.IDefaultModel) (*omgo.InsertOneResult,
 			return nil, errors.New("meilisearch instance is not set")
 		}
 	}
-	return g.mongodbInstance.Insert(model)
+	return ior, err
 }
 
 func (g *GoeMongoDB) InsertMany(model mongodb.IDefaultModel, docs []any) (*omgo.InsertManyResult, error) {
+	imr, err := g.mongodbInstance.InsertMany(model, docs)
 	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
 		if g.msearchInstance != nil {
 			for _, doc := range docs {
@@ -89,10 +91,11 @@ func (g *GoeMongoDB) InsertMany(model mongodb.IDefaultModel, docs []any) (*omgo.
 			return nil, errors.New("meilisearch instance is not set")
 		}
 	}
-	return g.mongodbInstance.InsertMany(model, docs)
+	return imr, err
 }
 
 func (g *GoeMongoDB) Update(model mongodb.IDefaultModel) error {
+	e := g.mongodbInstance.Update(model)
 	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
 		if g.msearchInstance != nil {
 			err := g.msearchInstance.UpdateDoc(model.ColName(), model)
@@ -103,10 +106,11 @@ func (g *GoeMongoDB) Update(model mongodb.IDefaultModel) error {
 			return errors.New("meilisearch instance is not set")
 		}
 	}
-	return g.mongodbInstance.Update(model)
+	return e
 }
 
 func (g *GoeMongoDB) Delete(model mongodb.IDefaultModel) error {
+	e := g.mongodbInstance.Delete(model)
 	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
 		if g.msearchInstance != nil {
 			err := g.msearchInstance.DelDoc(model.ColName(), model.GetId())
@@ -117,7 +121,7 @@ func (g *GoeMongoDB) Delete(model mongodb.IDefaultModel) error {
 			return errors.New("meilisearch instance is not set")
 		}
 	}
-	return g.mongodbInstance.Delete(model)
+	return e
 }
 
 func (g *GoeMongoDB) Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error {
