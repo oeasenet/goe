@@ -116,7 +116,12 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 			if userData == nil {
 				return webresult.SendFailed(ctx, "user data not found in session")
 			}
-			return webresult.SendSucceed(ctx, userData)
+			userInfo := make(map[string]any)
+			err := json.Unmarshal(userData.([]byte), &userInfo)
+			if err != nil {
+				return webresult.SystemBusy(err)
+			}
+			return webresult.SendSucceed(ctx, userInfo)
 		}
 
 		// User is not logged in, handle sign-in callback
@@ -219,6 +224,7 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 }
 
 var defaultClaimDataProcessor = func(claimData map[string]any) (any, error) {
+	core.UseGoeContainer().GetLogger().Debug("Using default claim data processor.")
 	// Default claim data processor, means that the claim data will be stored in session as is
 	return claimData, nil
 }
