@@ -15,12 +15,32 @@ const (
 )
 
 type Config struct {
+	envMap map[string]string
 }
 
 func New(folder string) *Config {
 	c := &Config{}
 	c.read(folder)
+	envMap := make(map[string]string)
+	for _, env := range os.Environ() {
+		pair := splitEnvVar(env)
+		envMap[pair[0]] = pair[1]
+	}
+	c.envMap = envMap
 	return c
+}
+
+// splitEnvVar splits the environment variable string into a key-value pair
+func splitEnvVar(env string) [2]string {
+	var pair [2]string
+	for i := range env {
+		if env[i] == '=' {
+			pair[0] = env[:i]
+			pair[1] = env[i+1:]
+			break
+		}
+	}
+	return pair
 }
 
 func (c *Config) read(folder string) {
@@ -63,7 +83,7 @@ func (c *Config) read(folder string) {
 }
 
 func (c *Config) Get(key string) string {
-	return os.Getenv(key)
+	return c.envMap[key]
 }
 
 func (c *Config) GetString(key string) string {
