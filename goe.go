@@ -53,6 +53,9 @@ func NewApp() error {
 	// Init Queue
 	appInstance.container.InitQueue()
 
+	// Init Cron
+	appInstance.container.InitCron()
+
 	// Init Cache
 	appInstance.container.InitCache()
 
@@ -151,6 +154,14 @@ func UseDB() contracts.MongoDB {
 		return nil
 	}
 	return appInstance.container.GetMongo()
+}
+
+func UseCron() contracts.CronJob {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetCron()
 }
 
 func UseLog() contracts.Logger {

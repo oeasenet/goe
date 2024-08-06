@@ -181,6 +181,10 @@ func (c *Container) GetQueue() contracts.Queue {
 	return c.queue
 }
 
+func (c *Container) GetCron() contracts.CronJob {
+	return c.cron
+}
+
 func (c *Container) GetCache() contracts.Cache {
 	return c.cache
 }
