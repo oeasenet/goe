@@ -25,6 +25,13 @@ func Unauthorized(msg ...string) *fiber.Error {
 	return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 }
 
+func Forbidden(msg ...string) *fiber.Error {
+	if len(msg) > 0 && len(msg[0]) > 0 {
+		return fiber.NewError(fiber.StatusForbidden, msg[0])
+	}
+	return fiber.NewError(fiber.StatusForbidden, "forbidden")
+}
+
 func SendSucceed(ctx fiber.Ctx, data ...any) error {
 	result := &WebResult{
 		Message: "success",
