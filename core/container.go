@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/modules/cache"
+	"go.oease.dev/goe/modules/cron"
 	"go.oease.dev/goe/modules/msearch"
 )
 
@@ -16,6 +17,7 @@ type Container struct {
 	cache       contracts.Cache
 	mailer      contracts.Mailer
 	fiber       contracts.GoeFiber
+	cron        contracts.CronJob
 	appConfig   *GoeConfig
 }
 
@@ -137,10 +139,22 @@ func (c *Container) InitFiber() {
 			c.logger.Panic("Failed to start MQ: ", err)
 			return err
 		}
+		if c.cron != nil {
+			c.cron.(*cron.CronJobModule).Start()
+		}
 		c.logger.Infof("Server is running on http://%s:%s", data.Host, data.Port)
 		return err
 	})
 	c.fiber = fb
+}
+
+func (c *Container) InitCron() {
+	mod, err := cron.NewCronJobService()
+	if err != nil {
+		c.logger.Panic("Failed to initialize cron job service: ", err)
+		return
+	}
+	c.cron = mod
 }
 
 func (c *Container) GetConfig() contracts.Config {
@@ -185,6 +199,9 @@ func (c *Container) Close() error {
 	}
 	if c.cache != nil {
 		c.cache.(*cache.RedisCache).Close()
+	}
+	if c.cron != nil {
+		c.cron.(*cron.CronJobModule).Close()
 	}
 	return nil
 }
