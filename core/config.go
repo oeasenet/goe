@@ -15,6 +15,7 @@ type GoeConfig struct {
 	Mailer      *GoeConfigMailer
 	Queue       *GoeConfigQueue
 	Http        *GoeConfigHttp
+	Session     *GoeConfigSession
 	S3          *GoeConfigS3
 	OIDC        *GoeOIDCConfig
 }
@@ -96,4 +97,9 @@ type GoeConfigHttp struct {
 	TrustProxies    []string `json:"trust_proxies"`
 	ReduceMemory    bool     `json:"reduce_memory"`
 	IPValidation    bool     `json:"ip_validation"`
+}
+
+type GoeConfigSession struct {
+	Expiration int    `json:"expiration"`
+	KeyLookup  string `json:"key_lookup"`
 }

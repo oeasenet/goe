@@ -128,6 +128,10 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			IPValidation:    configModule.GetOrDefaultBool("HTTP_IP_VALIDATION", false),
 			ReduceMemory:    configModule.GetOrDefaultBool("HTTP_REDUCE_MEMORY", false),
 		},
+		Session: &core.GoeConfigSession{
+			KeyLookup:  configModule.GetOrDefaultString("SESSION_LOOKUP", "cookie:goe_session_id"),
+			Expiration: configModule.GetOrDefaultInt("SESSION_EXPIRATION", 86400),
+		},
 		S3: &core.GoeConfigS3{
 			Endpoint:     configModule.GetOrDefaultString("S3_ENDPOINT", ""),
 			AccessKey:    configModule.GetOrDefaultString("S3_ACCESS_KEY", ""),

@@ -29,9 +29,9 @@ func initSessionStore() {
 
 		//create session store
 		sessionStoreConfig := session.ConfigDefault
-		sessionStoreConfig.Expiration = 24 * time.Hour
+		sessionStoreConfig.Expiration = time.Duration(core.UseGoeConfig().Session.Expiration) * time.Second
 		sessionStoreConfig.Storage = store
-		sessionStoreConfig.KeyLookup = "cookie:goe_session_id"
+		sessionStoreConfig.KeyLookup = core.UseGoeConfig().Session.KeyLookup
 		sessionStore = session.New(sessionStoreConfig)
 	})
 }
