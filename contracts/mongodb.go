@@ -15,5 +15,6 @@ type MongoDB interface {
 	InsertMany(model mongodb.IDefaultModel, docs []any) (*omgo.InsertManyResult, error)
 	Update(model mongodb.IDefaultModel) error
 	Delete(model mongodb.IDefaultModel) error
+	DeleteMany(model mongodb.IDefaultModel, filter any) (*omgo.DeleteResult, error)
 	Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error
 }

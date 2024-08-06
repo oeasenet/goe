@@ -124,6 +124,38 @@ func (g *GoeMongoDB) Delete(model mongodb.IDefaultModel) error {
 	return e
 }
 
+func (g *GoeMongoDB) DeleteMany(model mongodb.IDefaultModel, filter any) (*omgo.DeleteResult, error) {
+	//find in database and delete from index first, then delete from database
+	if g.goeConfig.Features.MeilisearchEnabled && g.goeConfig.Features.SearchDBSyncEnabled {
+		if g.msearchInstance != nil {
+			cur := g.FindWithCursor(model, filter)
+			res := map[string]any{}
+			for cur.Next(res) {
+				if res["is_deleted"] != nil {
+					if res["is_deleted"].(bool) {
+						continue
+					}
+				}
+				//change _id to id
+				res["id"] = res["_id"]
+				delete(res, "_id")
+				err := g.msearchInstance.DelDoc(model.ColName(), res["id"].(string))
+				if err != nil {
+					UseGoeContainer().GetLogger().Error(err)
+				}
+			}
+			if cur.Err() != nil {
+				return nil, cur.Err()
+			}
+			_ = cur.Close()
+		} else {
+			return nil, errors.New("meilisearch instance is not set")
+		}
+	}
+	dr, err := g.mongodbInstance.DeleteMany(model, filter)
+	return dr, err
+}
+
 func (g *GoeMongoDB) Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error {
 	return g.mongodbInstance.Aggregate(model, pipeline, res)
 }

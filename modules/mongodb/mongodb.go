@@ -257,6 +257,19 @@ func (m *MongoDB) Delete(model IDefaultModel) error {
 	return m.col(model).RemoveId(m.ctx(), model.GetObjectID())
 }
 
+// DeleteMany is a method that deletes multiple documents from a MongoDB collection based on the provided filter.
+func (m *MongoDB) DeleteMany(model IDefaultModel, filter any) (*omgo.DeleteResult, error) {
+	if !m.initialized {
+		return nil, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
+	}
+
+	if filter == nil {
+		return nil, errors.New("filter cannot be nil, please provide a filter")
+	}
+
+	return m.col(model).RemoveAll(m.ctx(), filter)
+}
+
 // Aggregate is a method that performs an aggregation pipeline operation on a MongoDB collection.
 func (m *MongoDB) Aggregate(model IDefaultModel, pipeline any, res any) error {
 	if !m.initialized {

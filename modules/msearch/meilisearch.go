@@ -132,3 +132,12 @@ func (ms *MSearch) Search(indexName string, query string, options *meilisearch.S
 	}
 	return resp
 }
+
+// DeleteAllDocuments is a method that deletes all documents in the specified index.
+func (ms *MSearch) DeleteAllDocuments(indexName string) error {
+	resp, err := ms.client.Index(indexName).DeleteAllDocuments()
+	if err != nil {
+		return err
+	}
+	return ms.WaitForTaskSuccess(resp.TaskUID)
+}
