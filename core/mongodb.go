@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.oease.dev/goe/modules/mongodb"
 	"go.oease.dev/goe/modules/msearch"
 	"go.oease.dev/omgo"
@@ -137,7 +138,7 @@ func (g *GoeMongoDB) DeleteMany(model mongodb.IDefaultModel, filter any) (*omgo.
 					}
 				}
 				//change _id to id
-				res["id"] = res["_id"]
+				res["id"] = res["_id"].(primitive.ObjectID).Hex()
 				delete(res, "_id")
 				err := g.msearchInstance.DelDoc(model.ColName(), res["id"].(string))
 				if err != nil {
