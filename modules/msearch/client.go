@@ -8,7 +8,7 @@ import (
 
 type MSearch struct {
 	initialized bool
-	client      *meilisearch.Client
+	client      meilisearch.ServiceManager
 	once        sync.Once
 	indexConfig *IndexConfigs
 	logger      Logger
@@ -16,10 +16,7 @@ type MSearch struct {
 
 func NewMSearch(hostUrl string, key string, logger ...Logger) *MSearch {
 	ms := &MSearch{}
-	ms.client = meilisearch.NewClient(meilisearch.ClientConfig{
-		Host:   hostUrl,
-		APIKey: key,
-	})
+	ms.client = meilisearch.New(hostUrl, meilisearch.WithAPIKey(key))
 	if len(logger) > 0 && logger[0] != nil {
 		ms.logger = logger[0]
 	} else {
