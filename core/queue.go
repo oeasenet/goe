@@ -64,7 +64,7 @@ func (g *GoeQueue) Close() error {
 func (g *GoeQueue) NewQueue(name contracts.QueueName, handler func(string) bool, cfgs ...*contracts.NewQueueCfg) error {
 	rq := queue.NewQueue(string(name), g.redisCli)
 	rq.WithCallback(handler)
-	if len(cfgs) == 0 && cfgs[0] != nil {
+	if len(cfgs) != 0 && cfgs[0] != nil {
 		// if config is provided, use the provided config, if values are 0, use the default values
 		if cfgs[0].ConcurrentWorkers == 0 {
 			// default to 1 worker
