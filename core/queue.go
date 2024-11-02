@@ -61,21 +61,7 @@ func (g *GoeQueue) Close() error {
 	return nil
 }
 
-// NewQueueCfg is the configuration for creating a new queue
-type NewQueueCfg struct {
-	// ConcurrentWorkers is the number of concurrent workers to process the queue
-	ConcurrentWorkers int
-	// FetchInterval is the interval in seconds to fetch new jobs
-	FetchInterval int
-	// DefaultRetries is number of retries for a job, can be overridden when creating a message
-	DefaultRetries int
-	// MaxConsumeDuration is the maximum time in seconds to consume a job, if exceeded, the job will be retried
-	MaxConsumeDuration int
-	// FetchLimit is the maximum number of jobs to fetch in a single fetch, 0 means no limit
-	FetchLimit int
-}
-
-func (g *GoeQueue) NewQueue(name contracts.QueueName, handler func(string) bool, cfgs ...*NewQueueCfg) {
+func (g *GoeQueue) NewQueue(name contracts.QueueName, handler func(string) bool, cfgs ...*contracts.NewQueueCfg) error {
 	rq := queue.NewQueue(string(name), g.redisCli)
 	rq.WithCallback(handler)
 	if len(cfgs) == 0 && cfgs[0] != nil {
@@ -110,6 +96,7 @@ func (g *GoeQueue) NewQueue(name contracts.QueueName, handler func(string) bool,
 		rq.WithFetchLimit(uint(g.goeConfig.Queue.FetchLimit))
 	}
 	g.queues.Store(name, rq)
+	return nil
 }
 
 func (g *GoeQueue) PushRaw(queueName contracts.QueueName, payload string) error {
