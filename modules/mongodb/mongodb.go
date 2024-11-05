@@ -290,12 +290,12 @@ func (m *MongoDB) IsExist(model IDefaultModel, filter any) (bool, error) {
 		filter = bson.D{}
 	}
 
-	count, err := m.col(model).Find(m.ctx(), filter).Count()
-	if err != nil {
-		return false, err
+	err := m.col(model).Find(m.ctx(), filter).One(nil)
+	if IsNoResult(err) {
+		return false, nil
 	}
 
-	return count > 0, nil
+	return true, nil
 }
 
 // Count is a method that returns the total number of documents in a MongoDB collection based on the provided filter.
