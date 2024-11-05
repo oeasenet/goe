@@ -160,3 +160,11 @@ func (g *GoeMongoDB) DeleteMany(model mongodb.IDefaultModel, filter any) (*omgo.
 func (g *GoeMongoDB) Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error {
 	return g.mongodbInstance.Aggregate(model, pipeline, res)
 }
+
+func (g *GoeMongoDB) IsExist(model mongodb.IDefaultModel, filter any) (bool, error) {
+	return g.mongodbInstance.IsExist(model, filter)
+}
+
+func (g *GoeMongoDB) Count(model mongodb.IDefaultModel, filter any) (int64, error) {
+	return g.mongodbInstance.Count(model, filter)
+}

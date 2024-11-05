@@ -17,4 +17,6 @@ type MongoDB interface {
 	Delete(model mongodb.IDefaultModel) error
 	DeleteMany(model mongodb.IDefaultModel, filter any) (*omgo.DeleteResult, error)
 	Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error
+	IsExist(model mongodb.IDefaultModel, filter any) (bool, error)
+	Count(model mongodb.IDefaultModel, filter any) (int64, error)
 }

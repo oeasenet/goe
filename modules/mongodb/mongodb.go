@@ -278,3 +278,36 @@ func (m *MongoDB) Aggregate(model IDefaultModel, pipeline any, res any) error {
 
 	return m.col(model).Aggregate(m.ctx(), pipeline).All(res)
 }
+
+// IsExist is a method that checks if a document exists in a MongoDB collection based on the provided filter.
+func (m *MongoDB) IsExist(model IDefaultModel, filter any) (bool, error) {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+		return false, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
+	}
+
+	if filter == nil {
+		filter = bson.D{}
+	}
+
+	count, err := m.col(model).Find(m.ctx(), filter).Count()
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// Count is a method that returns the total number of documents in a MongoDB collection based on the provided filter.
+func (m *MongoDB) Count(model IDefaultModel, filter any) (int64, error) {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+		return 0, errors.New("must initialize MongoDB first, by calling NewMongodb() method")
+	}
+
+	if filter == nil {
+		filter = bson.D{}
+	}
+
+	return m.col(model).Find(m.ctx(), filter).Count()
+}
