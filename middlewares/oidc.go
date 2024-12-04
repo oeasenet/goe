@@ -170,10 +170,10 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 			return webresult.SystemBusy(err)
 		}
 
-		err = verifiedIdToken.VerifyAccessToken(token.AccessToken)
-		if err != nil {
-			return webresult.SystemBusy(err)
-		}
+		//err = verifiedIdToken.VerifyAccessToken(token.AccessToken)
+		//if err != nil {
+		//	return webresult.SystemBusy(err)
+		//}
 
 		claimData := make(map[string]any)
 		err = verifiedIdToken.Claims(&claimData)
@@ -207,6 +207,9 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 		sess.Set("user", codedUserInfo)
 		sess.Set("ip", ctx.IP())
 		sess.Set("ua", string(ctx.Request().Header.UserAgent()))
+		if token.AccessToken != "" {
+			sess.Set("access_token", token.AccessToken)
+		}
 
 		// Save session
 		if err := sess.Save(); err != nil {
