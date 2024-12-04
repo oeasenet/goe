@@ -35,8 +35,8 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 	ms.indexConfig = cfg
 	ms.initialized = true
 	ms.once.Do(func() {
-		taskIDs := make([]int64, len(*ms.indexConfig.ConfigData))
-		cnt := 0
+		//taskIDs := make([]int64, len(*ms.indexConfig.ConfigData))
+		//cnt := 0
 		for indexName, indexConfig := range *ms.indexConfig.ConfigData {
 			// check if index exists
 			_, err := ms.client.GetIndex(indexName)
@@ -49,7 +49,7 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 				})
 			}
 			// set index attributes
-			taskInfo, err := ms.client.Index(indexName).UpdateSettings(&meilisearch.Settings{
+			_, err = ms.client.Index(indexName).UpdateSettings(&meilisearch.Settings{
 				SearchableAttributes: indexConfig.SearchableFields,
 				FilterableAttributes: indexConfig.FilterableFields,
 				SortableAttributes:   indexConfig.SortableFields,
@@ -58,16 +58,14 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 			if err != nil {
 				ms.logger.Error(err)
 			}
-			taskIDs[cnt] = taskInfo.TaskUID
-			cnt++
 		}
-		// wait for all tasks to finish
-		for _, taskID := range taskIDs {
-			err := ms.WaitForTaskSuccess(taskID)
-			if err != nil {
-				ms.logger.Error(err)
-			}
-		}
+		//// wait for all tasks to finish
+		//for _, taskID := range taskIDs {
+		//	err := ms.WaitForTaskSuccess(taskID)
+		//	if err != nil {
+		//		ms.logger.Error(err)
+		//	}
+		//}
 	})
 	return nil
 }
