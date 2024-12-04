@@ -109,6 +109,14 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 			return webresult.SystemBusy(errors.New("session not configured"))
 		}
 
+		if ctx.Query("error") != "" {
+			errMsg := ctx.Query("error_description")
+			if errMsg == "" {
+				errMsg = "OAuth provider returned unknown error"
+			}
+			return webresult.SendFailed(ctx, errMsg)
+		}
+
 		// Check if user is already logged in
 		if !sess.Fresh() {
 			// User is already logged in, return user info from session data
