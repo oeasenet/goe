@@ -27,6 +27,9 @@ func New(config ...Config) *Storage {
 	// Set default config
 	cfg := configDefault(config...)
 
+	// Set MaxRetry
+	minio.MaxRetry = cfg.MaxRetry
+
 	// Minio instance
 	minioClient, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(cfg.Credentials.AccessKeyID, cfg.Credentials.SecretAccessKey, cfg.Token),
@@ -83,30 +86,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 	return bb.Bytes(), nil
 }
 
-func (s *Storage) MustGet(key string) []byte {
-	if len(key) <= 0 {
-		return nil
-	}
-	// get object
-	object, err := s.minio.GetObject(s.ctx, s.cfg.Bucket, key, s.cfg.GetObjectOptions)
-	if err != nil {
-		return nil
-	}
-	// convert to byte
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
-	_, err = bb.ReadFrom(object)
-	if err != nil {
-		return nil
-	}
-	return bb.Bytes()
-}
-
 // Set key with value
-// The method `Set` sets the value for a given key in the storage. It creates a Reader from the value byte slice,
-// sets the content type in the storage configuration, and then puts the object in the bucket using the Minio client.
-// It acquires a lock on the storage mutex to ensure thread safety when setting the configuration options.
-// Finally, it returns any errors encountered while putting the object.
 func (s *Storage) Set(key string, val []byte, exp time.Duration) error {
 
 	if len(key) <= 0 {
@@ -141,11 +121,6 @@ func (s *Storage) Delete(key string) error {
 }
 
 // Reset all entries, including unexpired
-// This method resets all entries in the storage, including unexpired entries. It deletes all objects in the storage bucket.
-// The method achieves this by listing all the objects in the bucket and sending their names to a channel. A separate goroutine
-// listens to the channel and removes the objects one by one using the minio client's RemoveObjects method. The method also logs
-// any errors encountered during the deletion process.
-// DANGER ZONE!!!!!!: This method is dangerous and should be used with caution. It deletes all objects in the storage bucket.
 func (s *Storage) Reset() error {
 
 	objectsCh := make(chan minio.ObjectInfo)
@@ -187,17 +162,17 @@ func (s *Storage) CheckBucket() error {
 	return nil
 }
 
-// CreateBucket creates a new bucket if it does not exist
+// CreateBucket Bucket not found so Make a new bucket
 func (s *Storage) CreateBucket() error {
 	return s.minio.MakeBucket(s.ctx, s.cfg.Bucket, minio.MakeBucketOptions{Region: s.cfg.Region})
 }
 
-// RemoveBucket removes the bucket if it is empty.
+// RemoveBucket Bucket remove if bucket is empty
 func (s *Storage) RemoveBucket() error {
 	return s.minio.RemoveBucket(s.ctx, s.cfg.Bucket)
 }
 
-// Conn returns the minio client.
+// Conn Return minio client
 func (s *Storage) Conn() *minio.Client {
 	return s.minio
 }

@@ -267,7 +267,7 @@ func (m *FileMiddlewares) HandleUpload() fiber.Handler {
 				}
 
 				// Save the file to storage
-				if err := ctx.SaveFileToStorage(file, fmt.Sprintf("./%s", idealFileName), m.storage); err != nil {
+				if err := ctx.SaveFileToStorage(file, fmt.Sprintf("%s", idealFileName), m.storage); err != nil {
 					return webresult.SystemBusy(err)
 				}
 
@@ -328,7 +328,7 @@ func (m *FileMiddlewares) HandleView() fiber.Handler {
 		}
 
 		//get file content from storage and display it
-		fileData, err := m.storage.Get(fmt.Sprintf("./%s", fileInfo.UploadedName))
+		fileData, err := m.storage.Get(fmt.Sprintf("%s", fileInfo.UploadedName))
 		if err != nil {
 			return webresult.SystemBusy(err)
 		}
@@ -336,8 +336,10 @@ func (m *FileMiddlewares) HandleView() fiber.Handler {
 			return webresult.NotFound("file not found in upstream storage")
 		}
 		ctx.Response().Header.SetContentType(fileInfo.MimeType)
-		ctx.Response().SetStatusCode(fiber.StatusOK)
+		ctx.Response().Header.SetContentLength(int(fileInfo.Size))
+		//ctx.Response().SetStatusCode(fiber.StatusOK)
 
+		ctx.Attachment()
 		if mustDownload {
 			if downloadName != "" {
 				ctx.Response().Header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", downloadName))
@@ -345,8 +347,8 @@ func (m *FileMiddlewares) HandleView() fiber.Handler {
 				ctx.Response().Header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileInfo.Filename))
 			}
 		}
-
-		return ctx.Send(fileData)
+		ctx.Response().SetBody(fileData)
+		return ctx.SendStatus(fiber.StatusOK)
 	}
 }
 
@@ -377,7 +379,7 @@ func (m *FileMiddlewares) HandleDelete() fiber.Handler {
 		}
 
 		//delete file from storage
-		err = m.storage.Delete(fmt.Sprintf("./%s", fileInfo.UploadedName))
+		err = m.storage.Delete(fmt.Sprintf("%s", fileInfo.UploadedName))
 		if err != nil {
 			return webresult.SystemBusy(err)
 		}
