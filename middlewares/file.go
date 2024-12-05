@@ -330,7 +330,7 @@ func (m *FileMiddlewares) HandleView() fiber.Handler {
 		//get file content from storage and display it
 		fileData, err := m.storage.Get(fmt.Sprintf("%s", fileInfo.UploadedName))
 		if err != nil {
-			return webresult.SystemBusy(err)
+			core.UseGoeContainer().GetLogger().Warn("file not found in upstream storage or error from upstream: ", err)
 		}
 		if fileData == nil {
 			return webresult.NotFound("file not found in upstream storage")
