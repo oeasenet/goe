@@ -39,20 +39,16 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 	ms.initialized = true
 	ms.once.Do(func() {
 		for indexName, indexConfig := range *ms.indexConfig.ConfigData {
-			_, err := ms.client.DeleteIndex(indexName)
+			// check if index exists
+			_, err := ms.client.GetIndex(indexName)
 			if err != nil {
-				ms.logger.Error(err)
+				ms.logger.Debug("index '" + indexName + "' not exists, create it")
+				// maybe index not exists, create it
+				_, err = ms.client.CreateIndex(&meilisearch.IndexConfig{
+					Uid:        indexName,
+					PrimaryKey: "id",
+				})
 			}
-			ms.logger.Debug("index '" + indexName + "' deleted.")
-			// create index
-			_, err = ms.client.CreateIndex(&meilisearch.IndexConfig{
-				Uid:        indexName,
-				PrimaryKey: "id",
-			})
-			if err != nil {
-				ms.logger.Error(err)
-			}
-			ms.logger.Debug("index '" + indexName + "' created.")
 			// set index attributes
 			_, err = ms.client.Index(indexName).UpdateSettings(&meilisearch.Settings{
 				SearchableAttributes: indexConfig.SearchableFields,
@@ -63,7 +59,6 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 			if err != nil {
 				ms.logger.Error(err)
 			}
-			ms.logger.Debug("index '" + indexName + "' attributes set.")
 		}
 	})
 	return nil
@@ -84,8 +79,11 @@ func (ms *MSearch) RebuildAllIndexes(dbConnUri string, dbName string) error {
 	}
 	defer dbClient.Close(context.Background())
 	db := dbClient.Database(dbName)
-
 	for indexName, _ := range *ms.indexConfig.ConfigData {
+		_, err := ms.client.Index(indexName).DeleteAllDocuments()
+		if err != nil {
+			ms.logger.Error("Delete all documents in index (", indexName, ") failed: ", err)
+		}
 		cur := db.Collection(indexName).Find(context.Background(), bson.D{}).Cursor()
 		curRes := bson.M{}
 		for cur.Next(curRes) {
