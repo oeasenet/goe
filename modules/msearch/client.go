@@ -1,8 +1,11 @@
 package msearch
 
 import (
+	"context"
 	"github.com/goccy/go-json"
 	"github.com/meilisearch/meilisearch-go"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.oease.dev/omgo"
 	"sync"
 )
 
@@ -35,19 +38,21 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 	ms.indexConfig = cfg
 	ms.initialized = true
 	ms.once.Do(func() {
-		//taskIDs := make([]int64, len(*ms.indexConfig.ConfigData))
-		//cnt := 0
 		for indexName, indexConfig := range *ms.indexConfig.ConfigData {
-			// check if index exists
-			_, err := ms.client.GetIndex(indexName)
+			_, err := ms.client.DeleteIndex(indexName)
 			if err != nil {
-				ms.logger.Debug("index '" + indexName + "' not exists, create it")
-				// maybe index not exists, create it
-				_, err = ms.client.CreateIndex(&meilisearch.IndexConfig{
-					Uid:        indexName,
-					PrimaryKey: "id",
-				})
+				ms.logger.Error(err)
 			}
+			ms.logger.Debug("index '" + indexName + "' deleted.")
+			// create index
+			_, err = ms.client.CreateIndex(&meilisearch.IndexConfig{
+				Uid:        indexName,
+				PrimaryKey: "id",
+			})
+			if err != nil {
+				ms.logger.Error(err)
+			}
+			ms.logger.Debug("index '" + indexName + "' created.")
 			// set index attributes
 			_, err = ms.client.Index(indexName).UpdateSettings(&meilisearch.Settings{
 				SearchableAttributes: indexConfig.SearchableFields,
@@ -58,14 +63,49 @@ func (ms *MSearch) ApplyIndexConfigs(configData []byte) error {
 			if err != nil {
 				ms.logger.Error(err)
 			}
+			ms.logger.Debug("index '" + indexName + "' attributes set.")
 		}
-		//// wait for all tasks to finish
-		//for _, taskID := range taskIDs {
-		//	err := ms.WaitForTaskSuccess(taskID)
-		//	if err != nil {
-		//		ms.logger.Error(err)
-		//	}
-		//}
 	})
+	return nil
+}
+
+func (ms *MSearch) RebuildAllIndexes(dbConnUri string, dbName string) error {
+	//rebuild all indexes
+	ms.logger.Debug("Rebuilding all indexes...")
+	dbClient, err := omgo.NewClient(context.Background(), &omgo.Config{
+		Uri:      dbConnUri,
+		Database: dbName,
+	})
+	if err != nil {
+		return err
+	}
+	if err := dbClient.Ping(10); err != nil {
+		return err
+	}
+	defer dbClient.Close(context.Background())
+	db := dbClient.Database(dbName)
+
+	for indexName, _ := range *ms.indexConfig.ConfigData {
+		cur := db.Collection(indexName).Find(context.Background(), bson.D{}).Cursor()
+		curRes := bson.M{}
+		for cur.Next(curRes) {
+			if curRes["is_deleted"] != nil {
+				if curRes["is_deleted"].(bool) {
+					continue
+				}
+			}
+			//modify the data map
+			//change _id to id
+			curRes["id"] = curRes["_id"]
+			delete(curRes, "_id")
+
+			//add doc to index
+			_, err := ms.client.Index(indexName).AddDocuments(&curRes)
+			if err != nil {
+				ms.logger.Error("Rebuild index (", indexName, ") failed: ", err)
+			}
+		}
+	}
+	ms.logger.Debug("Rebuild all indexes successfully.")
 	return nil
 }

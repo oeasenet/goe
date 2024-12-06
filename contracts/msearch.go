@@ -4,6 +4,7 @@ import "github.com/meilisearch/meilisearch-go"
 
 type Meilisearch interface {
 	ApplyIndexConfigs(configData []byte) error
+	RebuildAllIndexes(dbConnUri string, dbName string) error
 	WaitForTaskSuccess(taskUID int64) error
 	AddDoc(indexName string, docPtr any) error
 	DelDoc(indexName string, docId string) error
