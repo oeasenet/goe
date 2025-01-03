@@ -11,10 +11,11 @@ import (
 )
 
 var sessionStore *session.Store
+var sessionMiddleware fiber.Handler
 var once sync.Once
 
 func initSessionStore() {
-	if sessionStore != nil {
+	if sessionStore != nil && sessionMiddleware != nil {
 		return
 	}
 	once.Do(func() {
@@ -28,26 +29,35 @@ func initSessionStore() {
 		})
 
 		//create session store
-		sessionStoreConfig := session.ConfigDefault
-		sessionStoreConfig.Expiration = time.Duration(core.UseGoeConfig().Session.Expiration) * time.Second
-		sessionStoreConfig.Storage = store
-		sessionStoreConfig.KeyLookup = core.UseGoeConfig().Session.KeyLookup
-		sessionStore = session.New(sessionStoreConfig)
+		midw, sStore := session.NewWithStore(session.Config{
+			IdleTimeout:     time.Duration(core.UseGoeConfig().Session.Expiration) * time.Second,
+			AbsoluteTimeout: 0,
+			Storage:         store,
+			KeyLookup:       core.UseGoeConfig().Session.KeyLookup,
+		})
+		sessionStore = sStore
+		sessionMiddleware = midw
 	})
 }
 
-func UseSession(ctx fiber.Ctx) *session.Session {
+func NewSessionMiddleware() fiber.Handler {
 	initSessionStore()
-	s, err := sessionStore.Get(ctx)
-	if err != nil {
-		return nil
-	}
-	return s
+	return sessionMiddleware
+}
+
+func GetSessionStore() *session.Store {
+	initSessionStore()
+	return sessionStore
+}
+
+func UseSession(ctx fiber.Ctx) *session.Middleware {
+	initSessionStore()
+	return session.FromContext(ctx)
 }
 
 func IsLoggedIn(ctx fiber.Ctx) bool {
 	s := UseSession(ctx)
-	if s != nil && len(s.ID()) > 0 && len(s.Keys()) > 0 {
+	if s != nil && s.Session != nil && len(s.Session.ID()) > 0 && len(s.Session.Keys()) > 0 {
 		return true
 	}
 	return false

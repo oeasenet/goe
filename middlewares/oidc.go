@@ -154,7 +154,7 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 		}
 
 		// Exchange code for tokens
-		token, err := m.oauthConfig.Exchange(ctx.UserContext(), code)
+		token, err := m.oauthConfig.Exchange(ctx.Context(), code)
 		if err != nil {
 			return webresult.SystemBusy(err)
 		}
@@ -173,7 +173,7 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 			SkipExpiryCheck:            false,
 			SkipIssuerCheck:            false,
 			InsecureSkipSignatureCheck: false,
-		}).Verify(ctx.UserContext(), rawIdToken)
+		}).Verify(ctx.Context(), rawIdToken)
 		if err != nil {
 			return webresult.SystemBusy(err)
 		}
@@ -219,10 +219,11 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 			sess.Set("access_token", token.AccessToken)
 		}
 
-		// Save session
-		if err := sess.Save(); err != nil {
-			return webresult.SystemBusy(err)
-		}
+		// Fiber v3 beta.4 using session handler, manually saving no longer needed
+		//// Save session
+		//if err := sess.Save(); err != nil {
+		//	return webresult.SystemBusy(err)
+		//}
 
 		// login success, invalid old state and redirect to home page
 		err = m.oauthStateStore.Delete(state)
