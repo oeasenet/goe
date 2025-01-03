@@ -1,10 +1,12 @@
-# DelayQueue (Modified)
+# DelayQueue
 
 ![license](https://img.shields.io/github/license/HDT3213/delayqueue)
 ![Build Status](https://github.com/hdt3213/delayqueue/actions/workflows/coverall.yml/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/HDT3213/delayqueue/badge.svg?branch=master)](https://coveralls.io/github/HDT3213/delayqueue?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/HDT3213/delayqueue)](https://goreportcard.com/report/github.com/HDT3213/delayqueue)
 [![Go Reference](https://pkg.go.dev/badge/github.com/hdt3213/delayqueue.svg)](https://pkg.go.dev/github.com/hdt3213/delayqueue)
+
+[中文版](https://github.com/HDT3213/delayqueue/blob/master/README_CN.md)
 
 DelayQueue is a message queue supporting delayed/scheduled delivery based on redis. It is designed to be reliable,
 scalable and easy to get started.
@@ -23,9 +25,11 @@ Core Advantages:
 
 DelayQueue requires a Go version with modules support. Run following command line in your project with go.mod:
 
-```
+```bash
 go get github.com/hdt3213/delayqueue
 ```
+
+> if you are using `github.com/go-redis/redis/v8` please use `go get github.com/hdt3213/delayqueue@redisv8`
 
 ## Get Started
 
@@ -68,8 +72,6 @@ func main() {
 }
 ```
 
-> if you are using github.com/go-redis/redis/v8 please use `go get github.com/hdt3213/delayqueue@redisv8`
-
 > Please note that redis/v8 is not compatible with redis cluster
 > 7.x. [detail](https://github.com/redis/go-redis/issues/2085)
 
@@ -99,6 +101,8 @@ publisher.SendDelayMsg(strconv.Itoa(i), 0)
 
 ## Options
 
+### Consume Function
+
 ```go
 func (q *DelayQueue)WithCallback(callback CallbackFunc) *DelayQueue
 ```
@@ -115,11 +119,21 @@ return true
 })
 ```
 
+### Logger
+
 ```go
-func (q *DelayQueue)WithLogger(logger *log.Logger) *DelayQueue
+func (q *DelayQueue)WithLogger(logger Logger) *DelayQueue
 ```
 
-WithLogger customizes logger for queue
+WithLogger customizes logger for queue. Logger should implemented the following interface:
+
+```go
+type Logger interface {
+Printf(format string, v ...interface{})
+}
+```
+
+### Concurrent
 
 ```go
 func (q *DelayQueue)WithConcurrent(c uint) *DelayQueue
@@ -127,11 +141,15 @@ func (q *DelayQueue)WithConcurrent(c uint) *DelayQueue
 
 WithConcurrent sets the number of concurrent consumers
 
+### Polling Interval
+
 ```go
 func (q *DelayQueue)WithFetchInterval(d time.Duration) *DelayQueue
 ```
 
 WithFetchInterval customizes the interval at which consumer fetch message from redis
+
+### Timeout
 
 ```go
 func (q *DelayQueue)WithMaxConsumeDuration(d time.Duration) *DelayQueue
@@ -142,11 +160,15 @@ WithMaxConsumeDuration customizes max consume duration
 If no acknowledge received within WithMaxConsumeDuration after message delivery, DelayQueue will try to deliver this
 message again
 
+### Max Processing Limit
+
 ```go
 func (q *DelayQueue)WithFetchLimit(limit uint) *DelayQueue
 ```
 
 WithFetchLimit limits the max number of unack (processing) messages
+
+### Hash Tag
 
 ```go
 UseHashTagKey()
@@ -154,13 +176,14 @@ UseHashTagKey()
 
 UseHashTagKey add hashtags to redis keys to ensure all keys of this queue are allocated in the same hash slot.
 
-If you are using Codis/AliyunRedisCluster/TencentCloudRedisCluster, you should add this option to
-NewQueue: `NewQueue("test", redisCli, cb, UseHashTagKey())`. This Option cannot be changed after DelayQueue has been
-created.
+If you are using Codis/AliyunRedisCluster/TencentCloudRedisCluster, you should add this option to NewQueue:
+`NewQueue("test", redisCli, cb, UseHashTagKey())`. This Option cannot be changed after DelayQueue has been created.
 
 WARNING! CHANGING(add or remove) this option will cause DelayQueue failing to read existed data in redis
 
 > see more:  https://redis.io/docs/reference/cluster-spec/#hash-tags
+
+### Default Retry Count
 
 ```go
 WithDefaultRetryCount(count uint)  *DelayQueue
@@ -170,6 +193,19 @@ WithDefaultRetryCount customizes the max number of retry, it effects of messages
 
 use WithRetryCount during DelayQueue.SendScheduleMsg or DelayQueue.SendDelayMsg to specific retry count of particular
 message
+
+```go
+queue.SendDelayMsg(msg, time.Hour, delayqueue.WithRetryCount(3))
+```
+
+### Script Preload
+
+```go
+(q *DelayQueue) WithScriptPreload(flag bool) *DelayQueue
+```
+
+WithScriptPreload(true) makes DelayQueue preload scripts and call them using EvalSha to reduce communication costs.
+WithScriptPreload(false) makes DelayQueue run scripts by Eval commnand. Using preload and EvalSha by Default
 
 ## Monitoring
 

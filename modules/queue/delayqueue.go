@@ -6,33 +6,41 @@ import (
 	"go.oease.dev/goe/utils"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // DelayQueue is a message queue supporting delayed/scheduled delivery based on redis
 type DelayQueue struct {
 	// name for this Queue. Make sure the name is unique in redis database
-	name          string
-	redisCli      RedisCli
-	cb            func(string) bool
-	pendingKey    string // sorted set: message id -> delivery time
-	readyKey      string // list
-	unAckKey      string // sorted set: message id -> retry time
-	retryKey      string // list
-	retryCountKey string // hash: message id -> remain retry count
-	garbageKey    string // set: message id
-	useHashTag    bool
-	ticker        *time.Ticker
-	logger        Logger
-	close         chan struct{}
-
+	name               string
+	redisCli           RedisCli
+	cb                 func(string) bool
+	pendingKey         string // sorted set: message id -> delivery time
+	readyKey           string // list
+	unAckKey           string // sorted set: message id -> retry time
+	retryKey           string // list
+	retryCountKey      string // hash: message id -> remain retry count
+	garbageKey         string // set: message id
+	useHashTag         bool
+	ticker             *time.Ticker
+	logger             Logger
+	close              chan struct{}
+	running            int32
 	maxConsumeDuration time.Duration // default 5 seconds
 	msgTTL             time.Duration // default 1 hour
 	defaultRetryCount  uint          // default 3
 	fetchInterval      time.Duration // default 1 second
 	fetchLimit         uint          // default no limit
+	fetchCount         int32         // actually running task number
 	concurrent         uint          // default 1, executed serially
+	sha1map            map[string]string
+	sha1mapMu          *sync.RWMutex
+	scriptPreload      bool
+	// for batch consume
+	consumeBuffer chan string
 
 	eventListener EventListener
 }
@@ -65,6 +73,12 @@ type RedisCli interface {
 	// Subscribe used for monitor only
 	// returns: payload channel, subscription closer, error; the subscription closer should close payload channel as well
 	Subscribe(channel string) (payloads <-chan string, close func(), err error)
+
+	// ScriptLoad call `script load` command
+	ScriptLoad(script string) (string, error)
+	// EvalSha run preload scripts
+	// If there is no preload scripts please return error with message "NOSCRIPT"
+	EvalSha(sha1 string, keys []string, args []interface{}) (interface{}, error)
 }
 
 type hashTagKeyOpt int
@@ -124,6 +138,9 @@ func NewQueue0(name string, cli RedisCli, opts ...interface{}) *DelayQueue {
 		defaultRetryCount:  3,
 		fetchInterval:      time.Second,
 		concurrent:         1,
+		sha1map:            make(map[string]string),
+		sha1mapMu:          &sync.RWMutex{},
+		scriptPreload:      true,
 	}
 }
 
@@ -146,6 +163,12 @@ func (q *DelayQueue) WithFetchInterval(d time.Duration) *DelayQueue {
 	return q
 }
 
+// WithScriptPreload use script load command preload scripts to redis
+func (q *DelayQueue) WithScriptPreload(flag bool) *DelayQueue {
+	q.scriptPreload = flag
+	return q
+}
+
 // WithMaxConsumeDuration customizes max consume duration
 // If no acknowledge received within WithMaxConsumeDuration after message delivery, DelayQueue will try to deliver this message again
 func (q *DelayQueue) WithMaxConsumeDuration(d time.Duration) *DelayQueue {
@@ -162,8 +185,9 @@ func (q *DelayQueue) WithFetchLimit(limit uint) *DelayQueue {
 // WithConcurrent sets the number of concurrent consumers
 func (q *DelayQueue) WithConcurrent(c uint) *DelayQueue {
 	if c == 0 {
-		return q
+		panic("concurrent cannot be 0")
 	}
+	q.assertNotRunning()
 	q.concurrent = c
 	return q
 }
@@ -239,6 +263,48 @@ func (q *DelayQueue) SendDelayMsg(payload string, duration time.Duration, opts .
 	return q.SendScheduleMsg(payload, t, opts...)
 }
 
+func (q *DelayQueue) loadScript(script string) (string, error) {
+	sha1, err := q.redisCli.ScriptLoad(script)
+	if err != nil {
+		return "", err
+	}
+	q.sha1mapMu.Lock()
+	q.sha1map[script] = sha1
+	q.sha1mapMu.Unlock()
+	return sha1, nil
+}
+
+func (q *DelayQueue) eval(script string, keys []string, args []interface{}) (interface{}, error) {
+	if !q.scriptPreload {
+		return q.redisCli.Eval(script, keys, args)
+	}
+	var err error
+	q.sha1mapMu.RLock()
+	sha1, ok := q.sha1map[script]
+	q.sha1mapMu.RUnlock()
+	if !ok {
+		sha1, err = q.loadScript(script)
+		if err != nil {
+			return nil, err
+		}
+	}
+	result, err := q.redisCli.EvalSha(sha1, keys, args)
+	if err == nil {
+		return result, err
+	}
+	// script not loaded, reload it
+	// It is possible to access a node in the cluster that has no pre-loaded scripts.
+	if strings.HasPrefix(err.Error(), "NOSCRIPT") {
+		sha1, err = q.loadScript(script)
+		if err != nil {
+			return nil, err
+		}
+		// try again
+		result, err = q.redisCli.EvalSha(sha1, keys, args)
+	}
+	return result, err
+}
+
 // pending2ReadyScript atomically moves messages from pending to ready
 // keys: pendingKey, readyKey
 // argv: currentTime
@@ -264,7 +330,7 @@ return #msgs
 func (q *DelayQueue) pending2Ready() error {
 	now := time.Now().Unix()
 	keys := []string{q.pendingKey, q.readyKey}
-	raw, err := q.redisCli.Eval(pending2ReadyScript, keys, []interface{}{now})
+	raw, err := q.eval(pending2ReadyScript, keys, []interface{}{now})
 	if err != nil && err != NilErr {
 		return fmt.Errorf("pending2ReadyScript failed: %v", err)
 	}
@@ -288,7 +354,7 @@ return msg
 func (q *DelayQueue) ready2Unack() (string, error) {
 	retryTime := time.Now().Add(q.maxConsumeDuration).Unix()
 	keys := []string{q.readyKey, q.unAckKey}
-	ret, err := q.redisCli.Eval(ready2UnackScript, keys, []interface{}{retryTime})
+	ret, err := q.eval(ready2UnackScript, keys, []interface{}{retryTime})
 	if err == NilErr {
 		return "", err
 	}
@@ -306,7 +372,7 @@ func (q *DelayQueue) ready2Unack() (string, error) {
 func (q *DelayQueue) retry2Unack() (string, error) {
 	retryTime := time.Now().Add(q.maxConsumeDuration).Unix()
 	keys := []string{q.retryKey, q.unAckKey}
-	ret, err := q.redisCli.Eval(ready2UnackScript, keys, []interface{}{retryTime, q.retryKey, q.unAckKey})
+	ret, err := q.eval(ready2UnackScript, keys, []interface{}{retryTime, q.retryKey, q.unAckKey})
 	if err == NilErr {
 		return "", NilErr
 	}
@@ -338,44 +404,8 @@ func (q *DelayQueue) callback(idStr string) error {
 	return err
 }
 
-// batchCallback calls DelayQueue.callback in batch. callback is executed concurrently according to property DelayQueue.concurrent
-// batchCallback must wait all callback finished, otherwise the actual number of processing messages may beyond DelayQueue.FetchLimit
-func (q *DelayQueue) batchCallback(ids []string) {
-	if len(ids) == 1 || q.concurrent == 1 {
-		for _, id := range ids {
-			err := q.callback(id)
-			if err != nil {
-				q.logger.Errorf("consume msg %s failed: %v", id, err)
-			}
-		}
-		return
-	}
-	ch := make(chan string, len(ids))
-	for _, id := range ids {
-		ch <- id
-	}
-	close(ch)
-	wg := sync.WaitGroup{}
-	concurrent := int(q.concurrent)
-	if concurrent > len(ids) { // too many goroutines is no use
-		concurrent = len(ids)
-	}
-	wg.Add(concurrent)
-	for i := 0; i < concurrent; i++ {
-		go func() {
-			defer wg.Done()
-			for id := range ch {
-				err := q.callback(id)
-				if err != nil {
-					q.logger.Errorf("consume msg %s failed: %v", id, err)
-				}
-			}
-		}()
-	}
-	wg.Wait()
-}
-
 func (q *DelayQueue) ack(idStr string) error {
+	atomic.AddInt32(&q.fetchCount, -1)
 	err := q.redisCli.ZRem(q.unAckKey, []string{idStr})
 	if err != nil {
 		return fmt.Errorf("remove from unack failed: %v", err)
@@ -388,6 +418,7 @@ func (q *DelayQueue) ack(idStr string) error {
 }
 
 func (q *DelayQueue) nack(idStr string) error {
+	atomic.AddInt32(&q.fetchCount, -1)
 	// update retry time as now, unack2Retry will move it to retry immediately
 	err := q.redisCli.ZAdd(q.unAckKey, map[string]float64{
 		idStr: float64(time.Now().Unix()),
@@ -458,7 +489,7 @@ return {retryMsgs, failMsgs}
 func (q *DelayQueue) unack2Retry() error {
 	keys := []string{q.unAckKey, q.retryCountKey, q.retryKey, q.garbageKey}
 	now := time.Now()
-	raw, err := q.redisCli.Eval(unack2RetryScript, keys, []interface{}{now.Unix()})
+	raw, err := q.eval(unack2RetryScript, keys, []interface{}{now.Unix()})
 	if err != nil && err != NilErr {
 		return fmt.Errorf("unack to retry script failed: %v", err)
 	}
@@ -500,32 +531,55 @@ func (q *DelayQueue) garbageCollect() error {
 	return nil
 }
 
-func (q *DelayQueue) consume() error {
+func (q *DelayQueue) beforeConsume() ([]string, error) {
 	// pending to ready
 	err := q.pending2Ready()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// consume
+	// ready2Unack
+	// prioritize new message consumption to avoid avalanches
 	ids := make([]string, 0, q.fetchLimit)
+	var fetchCount int32
 	for {
+		fetchCount = atomic.LoadInt32(&q.fetchCount)
+		if q.fetchLimit > 0 && fetchCount >= int32(q.fetchLimit) {
+			break
+		}
 		idStr, err := q.ready2Unack()
 		if err == NilErr { // consumed all
 			break
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		ids = append(ids, idStr)
-		if q.fetchLimit > 0 && len(ids) >= int(q.fetchLimit) {
-			break
+		atomic.AddInt32(&q.fetchCount, 1)
+	}
+	// retry2Unack
+	if fetchCount < int32(q.fetchLimit) || q.fetchLimit == 0 {
+		for {
+			fetchCount = atomic.LoadInt32(&q.fetchCount)
+			if q.fetchLimit > 0 && fetchCount >= int32(q.fetchLimit) {
+				break
+			}
+			idStr, err := q.retry2Unack()
+			if err == NilErr { // consumed all
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, idStr)
+			atomic.AddInt32(&q.fetchCount, 1)
 		}
 	}
-	if len(ids) > 0 {
-		q.batchCallback(ids)
-	}
+	return ids, nil
+}
+
+func (q *DelayQueue) afterConsume() error {
 	// unack to retry
-	err = q.unack2Retry()
+	err := q.unack2Retry()
 	if err != nil {
 		return err
 	}
@@ -533,25 +587,33 @@ func (q *DelayQueue) consume() error {
 	if err != nil {
 		return err
 	}
-	// retry
-	ids = make([]string, 0, q.fetchLimit)
-	for {
-		idStr, err := q.retry2Unack()
-		if err == NilErr { // consumed all
-			break
-		}
-		if err != nil {
-			return err
-		}
-		ids = append(ids, idStr)
-		if q.fetchLimit > 0 && len(ids) >= int(q.fetchLimit) {
-			break
-		}
-	}
-	if len(ids) > 0 {
-		q.batchCallback(ids)
-	}
 	return nil
+}
+
+func (q *DelayQueue) setRunning() {
+	atomic.StoreInt32(&q.running, 1)
+}
+
+func (q *DelayQueue) setNotRunning() {
+	atomic.StoreInt32(&q.running, 0)
+}
+
+func (q *DelayQueue) assertNotRunning() {
+	running := atomic.LoadInt32(&q.running)
+	if running > 0 {
+		panic("operation cannot be performed during running")
+	}
+}
+
+func (q *DelayQueue) goWithRecover(fn func()) {
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				q.logger.Printf("panic: %v\n", err)
+			}
+		}()
+		fn()
+	}()
 }
 
 // StartConsume creates a goroutine to consume message from DelayQueue
@@ -562,17 +624,34 @@ func (q *DelayQueue) StartConsume() (done <-chan struct{}) {
 		panic("this instance has no callback")
 	}
 	q.close = make(chan struct{}, 1)
+	q.setRunning()
 	q.ticker = time.NewTicker(q.fetchInterval)
+	q.consumeBuffer = make(chan string, q.fetchLimit)
 	done0 := make(chan struct{})
+	// start worker
+	for i := 0; i < int(q.concurrent); i++ {
+		q.goWithRecover(func() {
+			for id := range q.consumeBuffer {
+				q.callback(id)
+				q.afterConsume()
+			}
+		})
+	}
+	// start main loop
 	go func() {
 	tickerLoop:
 		for {
 			select {
 			case <-q.ticker.C:
-				err := q.consume()
+				ids, err := q.beforeConsume()
 				if err != nil {
 					log.Printf("consume error: %v", err)
 				}
+				q.goWithRecover(func() {
+					for _, id := range ids {
+						q.consumeBuffer <- id
+					}
+				})
 			case <-q.close:
 				break tickerLoop
 			}
@@ -585,9 +664,11 @@ func (q *DelayQueue) StartConsume() (done <-chan struct{}) {
 // StopConsume stops consumer goroutine
 func (q *DelayQueue) StopConsume() {
 	close(q.close)
+	q.setNotRunning()
 	if q.ticker != nil {
 		q.ticker.Stop()
 	}
+	close(q.consumeBuffer)
 }
 
 // GetPendingCount returns the number of pending messages

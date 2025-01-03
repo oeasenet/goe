@@ -6,6 +6,7 @@ import (
 )
 
 type Logger interface {
+	Printf(format string, v ...interface{})
 	Debug(args ...any)
 	Info(args ...any)
 	Warn(args ...any)
@@ -27,6 +28,10 @@ func newDefaultLogger() Logger {
 	return &defaultLogger{
 		defaultSloger: slog.Default(),
 	}
+}
+
+func (d *defaultLogger) Printf(format string, v ...interface{}) {
+	d.defaultSloger.Info(format, v...)
 }
 
 func (d *defaultLogger) Debug(args ...any) {
