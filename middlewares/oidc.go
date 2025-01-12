@@ -118,18 +118,20 @@ func (m *OIDCMiddleware) HandleLoginCallback(claimDataProcFunc ...OAuthClaimData
 		}
 
 		// Check if user is already logged in
-		if !sess.Fresh() {
-			// User is already logged in, return user info from session data
-			userData := sess.Get("user")
-			if userData == nil {
-				return webresult.SendFailed(ctx, "user data not found in session")
-			}
-			userInfo := make(map[string]any)
-			err := json.Unmarshal(userData.([]byte), &userInfo)
-			if err != nil {
-				return webresult.SystemBusy(err)
-			}
-			return webresult.SendSucceed(ctx, userInfo)
+		if !sess.Fresh() && sess.Get("user") != nil {
+			//// User is already logged in, return user info from session data
+			//userData := sess.Get("user")
+			//if userData == nil {
+			//	return webresult.SendFailed(ctx, "user data not found in session")
+			//}
+			//userInfo := make(map[string]any)
+			//err := json.Unmarshal(userData.([]byte), &userInfo)
+			//if err != nil {
+			//	return webresult.SystemBusy(err)
+			//}
+			//return webresult.SendSucceed(ctx, userInfo)
+			// user already logged in, but reset session to force re-login and update user information
+			_ = sess.Reset()
 		}
 
 		// User is not logged in, handle sign-in callback
