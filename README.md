@@ -17,6 +17,7 @@ Thanks for the following projects that GOE relies on or inspired by:
 - [PocketBase](https://pocketbase.io/) - For the mailer implementation and interface design.
 - [Delayqueue](https://github.com/HDT3213/delayqueue) - For the message queue implementation.
 - [Zap](https://github.com/uber-go/zap) - For the logger implementation.
+- [EMQX](https://www.emqx.com/) - For the MQTT broker implementation.
 - ~~[Kelindar Event](https://github.com/kelindar/event) - For the event bus implementation.~~
 
 ## Goals
