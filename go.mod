@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/domodwyer/mailyak/v3 v3.6.2
+	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/go-co-op/gocron/v2 v2.12.4
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
@@ -45,6 +46,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/filter v1.2.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect

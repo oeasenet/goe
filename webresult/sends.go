@@ -35,6 +35,7 @@ func Forbidden(msg ...string) *fiber.Error {
 func SendSucceed(ctx fiber.Ctx, data ...any) error {
 	result := &WebResult{
 		Message: "success",
+		Data:    map[string]any{},
 	}
 	if len(data) > 0 && data[0] != nil {
 		result.Data = data[0]
@@ -48,6 +49,7 @@ func SendFailed(ctx fiber.Ctx, msg string, data ...any) error {
 	}
 	result := &WebResult{
 		Message: msg,
+		Data:    map[string]any{},
 	}
 	if len(data) > 0 && data[0] != nil {
 		result.Data = data[0]

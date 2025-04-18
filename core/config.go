@@ -1,5 +1,9 @@
 package core
 
+import (
+	"go.oease.dev/goe/modules/broker"
+)
+
 var goeConfigInstance *GoeConfig
 
 func UseGoeConfig() *GoeConfig {
@@ -18,6 +22,7 @@ type GoeConfig struct {
 	Session     *GoeConfigSession
 	S3          *GoeConfigS3
 	OIDC        *GoeOIDCConfig
+	EMQX        *broker.EMQXConfig
 }
 
 type AppConfigs struct {
@@ -31,6 +36,7 @@ type GoeConfigFeatures struct {
 	MeilisearchEnabled  bool `json:"meilisearch_enabled"`
 	SearchDBSyncEnabled bool `json:"search_db_sync_enabled"`
 	SMTPMailerEnabled   bool `json:"smtp_mailer_enabled"`
+	EMQXBrokerEnabled   bool `json:"emqx_enabled"`
 }
 
 type GoeConfigMongodb struct {

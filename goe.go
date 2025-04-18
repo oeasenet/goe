@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/core"
+	"go.oease.dev/goe/modules/broker"
 	"go.oease.dev/goe/modules/config"
 	"go.oease.dev/goe/modules/log"
 	"os"
@@ -66,6 +67,9 @@ func NewApp() error {
 
 	// Init Fiber
 	appInstance.container.InitFiber()
+
+	// Init EMQX
+	appInstance.container.InitEMQX()
 
 	return nil
 }
@@ -148,6 +152,18 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			AppScopes: configModule.GetStringSlice("OIDC_APP_SCOPES"),
 			Issuer:    configModule.Get("OIDC_ISSUER"),
 		},
+		EMQX: &broker.EMQXConfig{
+			ID:       configModule.GetOrDefaultString("EMQX_HOST", "go_mqtt_server"),
+			Addr:     configModule.GetOrDefaultString("EMQX_ADDR", "tcp://localhost:1883"),
+			Username: configModule.GetOrDefaultString("EMQX_USERNAME", "admin"),
+			Password: configModule.GetOrDefaultString("EMQX_PASSWORD", "public"),
+			TLSConfig: &broker.TLSConfig{
+				Enable:   configModule.GetOrDefaultBool("EMQX_TLS_ENABLED", false),
+				CA:       configModule.GetOrDefaultString("EMQX_TLS_CA", "ca.pem"),
+				CertFile: configModule.GetOrDefaultString("EMQX_TLS_CERT_FILE", "client-crt.pem"),
+				KeyFile:  configModule.GetOrDefaultString("EMQX_TLS_KEY_FILE", "client-key.pem"),
+			},
+		},
 	}
 	return nil
 }
@@ -222,6 +238,14 @@ func UseFiber() contracts.GoeFiber {
 		return nil
 	}
 	return appInstance.container.GetFiber()
+}
+
+func UseEMQX() contracts.EMQX {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+		return nil
+	}
+	return appInstance.container.GetEMQX()
 }
 
 func Run() error {
