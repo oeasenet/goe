@@ -89,6 +89,7 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
 			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_DB_SYNC", false),
 			SMTPMailerEnabled:   configModule.GetOrDefaultBool("SMTP_MAILER_ENABLED", false),
+			EMQXBrokerEnabled:   configModule.GetOrDefaultBool("EMQX_BROKER_ENABLED", false),
 		},
 		MongoDB: &core.GoeConfigMongodb{
 			URI: configModule.GetOrDefaultString("MONGODB_URI", ""),
