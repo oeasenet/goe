@@ -73,7 +73,7 @@ func (b *EMQX) Unsubscribe(module string) error {
 }
 
 func (b *EMQX) Close() {
-	// 断开连接
+	// close connection
 	b.client.Disconnect(250)
 	b.logger.Debug("exit emqx broker successfully")
 }

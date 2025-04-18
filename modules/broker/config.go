@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-// EMQXConfig emqx 配置
-// 参考emqx官方文档：https://docs.emqx.com/zh/emqx/latest/
-// 以及示例文档：https://www.emqx.com/en/blog/how-to-use-mqtt-in-golang
+// EMQXConfig emqx broker configuration struct
+// Refer to the official EMQX documentation at https://docs.emqx.com/zh/emqx/latest/
+// and go client documentation at https://www.emqx.com/en/blog/how-to-use-mqtt-in-golang
 type EMQXConfig struct {
 	// ID client id
 	ID string `json:"id"`
@@ -53,7 +53,7 @@ func (cfg *EMQXConfig) Complete() {
 
 	var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
 		zap.L().With(loggerModule).Debug("broker connect lost", zap.Error(err))
-		// 尝试重新连接
+		// try to reconnect
 		for !client.IsConnected() {
 			zap.L().With(loggerModule).Debug("Reconnecting...")
 			token := client.Connect()
