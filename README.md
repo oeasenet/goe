@@ -6,6 +6,29 @@ Inspired by frameworks like Spring Boot in the Java ecosystem, GOE aims to provi
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+> **Note**: This documentation was written by AI to provide comprehensive information about the GOE framework.
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [Modules](#modules)
+  - [MongoDB](#mongodb)
+  - [Mailer](#mailer)
+  - [Cache](#cache)
+  - [Queue](#queue)
+  - [Cron](#cron)
+  - [Logging](#logging)
+  - [Configuration](#configuration-1)
+- [Middleware](#middleware)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+- [Examples](#examples)
+
 ## Features
 
 - **Modular Architecture**: Use only what you need
