@@ -104,19 +104,15 @@ func (c *Container) InitQueue() {
 }
 
 func (c *Container) InitMailer() {
-	if c.appConfig.Features.SMTPMailerEnabled {
-		if c.appConfig.Mailer.Host == "" || c.appConfig.Mailer.Port == 0 || c.appConfig.Mailer.Username == "" || c.appConfig.Mailer.Password == "" {
-			c.logger.Panic("SMTP mailer configuration is required")
-			return
-		}
+	if c.appConfig.Features.MailerEnabled {
 		if c.queue == nil {
-			c.logger.Panic("Queue is required to initialize SMTP mailer")
+			c.logger.Panic("Queue is required to initialize mailer")
 			return
 		}
-		// Initialize SMTP mailer
+		// Initialize mailer
 		mailer := NewGoeMailer(c.appConfig, c.queue, c.logger)
 		if mailer == nil {
-			c.logger.Panic("Failed to initialize SMTP mailer")
+			c.logger.Panic("Failed to initialize mailer")
 			return
 		}
 		c.mailer = mailer

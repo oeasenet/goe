@@ -30,7 +30,7 @@ type GoeConfigFeatures struct {
 	MongoDBEnabled      bool `json:"mongodb_enabled"`
 	MeilisearchEnabled  bool `json:"meilisearch_enabled"`
 	SearchDBSyncEnabled bool `json:"search_db_sync_enabled"`
-	SMTPMailerEnabled   bool `json:"smtp_mailer_enabled"`
+	MailerEnabled       bool `json:"mailer_enabled"`
 }
 
 type GoeConfigMongodb struct {
@@ -51,14 +51,33 @@ type GoeConfigMeilisearch struct {
 }
 
 type GoeConfigMailer struct {
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	Tls       bool   `json:"tls"`
-	LocalName string `json:"local_name"`
-	FromEmail string `json:"from_email"`
-	FromName  string `json:"from_name"`
+	Provider  string           `json:"provider"` // "smtp", "resend", "ses"
+	FromEmail string           `json:"from_email"`
+	FromName  string           `json:"from_name"`
+	SMTP      *GoeConfigSMTP   `json:"smtp,omitempty"`
+	Resend    *GoeConfigResend `json:"resend,omitempty"`
+	SES       *GoeConfigSES    `json:"ses,omitempty"`
+}
+
+type GoeConfigSMTP struct {
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Tls        bool   `json:"tls"`
+	LocalName  string `json:"local_name"`
+	AuthMethod string `json:"auth_method"`
+}
+
+type GoeConfigResend struct {
+	APIKey string `json:"api_key"`
+}
+
+type GoeConfigSES struct {
+	Region          string `json:"region"`
+	AccessKeyID     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
+	Endpoint        string `json:"endpoint,omitempty"`
 }
 
 type GoeConfigQueue struct {
