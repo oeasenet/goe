@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/core"
 	"go.oease.dev/goe/modules/broker"
@@ -154,7 +155,7 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			Issuer:    configModule.Get("OIDC_ISSUER"),
 		},
 		EMQX: &broker.EMQXConfig{
-			ID:       configModule.GetOrDefaultString("EMQX_HOST", "go_mqtt_server"),
+			ID:       configModule.GetOrDefaultString("EMQX_HOST", uuid.NewString()),
 			Addr:     configModule.GetOrDefaultString("EMQX_ADDR", "tcp://localhost:1883"),
 			Username: configModule.GetOrDefaultString("EMQX_USERNAME", "admin"),
 			Password: configModule.GetOrDefaultString("EMQX_PASSWORD", "public"),
