@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
+	"go.oease.dev/goe/modules/broker"
 	"go.oease.dev/goe/modules/cache"
 	"go.oease.dev/goe/modules/cron"
 	"go.oease.dev/goe/modules/msearch"
@@ -18,6 +19,7 @@ type Container struct {
 	mailer      contracts.Mailer
 	fiber       contracts.GoeFiber
 	cron        contracts.CronJob
+	emqx        contracts.EMQX
 	appConfig   *GoeConfig
 }
 
@@ -153,6 +155,21 @@ func (c *Container) InitCron() {
 	c.cron = mod
 }
 
+func (c *Container) InitEMQX() {
+	if c.appConfig.Features.EMQXBrokerEnabled {
+		// init emqx config
+		c.appConfig.EMQX.Complete()
+		// init emqx broker
+		emqx, err := broker.NewEMQX(c.appConfig.EMQX)
+		if err != nil {
+			c.logger.Panic("Failed to initialize emqx broker service: ", err)
+			return
+		}
+		c.emqx = emqx
+	}
+
+}
+
 func (c *Container) GetConfig() contracts.Config {
 	return c.config
 }
@@ -189,6 +206,10 @@ func (c *Container) GetFiber() contracts.GoeFiber {
 	return c.fiber
 }
 
+func (c *Container) GetEMQX() contracts.EMQX {
+	return c.emqx
+}
+
 // Close closes the container and its dependencies. DON'T NEED TO CALL THIS METHOD MANUALLY, IT WILL BE CALLED AUTOMATICALLY WHEN THE APP SHUTS DOWN.
 func (c *Container) Close() error {
 	if c.mongo != nil {
@@ -202,6 +223,9 @@ func (c *Container) Close() error {
 	}
 	if c.cron != nil {
 		c.cron.(*cron.CronJobModule).Close()
+	}
+	if c.emqx != nil {
+		c.emqx.Close()
 	}
 	return nil
 }

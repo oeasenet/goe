@@ -374,6 +374,7 @@ GOE relies on or was inspired by the following projects:
 - [PocketBase](https://pocketbase.io/) - For the mailer implementation and interface design
 - [Delayqueue](https://github.com/HDT3213/delayqueue) - For the message queue implementation
 - [Zap](https://github.com/uber-go/zap) - For the logger implementation
+- [EMQX](https://www.emqx.com/) - For the MQTT broker implementation.
 
 ## Examples
 

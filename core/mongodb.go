@@ -168,3 +168,7 @@ func (g *GoeMongoDB) IsExist(model mongodb.IDefaultModel, filter any) (bool, err
 func (g *GoeMongoDB) Count(model mongodb.IDefaultModel, filter any) (int64, error) {
 	return g.mongodbInstance.Count(model, filter)
 }
+
+func (g *GoeMongoDB) Client() *mongodb.MongoDB {
+	return g.mongodbInstance
+}

@@ -19,4 +19,5 @@ type MongoDB interface {
 	Aggregate(model mongodb.IDefaultModel, pipeline any, res any) error
 	IsExist(model mongodb.IDefaultModel, filter any) (bool, error)
 	Count(model mongodb.IDefaultModel, filter any) (int64, error)
+	Client() *mongodb.MongoDB
 }
