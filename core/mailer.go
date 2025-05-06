@@ -1,173 +1,172 @@
 package core
 
 import (
-	"github.com/goccy/go-json"
 	"go.oease.dev/goe/contracts"
-	moduleMail "go.oease.dev/goe/modules/mail"
-	"go.oease.dev/goe/utils"
-	"io"
-	"net/mail"
+	mailModule "go.oease.dev/goe/modules/mail"
+	"go.oease.dev/goe/modules/mail/providers"
 )
 
-var emailDeliveryQueueName contracts.QueueName = "goe.mailer.send"
-
+// GoeMailer implements the contracts.Mailer interface
 type GoeMailer struct {
-	appConfig *GoeConfig
-	logger    contracts.Logger
-	client    *moduleMail.EmailClient
-	queue     contracts.Queue
+	manager *mailModule.MailerManager
 }
 
+// NewGoeMailer creates a new GoeMailer
 func NewGoeMailer(appConfig *GoeConfig, queueInstance contracts.Queue, logger contracts.Logger) *GoeMailer {
-	if appConfig.Features.SMTPMailerEnabled {
-		if appConfig.Mailer.Host != "" && appConfig.Mailer.Port != 0 && appConfig.Mailer.Username != "" && appConfig.Mailer.Password != "" && appConfig.Mailer.FromName != "" && appConfig.Mailer.FromEmail != "" {
-			m := &GoeMailer{
-				appConfig: appConfig,
-				logger:    logger,
-				client:    moduleMail.NewMailer(appConfig.Mailer.Host, appConfig.Mailer.Port, appConfig.Mailer.Username, appConfig.Mailer.Password, appConfig.Mailer.Tls, appConfig.Mailer.FromName, appConfig.Mailer.FromEmail, appConfig.Mailer.LocalName),
+	if appConfig.Features.MailerEnabled {
+		// Check if we have the required configuration
+		if appConfig.Mailer.FromName == "" || appConfig.Mailer.FromEmail == "" {
+			logger.Error("failed to initialize mailer: missing required from name or email")
+			return nil
+		}
+
+		// Create a new mailer manager
+		manager := mailModule.NewMailerManager(logger, queueInstance, appConfig.Mailer.FromName, appConfig.Mailer.FromEmail)
+
+		// Register providers based on configuration
+		provider := appConfig.Mailer.Provider
+		if provider == "" {
+			provider = string(contracts.ProviderSMTP) // Default to SMTP if not specified
+		}
+
+		// Register the configured provider
+		switch contracts.MailProvider(provider) {
+		case contracts.ProviderSMTP:
+			if appConfig.Mailer.SMTP == nil ||
+				appConfig.Mailer.SMTP.Host == "" ||
+				appConfig.Mailer.SMTP.Port == 0 ||
+				appConfig.Mailer.SMTP.Username == "" ||
+				appConfig.Mailer.SMTP.Password == "" {
+				logger.Error("failed to initialize SMTP mailer: missing required SMTP configuration")
+				return nil
 			}
-			queueInstance.NewQueue(emailDeliveryQueueName, m.sendMailQueueConsumer)
-			m.queue = queueInstance
-			return m
-		} else {
-			logger.Error("failed to initialize SMTP mailer: missing required SMTP configuration")
-		}
-	}
-	return nil
-}
 
-func (g *GoeMailer) SMTPSender() contracts.EmailSender {
-	return &sender{
-		ml: g,
-	}
-}
+			// Register the SMTP provider
+			smtpConfig := providers.SMTPConfig{
+				Host:       appConfig.Mailer.SMTP.Host,
+				Port:       appConfig.Mailer.SMTP.Port,
+				Username:   appConfig.Mailer.SMTP.Username,
+				Password:   appConfig.Mailer.SMTP.Password,
+				TLS:        appConfig.Mailer.SMTP.Tls,
+				LocalName:  appConfig.Mailer.SMTP.LocalName,
+				FromName:   appConfig.Mailer.FromName,
+				FromEmail:  appConfig.Mailer.FromEmail,
+				AuthMethod: appConfig.Mailer.SMTP.AuthMethod,
+			}
 
-func (g *GoeMailer) sendMailQueueConsumer(payload string) bool {
-	// process email payload
-	s := &sender{}
-	err := json.Unmarshal([]byte(payload), s)
-	if err != nil {
-		g.logger.Error("failed to unmarshal email payload: ", err)
-		return false
-	}
-	// make msg and process file attachments
-	// send email directly
-	msg := &moduleMail.Message{
-		From:        s.From,
-		To:          s.ToAddresses,
-		Bcc:         s.BccAddresses,
-		Cc:          s.CcAddresses,
-		Subject:     s.EmailSubject,
-		HTML:        s.BodyHTML,
-		Text:        s.BodyText,
-		Headers:     s.EmailHeaders,
-		Attachments: map[string]io.Reader{},
-	}
-	// process attachments
-	for name, path := range s.EmailAttachments {
-		read, err := utils.FilePathToIOReader(path)
-		if err != nil {
-			g.logger.Error("failed to read attachment file: ", err)
-			return false
-		}
-		msg.Attachments[name] = read
-	}
+			// Create the SMTP provider
+			smtpProvider := providers.NewSMTPProvider(smtpConfig, logger)
 
-	//send
-	err = g.client.Send(msg)
-	if err != nil {
-		g.logger.Error("failed to send email: ", err)
-		return false
-	}
+			// Register the provider with the manager
+			err := manager.RegisterProvider(contracts.ProviderSMTP, func() (contracts.EmailProvider, error) {
+				return smtpProvider, nil
+			})
 
-	return true
-}
-
-type sender struct {
-	ml               *GoeMailer        `json:"-"`
-	From             *mail.Address     `json:"From"`
-	ToAddresses      []*mail.Address   `json:"to"`
-	BccAddresses     []*mail.Address   `json:"bcc"`
-	CcAddresses      []*mail.Address   `json:"cc"`
-	EmailSubject     string            `json:"subject"`
-	BodyHTML         string            `json:"html"`
-	BodyText         string            `json:"text"`
-	EmailHeaders     map[string]string `json:"headers"`
-	EmailAttachments map[string]string `json:"attachments"`
-}
-
-func (s *sender) To(t *[]*mail.Address) contracts.EmailSender {
-	s.ToAddresses = *t
-	return s
-}
-
-func (s *sender) Bcc(b *[]*mail.Address) contracts.EmailSender {
-	s.BccAddresses = *b
-	return s
-}
-
-func (s *sender) Cc(c *[]*mail.Address) contracts.EmailSender {
-	s.CcAddresses = *c
-	return s
-}
-
-func (s *sender) Subject(sub string) contracts.EmailSender {
-	s.EmailSubject = sub
-	return s
-}
-
-func (s *sender) HTML(html string) contracts.EmailSender {
-	s.BodyHTML = html
-	return s
-}
-
-func (s *sender) Text(text string) contracts.EmailSender {
-	s.BodyText = text
-	return s
-}
-
-func (s *sender) Headers(h map[string]string) contracts.EmailSender {
-	s.EmailHeaders = h
-	return s
-}
-
-func (s *sender) Attachments(a map[string]string) contracts.EmailSender {
-	s.EmailAttachments = a
-	return s
-}
-
-func (s *sender) Send(useQueue ...bool) error {
-	s.From = &mail.Address{Name: s.ml.appConfig.Mailer.FromName, Address: s.ml.appConfig.Mailer.FromEmail}
-	//default to use queue unless specified not to use
-	isQueue := true
-	if len(useQueue) > 0 {
-		isQueue = useQueue[0]
-	}
-	if isQueue {
-		// publish message to queue
-		return s.ml.queue.Push(emailDeliveryQueueName, s)
-	} else {
-		// send email directly
-		msg := &moduleMail.Message{
-			From:        s.From,
-			To:          s.ToAddresses,
-			Bcc:         s.BccAddresses,
-			Cc:          s.CcAddresses,
-			Subject:     s.EmailSubject,
-			HTML:        s.BodyHTML,
-			Text:        s.BodyText,
-			Headers:     s.EmailHeaders,
-			Attachments: map[string]io.Reader{},
-		}
-		// process attachments
-		for name, path := range s.EmailAttachments {
-			read, err := utils.FilePathToIOReader(path)
 			if err != nil {
-				return err
+				logger.Error("Failed to register SMTP provider: ", err)
+				return nil
 			}
-			msg.Attachments[name] = read
+
+			// Set the default provider
+			manager.SetDefaultProvider(contracts.ProviderSMTP)
+
+		case contracts.ProviderResend:
+			if appConfig.Mailer.Resend == nil || appConfig.Mailer.Resend.APIKey == "" {
+				logger.Error("failed to initialize Resend mailer: missing required Resend API key")
+				return nil
+			}
+
+			// Register the Resend provider
+			resendConfig := providers.ResendConfig{
+				APIKey:    appConfig.Mailer.Resend.APIKey,
+				FromName:  appConfig.Mailer.FromName,
+				FromEmail: appConfig.Mailer.FromEmail,
+			}
+
+			// Create the Resend provider
+			resendProvider := providers.NewResendProvider(resendConfig, logger)
+
+			// Register the provider with the manager
+			err := manager.RegisterProvider(contracts.ProviderResend, func() (contracts.EmailProvider, error) {
+				return resendProvider, nil
+			})
+
+			if err != nil {
+				logger.Error("Failed to register Resend provider: ", err)
+				return nil
+			}
+
+			// Set the default provider
+			manager.SetDefaultProvider(contracts.ProviderResend)
+
+		case contracts.ProviderSES:
+			if appConfig.Mailer.SES == nil ||
+				appConfig.Mailer.SES.Region == "" ||
+				appConfig.Mailer.SES.AccessKeyID == "" ||
+				appConfig.Mailer.SES.SecretAccessKey == "" {
+				logger.Error("failed to initialize SES mailer: missing required SES configuration")
+				return nil
+			}
+
+			// Register the SES provider
+			sesConfig := providers.SESConfig{
+				Region:          appConfig.Mailer.SES.Region,
+				AccessKeyID:     appConfig.Mailer.SES.AccessKeyID,
+				SecretAccessKey: appConfig.Mailer.SES.SecretAccessKey,
+				Endpoint:        appConfig.Mailer.SES.Endpoint,
+				FromName:        appConfig.Mailer.FromName,
+				FromEmail:       appConfig.Mailer.FromEmail,
+			}
+
+			// Create the SES provider
+			sesProvider := providers.NewSESProvider(sesConfig, logger)
+
+			// Register the provider with the manager
+			err := manager.RegisterProvider(contracts.ProviderSES, func() (contracts.EmailProvider, error) {
+				return sesProvider, nil
+			})
+
+			if err != nil {
+				logger.Error("Failed to register SES provider: ", err)
+				return nil
+			}
+
+			// Set the default provider
+			manager.SetDefaultProvider(contracts.ProviderSES)
+
+		default:
+			logger.Errorf("Unsupported mail provider: %s", provider)
+			return nil
 		}
-		return s.ml.client.Send(msg)
+
+		// Set up the queue consumer
+		queueInstance.NewQueue(mailModule.EmailDeliveryQueueName, manager.ProcessQueuedMessage)
+
+		return &GoeMailer{
+			manager: manager,
+		}
 	}
 	return nil
+}
+
+// GetSender returns an EmailSender for the specified provider
+func (g *GoeMailer) GetSender(provider contracts.MailProvider) contracts.EmailSender {
+	return g.manager.GetSender(provider)
+}
+
+// DefaultSender returns the default EmailSender
+func (g *GoeMailer) DefaultSender() contracts.EmailSender {
+	return g.manager.DefaultSender()
+}
+
+// RegisterProvider registers a new email provider
+func (g *GoeMailer) RegisterProvider(provider contracts.MailProvider, factory contracts.EmailProviderFactory) error {
+	return g.manager.RegisterProvider(provider, factory)
+}
+
+// Legacy support for the old interface
+
+// SMTPSender returns an EmailSender for SMTP
+func (g *GoeMailer) SMTPSender() contracts.EmailSender {
+	return g.GetSender(contracts.ProviderSMTP)
 }

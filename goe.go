@@ -62,7 +62,7 @@ func NewApp() error {
 	appInstance.container.InitCache()
 
 	// Init Mailer
-	if appInstance.configs.Features.SMTPMailerEnabled {
+	if appInstance.configs.Features.MailerEnabled {
 		appInstance.container.InitMailer()
 	}
 
@@ -89,7 +89,7 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			MongoDBEnabled:      configModule.GetOrDefaultBool("MONGODB_ENABLED", false),
 			MeilisearchEnabled:  configModule.GetOrDefaultBool("MEILISEARCH_ENABLED", false),
 			SearchDBSyncEnabled: configModule.GetOrDefaultBool("MEILISEARCH_DB_SYNC", false),
-			SMTPMailerEnabled:   configModule.GetOrDefaultBool("SMTP_MAILER_ENABLED", false),
+			MailerEnabled:       configModule.GetOrDefaultBool("MAILER_ENABLED", false),
 			EMQXBrokerEnabled:   configModule.GetOrDefaultBool("EMQX_BROKER_ENABLED", false),
 		},
 		MongoDB: &core.GoeConfigMongodb{
@@ -107,14 +107,27 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 			ApiKey:   configModule.GetOrDefaultString("MEILISEARCH_API_KEY", ""),
 		},
 		Mailer: &core.GoeConfigMailer{
-			Host:      configModule.GetOrDefaultString("SMTP_HOST", ""),
-			Port:      configModule.GetOrDefaultInt("SMTP_PORT", 0),
-			Username:  configModule.GetOrDefaultString("SMTP_USERNAME", ""),
-			Password:  configModule.GetOrDefaultString("SMTP_PASSWORD", ""),
-			Tls:       configModule.GetOrDefaultBool("SMTP_TLS", false),
-			LocalName: configModule.GetOrDefaultString("SMTP_LOCAL_NAME", ""),
-			FromEmail: configModule.GetOrDefaultString("SMTP_FROM_EMAIL", ""),
-			FromName:  configModule.GetOrDefaultString("SMTP_FROM_NAME", ""),
+			Provider:  configModule.GetOrDefaultString("MAILER_PROVIDER", "smtp"),
+			FromEmail: configModule.GetOrDefaultString("MAILER_FROM_EMAIL", ""),
+			FromName:  configModule.GetOrDefaultString("MAILER_FROM_NAME", ""),
+			SMTP: &core.GoeConfigSMTP{
+				Host:       configModule.GetOrDefaultString("SMTP_HOST", ""),
+				Port:       configModule.GetOrDefaultInt("SMTP_PORT", 0),
+				Username:   configModule.GetOrDefaultString("SMTP_USERNAME", ""),
+				Password:   configModule.GetOrDefaultString("SMTP_PASSWORD", ""),
+				Tls:        configModule.GetOrDefaultBool("SMTP_TLS", false),
+				LocalName:  configModule.GetOrDefaultString("SMTP_LOCAL_NAME", ""),
+				AuthMethod: configModule.GetOrDefaultString("SMTP_AUTH_METHOD", "PLAIN"),
+			},
+			Resend: &core.GoeConfigResend{
+				APIKey: configModule.GetOrDefaultString("RESEND_API_KEY", ""),
+			},
+			SES: &core.GoeConfigSES{
+				Region:          configModule.GetOrDefaultString("SES_REGION", ""),
+				AccessKeyID:     configModule.GetOrDefaultString("SES_ACCESS_KEY_ID", ""),
+				SecretAccessKey: configModule.GetOrDefaultString("SES_SECRET_ACCESS_KEY", ""),
+				Endpoint:        configModule.GetOrDefaultString("SES_ENDPOINT", ""),
+			},
 		},
 		Queue: &core.GoeConfigQueue{
 			ConcurrentWorkers:  configModule.GetOrDefaultInt("QUEUE_CONCURRENCY", 1),
