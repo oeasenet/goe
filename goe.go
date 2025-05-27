@@ -18,7 +18,7 @@ import (
 
 type App struct {
 	configs     *core.GoeConfig
-	container   *core.Container
+	container   *core.GoeContainer // Changed from *core.Container to *core.GoeContainer
 	running     bool
 	gracefulCtx context.Context
 }
@@ -39,38 +39,22 @@ func NewApp() error {
 	if err != nil {
 		return err
 	}
-	app.container = core.NewContainer(configModule, logModule, app.configs)
+	// Updated to use NewGoeContainer and remove individual InitX calls
+	container, err := core.NewGoeContainer(app.configs)
+	if err != nil {
+		// Use logModule directly if container or its logger isn't initialized yet
+		if logModule != nil {
+			logModule.Fatalf("Error creating GoeContainer: %v", err)
+		} else {
+			// Fallback if no logger is available
+			panic("Error creating GoeContainer and no logger available: " + err.Error())
+		}
+		return err
+	}
+	app.container = container // Assign the new GoeContainer
 	appInstance = app
-
-	// Initialize MongoDB
-	if appInstance.configs.Features.MongoDBEnabled {
-		appInstance.container.InitMongo()
-	}
-
-	// Initialize Meilisearch
-	if appInstance.configs.Features.MeilisearchEnabled && appInstance.configs.Features.MongoDBEnabled {
-		appInstance.container.InitMeilisearch()
-	}
-
-	// Init Queue
-	appInstance.container.InitQueue()
-
-	// Init Cron
-	appInstance.container.InitCron()
-
-	// Init Cache
-	appInstance.container.InitCache()
-
-	// Init Mailer
-	if appInstance.configs.Features.MailerEnabled {
-		appInstance.container.InitMailer()
-	}
-
-	// Init Fiber
-	appInstance.container.InitFiber()
-
-	// Init EMQX
-	appInstance.container.InitEMQX()
+	// Individual InitX calls (InitMongo, InitMeilisearch, etc.) are removed
+	// as NewGoeContainer is expected to handle these initializations.
 
 	return nil
 }
@@ -183,12 +167,13 @@ func (app *App) applyEnvConfig(configModule *config.Config) error {
 	return nil
 }
 
-func UseDB() contracts.MongoDB {
+func UseDB() contracts.Mongodb { // Changed return type to contracts.Mongodb
 	if appInstance == nil {
 		panic("must initialize App first, by calling NewApp() method")
-		return nil
+		// return nil; // Unreachable due to panic
 	}
-	return appInstance.container.GetMongo()
+	// Calls core.UseGoeContainer() which returns *core.GoeContainer
+	return core.UseGoeContainer().GetMongo()
 }
 
 func UseCron() contracts.CronJob {
@@ -261,6 +246,14 @@ func UseEMQX() contracts.EMQX {
 		return nil
 	}
 	return appInstance.container.GetEMQX()
+}
+
+// UseRBAC returns the global RBACManager instance.
+func UseRBAC() contracts.RBACManager {
+	if appInstance == nil {
+		panic("must initialize App first, by calling NewApp() method")
+	}
+	return core.UseGoeContainer().GetRBAC()
 }
 
 func Run() error {
