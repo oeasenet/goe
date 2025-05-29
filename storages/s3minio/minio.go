@@ -7,7 +7,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/valyala/bytebufferpool"
-	"log"
+	"go.oease.dev/goe/v2/contract"
 	"net/http"
 	"sync"
 	"time"
@@ -15,15 +15,15 @@ import (
 
 // Storage interface that is implemented by storage providers
 type Storage struct {
-	minio *minio.Client
-	cfg   Config
-	ctx   context.Context
-	mu    sync.Mutex
+	minio  *minio.Client
+	cfg    Config
+	ctx    context.Context
+	mu     sync.Mutex
+	logger contract.Log
 }
 
 // New creates a new storage
-func New(config ...Config) *Storage {
-
+func New(logger contract.Log, config ...Config) *Storage {
 	// Set default config
 	cfg := configDefault(config...)
 
@@ -41,7 +41,12 @@ func New(config ...Config) *Storage {
 		panic(err)
 	}
 
-	storage := &Storage{minio: minioClient, cfg: cfg, ctx: context.Background()}
+	storage := &Storage{
+		minio:  minioClient,
+		cfg:    cfg,
+		ctx:    context.Background(),
+		logger: logger,
+	}
 
 	// Reset all entries if set to true
 	if cfg.Reset {
@@ -131,7 +136,7 @@ func (s *Storage) Reset() error {
 		// List all objects from a bucket-name with a matching prefix.
 		for object := range s.minio.ListObjects(s.ctx, s.cfg.Bucket, s.cfg.ListObjectsOptions) {
 			if object.Err != nil {
-				log.Println(object.Err)
+				s.logger.Error("Error listing objects", "error", object.Err)
 			}
 			objectsCh <- object
 		}
@@ -142,7 +147,7 @@ func (s *Storage) Reset() error {
 	}
 
 	for err := range s.minio.RemoveObjects(s.ctx, s.cfg.Bucket, objectsCh, opts) {
-		log.Println("Error detected during deletion: ", err)
+		s.logger.Error("Error detected during deletion", "error", err)
 	}
 
 	return nil

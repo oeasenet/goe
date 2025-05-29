@@ -1,381 +1,212 @@
-# GOE Framework
+# Goe Framework
 
-GOE is a simple, lightweight, and easy-to-use web development framework for Go. Built on top of [GoFiber](https://gofiber.io/) v3, GOE provides a comprehensive set of tools and modules to help developers quickly build robust web applications while focusing on business logic rather than infrastructure concerns.
-
-Inspired by frameworks like Spring Boot in the Java ecosystem, GOE aims to provide a similar developer experience but with Go's simplicity and performance.
-
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-
-> **Note**: This documentation was written by AI to provide comprehensive information about the GOE framework.
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Architecture](#architecture)
-- [Modules](#modules)
-  - [MongoDB](#mongodb)
-  - [Mailer](#mailer)
-  - [Cache](#cache)
-  - [Queue](#queue)
-  - [Cron](#cron)
-  - [Logging](#logging)
-  - [Configuration](#configuration-1)
-- [Middleware](#middleware)
-- [Contributing](#contributing)
-- [License](#license)
-- [Acknowledgments](#acknowledgments)
-- [Examples](#examples)
+Goe is a full-featured Golang application development framework inspired by Java Spring Boot, Golang Goravel, and GoFiber. It provides a modular, interface-based design with dependency injection at its core.
 
 ## Features
 
-- **Modular Architecture**: Use only what you need
-- **Dependency Injection**: Simple container-based DI system
-- **MongoDB Integration**: Built-in MongoDB support
-- **Meilisearch Integration**: Full-text search capabilities
-- **Redis-based Caching**: High-performance caching
-- **Message Queue**: Asynchronous task processing
-- **Cron Jobs**: Scheduled task execution
-- **Mailer**: Email sending with multiple provider support (SMTP, Resend, SES)
-- **Logging**: Structured logging with Zap
-- **Configuration Management**: Environment-based configuration
-- **Middleware Support**: Various built-in middlewares
-- **File Storage**: S3-compatible storage support
-- **Graceful Shutdown**: Clean application termination
+- **Modular Design**: Built with interfaces and modules for maximum flexibility
+- **Dependency Injection**: Based on Uber's Fx framework
+- **HTTP Routing**: Uses GoFiber v3 as the default HTTP router
+- **Configuration Management**: Environment-based configuration with .env file support
+- **Logging**: Structured logging with context support
+- **Event System**: Publish-subscribe event system
+- **Caching**: In-memory caching with tagging support
+- **Concurrent Safe**: All modules are designed to be thread-safe
 
 ## Installation
 
-```shell
-go get -u go.oease.dev/goe
+```bash
+go get go.oease.dev/goe/v2
 ```
 
 ## Quick Start
-
-Create a new Go project and add the following code to your main.go file:
 
 ```go
 package main
 
 import (
-	"github.com/gofiber/fiber/v3"
-	"go.oease.dev/goe"
-	"go.oease.dev/goe/webresult"
+	"context"
+	"log"
+
+	"go.oease.dev/goe/v2"
 )
 
 func main() {
-	// Initialize the GOE application
-	err := goe.NewApp()
-	if err != nil {
-		panic(err)
-	}
+	// Create a new Goe application
+	app := goe.New()
 
-	// Define a simple route
-	goe.UseFiber().App().Get("/hello", func(ctx fiber.Ctx) error {
-		return webresult.SendSucceed(ctx, "Hello, World!")
+	// Configure the HTTP server
+	app.Http().Get("/", func(c interface{}) error {
+		return c.(interface{ JSON(int, interface{}) error }).JSON(200, map[string]interface{}{
+			"message": "Hello, World!",
+		})
 	})
 
-	// Start the server
-	err = goe.Run()
-	if err != nil {
-		panic(err)
+	// Run the application
+	if err := app.Run(); err != nil {
+		log.Fatalf("Application failed: %v", err)
 	}
 }
 ```
-
-## Configuration
-
-GOE uses environment variables or configuration files for setup. Create a `configs` directory in your project root with the necessary configuration files.
-
-### Environment Variables
-
-Here are some of the key environment variables you can set:
-
-```
-# App Configuration
-APP_NAME=MyApp
-APP_VERSION=1.0.0
-APP_ENV=dev  # dev or prod
-
-# Feature Toggles
-MONGODB_ENABLED=true
-MEILISEARCH_ENABLED=false
-MAILER_ENABLED=true
-
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017
-MONGODB_DB=myapp
-
-# Redis Configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_USERNAME=
-REDIS_PASSWORD=
-
-# HTTP Server Configuration
-HTTP_PORT=3000
-HTTP_SERVER_HEADER=MyAppServer/1.0
-HTTP_BODY_LIMIT=4194304  # 4MB
-```
-
-## Architecture
-
-GOE follows a modular architecture with a central dependency injection container. The main components are:
-
-1. **Core**: Contains the central container and core services
-2. **Contracts**: Defines interfaces for all modules
-3. **Modules**: Implements specific functionality (cache, mail, etc.)
-4. **Middlewares**: HTTP middleware components
-5. **Utils**: Utility functions
 
 ## Modules
 
-### MongoDB
+### App Module
 
-GOE provides a simple and powerful interface for MongoDB operations through the [`contracts.MongoDB`](https://github.com/oeasenet/goe/blob/main/contracts/mongodb.go) interface. The implementation is built on top of the official MongoDB Go driver with additional features.
-
-#### Defining Models
-
-To work with MongoDB, you need to define models that implement the `IDefaultModel` interface. The easiest way is to embed the `DefaultModel` struct:
+The App module is the central component of the framework, managing the lifecycle of all other modules.
 
 ```go
-import (
-    "go.oease.dev/goe/modules/mongodb"
-)
+// Get the app module
+app := goe.App()
 
-// User represents a user in the system
-type User struct {
-    mongodb.DefaultModel `bson:",inline"`
-    Name                 string   `bson:"name" json:"name"`
-    Email                string   `bson:"email" json:"email"`
-    Age                  int      `bson:"age" json:"age"`
-    Roles                []string `bson:"roles" json:"roles"`
-}
+// Register a module
+app.RegisterModule(myModule)
 
-// ColName returns the MongoDB collection name for this model
-func (u *User) ColName() string {
-    return "users"
-}
+// Register a provider
+app.RegisterProvider(myProvider)
+
+// Run the application
+app.Run()
 ```
 
-#### Basic Operations
+### Config Module
+
+The Config module manages application configuration from environment variables and .env files.
 
 ```go
-// Get the MongoDB client
-db := goe.UseDB()
+// Get the config module
+config := goe.Config()
 
-// Insert a document
-user := &User{
-    Name:  "John Doe",
-    Email: "john@example.com",
-    Age:   30,
-    Roles: []string{"user"},
-}
-result, err := db.Insert(user)
-if err != nil {
-    // Handle error
-}
-userID := user.GetId() // Get the inserted document's ID
+// Get a configuration value
+value := config.Get("KEY")
 
-// Find a document by ID
-var foundUser User
-found, err := db.FindById(&User{}, userID, &foundUser)
-if err != nil {
-    // Handle error
-}
+// Get a configuration value with a default
+value := config.GetDefault("KEY", "default")
 
-// Find documents with a filter
-var users []User
-err = db.Find(&User{}, bson.M{"age": bson.M{"$gt": 18}}).All(&users)
-if err != nil {
-    // Handle error
-}
-
-// Update a document
-foundUser.Name = "John Smith"
-err = db.Update(&foundUser)
-if err != nil {
-    // Handle error
-}
-
-// Delete a document
-err = db.Delete(&foundUser)
-if err != nil {
-    // Handle error
-}
+// Get a typed configuration value
+intValue, err := config.GetInt("NUMBER")
+boolValue, err := config.GetBool("FLAG")
 ```
 
-#### Pagination
+### HTTP Module
+
+The HTTP module provides a web server based on GoFiber.
 
 ```go
-// Get paginated results
-page := 1
-pageSize := 10
-var users []User
-totalDocs, totalPages := db.FindPage(&User{}, bson.M{"age": bson.M{"$gt": 18}}, &users, pageSize, page)
+// Get the HTTP module
+http := goe.Http()
 
-// Access pagination information
-fmt.Printf("Found %d users across %d pages\n", totalDocs, totalPages)
-```
+// Register a route
+http.Get("/", func(c interface{}) error {
+	return c.(interface{ JSON(int, interface{}) error }).JSON(200, map[string]interface{}{
+		"message": "Hello, World!",
+	})
+})
 
-#### Meilisearch Integration
-
-If Meilisearch is enabled, the MongoDB module can automatically sync documents to Meilisearch for full-text search:
-
-```
-# Enable Meilisearch integration in your configuration
-MEILISEARCH_ENABLED=true
-MEILISEARCH_DB_SYNC=true
-```
-
-For more details, see the [MongoDB module documentation](https://github.com/oeasenet/goe/tree/main/modules/mongodb).
-
-### Mailer
-
-Send emails easily with multiple provider support:
-
-```go
-// Get the mailer
-mailer := goe.UseMailer()
-
-// Send an email
-err := mailer.DefaultSender().
-    To(&[]*mail.Address{{Name: "John Doe", Address: "john@example.com"}}).
-    Subject("Hello from GOE").
-    HTML("<h1>Hello World</h1>").
-    Send()
-```
-
-### Cache
-
-Use Redis-based caching:
-
-```go
-// Get the cache
-cache := goe.UseCache()
-
-// Set a value
-err := cache.Set("key", "value", 60) // 60 seconds TTL
-
-// Get a value
-val, err := cache.Get("key")
-```
-
-### Queue
-
-Process tasks asynchronously:
-
-```go
-// Get the queue
-queue := goe.UseMQ()
-
-// Publish a task
-err := queue.Publish("email", map[string]interface{}{
-    "to": "user@example.com",
-    "subject": "Welcome",
-}, 0)
-
-// Subscribe to a queue
-queue.Subscribe("email", func(payload []byte) error {
-    // Process the task
-    return nil
+// Create a route group
+api := http.Group("/api")
+api.Get("/users", func(c interface{}) error {
+	// Handle request
+	return nil
 })
 ```
 
-### Cron
+### Log Module
 
-Schedule tasks:
+The Log module provides structured logging.
 
 ```go
-// Get the cron service
-cron := goe.UseCron()
+// Get the log module
+log := goe.Log()
 
-// Add a job
-cron.AddJob("0 * * * *", func() {
-    // Run every hour
+// Log messages at different levels
+log.Debug("Debug message")
+log.Info("Info message")
+log.Warn("Warning message")
+log.Error("Error message")
+
+// Log with fields
+log.Info("User logged in", "user_id", 123, "username", "john")
+
+// Create a named logger
+userLogger := log.Named("user")
+userLogger.Info("User action")
+```
+
+### Event Module
+
+The Event module provides a publish-subscribe event system.
+
+```go
+// Get the event module
+event := goe.Event()
+
+// Publish an event
+event.Publish(ctx, "user.created", map[string]interface{}{
+	"id": 123,
+	"username": "john",
+})
+
+// Subscribe to an event
+event.Subscribe("user.created", func(ctx context.Context, payload interface{}) error {
+	// Handle event
+	return nil
+})
+
+// Subscribe to an event asynchronously
+event.SubscribeAsync("user.created", func(ctx context.Context, payload interface{}) error {
+	// Handle event asynchronously
+	return nil
 })
 ```
 
-### Logging
+### Cache Module
 
-Structured logging:
-
-```go
-// Get the logger
-logger := goe.UseLog()
-
-// Log messages
-logger.Info("This is an info message")
-logger.Error("An error occurred", err)
-```
-
-### Configuration
-
-Access configuration values:
+The Cache module provides in-memory caching with tagging support.
 
 ```go
-// Get the config
-config := goe.UseCfg()
+// Get the cache module
+cache := goe.Cache()
 
-// Get values
-dbName := config.GetOrDefaultString("MONGODB_DB", "default")
-port := config.GetOrDefaultInt("HTTP_PORT", 3000)
+// Set a value in the cache
+cache.Set(ctx, "key", "value")
+
+// Set a value with TTL
+cache.SetWithTTL(ctx, "key", "value", time.Hour)
+
+// Get a value from the cache
+value, err := cache.Get(ctx, "key")
+
+// Get a typed value from the cache
+strValue, err := cache.GetString(ctx, "key")
+intValue, err := cache.GetInt(ctx, "key")
+
+// Check if a key exists
+exists, err := cache.Has(ctx, "key")
+
+// Delete a key
+cache.Delete(ctx, "key")
+
+// Use tagged cache
+userCache := cache.Tags("users")
+userCache.Set(ctx, "user:123", userData)
+userCache.Clear(ctx) // Clear all cache entries with the "users" tag
 ```
 
-## Middleware
+## Environment Configuration
 
-GOE includes several built-in middlewares:
+Goe uses environment variables for configuration. You can set these variables in your system environment or in .env files.
 
-- **File Upload/Download**: Handle file operations
-- **Rate Limiter**: Limit request rates
-- **Login Check**: Authentication verification
-- **OIDC**: OpenID Connect authentication
-- **Request Logging**: Log HTTP requests
-- **Session**: Session management
-- **SPA**: Single Page Application support
+The framework looks for the following files in order:
+1. `.env` (default environment file)
+2. `.<env>.env` (environment-specific file, where `<env>` is the value of `GOE_ENV`)
 
-Example:
-
-```go
-// Use the rate limiter middleware
-limiter := middlewares.NewRateLimiter()
-goe.UseFiber().App().Use(limiter.Limit())
-
-// Use the session middleware
-session := middlewares.NewSession()
-goe.UseFiber().App().Use(session.Handle())
-```
+Environment variables set in the system override values from .env files.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please make sure your code follows the project's coding style and includes appropriate tests.
-
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-GOE relies on or was inspired by the following projects:
-
-- [GoFiber](https://gofiber.io/) - For handling HTTP related tasks
-- [GoFr](https://gofr.dev/) - For the project structure and interface design
-- [Qmgo](https://github.com/qiniu/qmgo) - For the MongoDB operations
-- [Gookit Validate](https://github.com/gookit/validate) - For the data validation
-- [PocketBase](https://pocketbase.io/) - For the mailer implementation and interface design
-- [Delayqueue](https://github.com/HDT3213/delayqueue) - For the message queue implementation
-- [Zap](https://github.com/uber-go/zap) - For the logger implementation
-- [EMQX](https://www.emqx.com/) - For the MQTT broker implementation.
-
-## Examples
-
-For more examples, check out the [example directory](https://github.com/oeasenet/goe/tree/main/example).
+This project is licensed under the MIT License - see the LICENSE file for details.
