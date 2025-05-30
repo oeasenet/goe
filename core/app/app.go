@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"go.oease.dev/goe/v2/contract"
@@ -103,9 +104,21 @@ func (a *App) Run() error {
 		return &fxLogger{log: logger}
 	}))
 
+	// Enable Fx's dependency graph visualization (commented out as it's not available in this version)
+	// a.options = append(a.options, fx.Visualize())
+
 	// Add lifecycle hooks for all registered modules
 	a.options = append(a.options, fx.Invoke(func(lifecycle fx.Lifecycle) {
-		for name, module := range a.modules {
+		// Sort modules by name for consistent initialization order
+		moduleNames := make([]string, 0, len(a.modules))
+		for name := range a.modules {
+			moduleNames = append(moduleNames, name)
+		}
+		sort.Strings(moduleNames)
+
+		// Register lifecycle hooks for each module in order
+		for _, name := range moduleNames {
+			module := a.modules[name]
 			moduleName := name       // Create a copy of the name for the closure
 			moduleInstance := module // Create a copy of the module for the closure
 
@@ -124,6 +137,35 @@ func (a *App) Run() error {
 			})
 		}
 	}))
+
+	// Provide all modules as dependencies to make them available for injection
+	for name, module := range a.modules {
+		moduleName := name
+		moduleInstance := module
+
+		// Use fx.Annotate to provide each module with a name tag for dependency injection
+		a.options = append(a.options, fx.Provide(
+			fx.Annotate(
+				func() contract.Module { return moduleInstance },
+				fx.ResultTags(`name:"`+moduleName+`"`),
+			),
+		))
+
+		// Also provide the specific module type if it implements a known contract interface
+		// This allows for both named and type-based injection
+		switch m := moduleInstance.(type) {
+		case contract.Config:
+			a.options = append(a.options, fx.Provide(func() contract.Config { return m }))
+		case contract.Http:
+			a.options = append(a.options, fx.Provide(func() contract.Http { return m }))
+		case contract.Log:
+			a.options = append(a.options, fx.Provide(func() contract.Log { return m }))
+		case contract.Event:
+			a.options = append(a.options, fx.Provide(func() contract.Event { return m }))
+		case contract.Cache:
+			a.options = append(a.options, fx.Provide(func() contract.Cache { return m }))
+		}
+	}
 
 	// Create the Fx application with all registered options
 	a.container = fx.New(a.options...)

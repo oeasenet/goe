@@ -31,7 +31,7 @@ type Framework struct {
 func New() *Framework {
 	instanceOnce.Do(func() {
 		instance = &Framework{}
-		// Initialize all modules
+		// Initialize all modules directly
 		instance.app = app.New()
 		instance.config = config.New()
 		instance.http = http.New()
