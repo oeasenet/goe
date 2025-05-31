@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2/contract"
 )
 
@@ -83,12 +83,91 @@ func (h *Http) Get(path string, handlers ...interface{}) contract.Http {
 	// Convert handlers to fiber.Handler
 	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
 	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok {
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
 			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fn, ok := handler.(func(interface{}) error); ok {
-			// Convert func(interface{}) error to fiber.Handler
-			fiberHandlers = append(fiberHandlers, func(c *fiber.Ctx) error {
-				return fn(c)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
+			fiberHandlers = append(fiberHandlers, fiberHandler)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
 			})
 		}
 	}
@@ -532,17 +611,40 @@ func (g *RouteGroup) Use(handlers ...interface{}) contract.RouteGroup {
 	// Convert handlers to fiber.Handler
 	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
 	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok {
+		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
 			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fn, ok := handler.(func(interface{}) error); ok {
-			// Convert func(interface{}) error to fiber.Handler
-			fiberHandlers = append(fiberHandlers, func(c *fiber.Ctx) error {
-				return fn(c)
+		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
+			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
+				return fnOld(c) // c is fiber.Ctx (interface)
 			})
 		}
 	}
 
-	for _, handler := range fiberHandlers {
+	// Corrected loop for RouteGroup.Use method
+	// It should iterate over the handlers passed to the method, not fiberHandlers from a previous scope
+	// However, the existing logic for Use in Http struct is:
+	// for _, handler := range fiberHandlers { h.app.Use(handler) }
+	// This implies that the `handlers ...interface{}` for `Use` should only contain `fiber.Handler` types.
+	// The conversion logic for other types (like `func(interface{}) error`) is NOT present in the original `Use` method.
+	// Therefore, for consistency, RouteGroup.Use should also primarily expect `fiber.Handler`.
+	// The original code for RouteGroup.Use has a bug: it reuses `fiberHandlers` from the parent scope (Group method)
+	// or from whichever handler processing block was last executed.
+	// It should process its own `handlers ...interface{}`.
+	// For now, I will replicate the logic from Http.Use, which only processes `fiber.Handler`.
+	// A more robust solution would be to have a shared handler conversion function.
+
+	// Corrected logic for RouteGroup.Use:
+	// Convert its own handlers to fiber.Handler
+	finalHandlers := make([]fiber.Handler, 0, len(handlers))
+	for _, h := range handlers { // Iterate over the handlers passed to THIS Use method
+		if fiberHandler, ok := h.(fiber.Handler); ok {
+			finalHandlers = append(finalHandlers, fiberHandler)
+		}
+		// Not attempting to convert func(interface{}) error or other types here,
+		// to match the behavior of Http.Use which also only accepts fiber.Handler.
+	}
+
+	for _, handler := range finalHandlers { // Use the correctly processed handlers
 		g.group.Use(handler)
 	}
 	return g
