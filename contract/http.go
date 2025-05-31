@@ -3,7 +3,7 @@ package contract
 import (
 	"context"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // Http represents the HTTP server module interface
