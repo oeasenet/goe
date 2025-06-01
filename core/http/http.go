@@ -62,13 +62,6 @@ func (h *Http) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Engine returns the underlying HTTP engine
-func (h *Http) Engine() interface{} {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.app
-}
-
 // Fiber returns the Fiber app instance
 func (h *Http) Fiber() *fiber.App {
 	h.mu.RLock()
@@ -77,283 +70,155 @@ func (h *Http) Fiber() *fiber.App {
 }
 
 // Get registers a route for GET requests
-func (h *Http) Get(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
+	if handler != nil {
+		h.app.Get(path, handler, middlewares...)
 	}
 
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Get(path, fiberHandlers[0])
-		} else {
-			h.app.Get(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
 	return h
 }
 
 // Post registers a route for POST requests
-func (h *Http) Post(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Post(path, fiberHandlers[0])
-		} else {
-			h.app.Post(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Post(path, handler, middlewares...)
 	}
 	return h
 }
 
 // Put registers a route for PUT requests
-func (h *Http) Put(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Put(path, fiberHandlers[0])
-		} else {
-			h.app.Put(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Put(path, handler, middlewares...)
 	}
 	return h
 }
 
 // Delete registers a route for DELETE requests
-func (h *Http) Delete(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Delete(path, fiberHandlers[0])
-		} else {
-			h.app.Delete(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Delete(path, handler, middlewares...)
 	}
 	return h
 }
 
 // Patch registers a route for PATCH requests
-func (h *Http) Patch(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Patch(path, fiberHandlers[0])
-		} else {
-			h.app.Patch(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Patch(path, handler, middlewares...)
 	}
 	return h
 }
 
 // Options registers a route for OPTIONS requests
-func (h *Http) Options(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Options(path, fiberHandlers[0])
-		} else {
-			h.app.Options(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Options(path, handler, middlewares...)
 	}
 	return h
 }
 
 // Head registers a route for HEAD requests
-func (h *Http) Head(path string, handlers ...interface{}) contract.Http {
+func (h *Http) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.Head(path, fiberHandlers[0])
-		} else {
-			h.app.Head(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+	if handler != nil {
+		h.app.Head(path, handler, middlewares...)
 	}
 	return h
 }
 
 // All registers a route for all HTTP methods
-func (h *Http) All(path string, handlers ...interface{}) contract.Http {
+func (h *Http) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
+	if handler != nil {
+		h.app.All(path, handler, middlewares...)
 	}
+	return h
+}
 
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			h.app.All(path, fiberHandlers[0])
-		} else {
-			h.app.All(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
+func (h *Http) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if handler != nil {
+		h.app.Connect(path, handler, middlewares...)
+	}
+	return h
+}
+
+func (h *Http) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if handler != nil {
+		h.app.Trace(path, handler, middlewares...)
+	}
+	return h
+}
+
+func (h *Http) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if handler != nil {
+		h.app.Add(methods, path, handler, middlewares...)
 	}
 	return h
 }
 
 // Group creates a new route group with prefix
-func (h *Http) Group(prefix string, handlers ...interface{}) contract.RouteGroup {
+func (h *Http) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	group := h.app.Group(prefix, fiberHandlers...)
+	group := h.app.Group(prefix, handlers...)
 	return &RouteGroup{group: group}
 }
 
 // Use registers middleware
-func (h *Http) Use(handlers ...interface{}) contract.Http {
+func (h *Http) Use(handlers ...any) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok {
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		}
-	}
-
-	for _, handler := range fiberHandlers {
-		h.app.Use(handler)
-	}
+	h.app.Use(handlers...)
 	return h
 }
 
 // Static serves static files
-func (h *Http) Static(prefix, root string, config ...interface{}) contract.Http {
+func (h *Http) Static(prefix, root string, config ...static.Config) contract.Http {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Convert config to static.Config
-	var staticCfg static.Config // Use aliased import
-	if len(config) > 0 {
-		if sc, ok := config[0].(static.Config); ok { // Cast to aliased type
-			staticCfg = sc
-		}
-		// Not attempting to map from a hypothetical old fiber.Static struct here,
-		// as the type itself was undefined. Users must pass static.Config if they want custom config.
-	}
 	// Use the static middleware: app.Use(prefix, static.New(root, staticCfg))
 	// If prefix is empty, it means serving from root, which is common for single page apps or root static.
 	// The static.New middleware handles the case where prefix might be added to the paths it serves from.
 	// For now, direct mapping:
 	if prefix == "" { // static.New often expects a root path to serve, prefix is handled by app.Use
-		h.app.Use(static.New(root, staticCfg))
+		h.app.Use(static.New(root, config[0]))
 	} else {
-		h.app.Use(prefix, static.New(root, staticCfg))
+		h.app.Use(prefix, static.New(root, config[0]))
 	}
 	return h
 }
@@ -373,230 +238,57 @@ type RouteGroup struct {
 	group fiber.Router
 }
 
-// Get registers a route for GET requests within this group
-func (g *RouteGroup) Get(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Get(path, fiberHandlers[0])
-		} else {
-			g.group.Get(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Get(path, handler, middlewares...)
 }
 
-// Post registers a route for POST requests within this group
-func (g *RouteGroup) Post(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Post(path, fiberHandlers[0])
-		} else {
-			g.group.Post(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Post(path, handler, middlewares...)
 }
 
-// Put registers a route for PUT requests within this group
-func (g *RouteGroup) Put(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Put(path, fiberHandlers[0])
-		} else {
-			g.group.Put(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Put(path, handler, middlewares...)
 }
 
-// Delete registers a route for DELETE requests within this group
-func (g *RouteGroup) Delete(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Delete(path, fiberHandlers[0])
-		} else {
-			g.group.Delete(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Delete(path, handler, middlewares...)
 }
 
-// Patch registers a route for PATCH requests within this group
-func (g *RouteGroup) Patch(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Patch(path, fiberHandlers[0])
-		} else {
-			g.group.Patch(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Patch(path, handler, middlewares...)
 }
 
-// Options registers a route for OPTIONS requests within this group
-func (g *RouteGroup) Options(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Options(path, fiberHandlers[0])
-		} else {
-			g.group.Options(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Options(path, handler, middlewares...)
 }
 
-// Head registers a route for HEAD requests within this group
-func (g *RouteGroup) Head(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.Head(path, fiberHandlers[0])
-		} else {
-			g.group.Head(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Head(path, handler, middlewares...)
 }
 
-// All registers a route for all HTTP methods within this group
-func (g *RouteGroup) All(path string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	if len(fiberHandlers) > 0 {
-		if len(fiberHandlers) == 1 {
-			g.group.All(path, fiberHandlers[0])
-		} else {
-			g.group.All(path, fiberHandlers[0], fiberHandlers[1:]...)
-		}
-	}
-	return g
+func (r *RouteGroup) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.All(path, handler, middlewares...)
 }
 
-// Group creates a new route group with prefix
-func (g *RouteGroup) Group(prefix string, handlers ...interface{}) contract.RouteGroup {
-	// Convert handlers to fiber.Handler
-	fiberHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, handler := range handlers {
-		if fiberHandler, ok := handler.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			fiberHandlers = append(fiberHandlers, fiberHandler)
-		} else if fnOld, ok := handler.(func(interface{}) error); ok { // Legacy generic handler
-			fiberHandlers = append(fiberHandlers, func(c fiber.Ctx) error { // Wrapper now uses fiber.Ctx
-				return fnOld(c) // c is fiber.Ctx (interface)
-			})
-		}
-	}
-
-	group := g.group.Group(prefix, fiberHandlers...)
-	return &RouteGroup{group: group}
+func (r *RouteGroup) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Connect(path, handler, middlewares...)
 }
 
-// Use registers middleware for this group
-func (g *RouteGroup) Use(handlers ...interface{}) contract.RouteGroup {
-	finalHandlers := make([]fiber.Handler, 0, len(handlers))
-	for _, h := range handlers {
-		if fiberHandler, ok := h.(fiber.Handler); ok { // fiber.Handler is func(fiber.Ctx) error in v3
-			finalHandlers = append(finalHandlers, fiberHandler)
-		}
-		// Note: Http.Use only processes fiber.Handler. This RouteGroup.Use is now consistent.
-	}
+func (r *RouteGroup) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Trace(path, handler, middlewares...)
+}
 
-	for _, handler := range finalHandlers {
-		g.group.Use(handler)
-	}
-	return g
+func (r *RouteGroup) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
+	r.group.Add(methods, path, handler, middlewares...)
+}
+
+func (r *RouteGroup) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
+	r.group.Group(prefix, handlers...)
+	return &RouteGroup{group: r.group}
+}
+
+func (r *RouteGroup) Use(handlers ...any) {
+	r.group.Use(handlers...)
 }
 
 // Provider provides an Http instance
