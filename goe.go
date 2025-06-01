@@ -12,6 +12,8 @@ import (
 	"go.oease.dev/goe/v2/core/log"
 )
 
+const Version = "v2.0.0-dev-1"
+
 var (
 	instance     *Framework
 	instanceOnce sync.Once
