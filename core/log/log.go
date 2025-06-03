@@ -3,13 +3,12 @@ package log
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
-
 	"go.oease.dev/goe/v2/contract"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
+	"strings"
+	"sync"
 )
 
 // Logger implements the contract.Log interface
@@ -72,11 +71,8 @@ func (l *Logger) Start(ctx context.Context) error {
 func (l *Logger) Stop(ctx context.Context) error {
 	// Ignore "sync /dev/stderr: inappropriate ioctl for device" error
 	// This is a known issue with zap logger when running in certain environments
-	err := l.logger.Sync()
-	if err != nil && strings.Contains(err.Error(), "inappropriate ioctl for device") {
-		return nil
-	}
-	return err
+	_ = l.logger.Sync()
+	return nil
 }
 
 // Debug logs a message at debug level

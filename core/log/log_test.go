@@ -137,3 +137,87 @@ func TestLogger(t *testing.T) {
 	logger.Warn("This is a warning message")
 	logger.Error("This is an error message")
 }
+
+// BenchmarkLogger benchmarks the logger operations
+func BenchmarkLogger(b *testing.B) {
+	// Set environment to development
+	os.Setenv("GOE_ENV", "dev")
+
+	// Create a new logger
+	logger := log.New()
+
+	// Benchmark Debug
+	b.Run("Debug", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.Debug("This is a debug message")
+		}
+	})
+
+	// Benchmark Info
+	b.Run("Info", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.Info("This is an info message")
+		}
+	})
+
+	// Benchmark Warn
+	b.Run("Warn", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.Warn("This is a warning message")
+		}
+	})
+
+	// Benchmark Error
+	b.Run("Error", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.Error("This is an error message")
+		}
+	})
+
+	// Benchmark WithField
+	b.Run("WithField", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.WithField("key", "value").Info("This is a message with a field")
+		}
+	})
+
+	// Benchmark WithFields
+	b.Run("WithFields", func(b *testing.B) {
+		fields := map[string]interface{}{
+			"key1": "value1",
+			"key2": "value2",
+		}
+		for i := 0; i < b.N; i++ {
+			logger.WithFields(fields).Info("This is a message with fields")
+		}
+	})
+
+	// Benchmark Named
+	b.Run("Named", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			logger.Named("benchmark").Info("This is a message from a named logger")
+		}
+	})
+
+	// Benchmark WithContext
+	b.Run("WithContext", func(b *testing.B) {
+		ctx := context.Background()
+		for i := 0; i < b.N; i++ {
+			logger.WithContext(ctx).Info("This is a message with context")
+		}
+	})
+
+	// Benchmark SetLevel
+	b.Run("SetLevel", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = logger.SetLevel("info")
+		}
+	})
+
+	// Benchmark GetLevel
+	b.Run("GetLevel", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = logger.GetLevel()
+		}
+	})
+}

@@ -20,6 +20,13 @@ type Config struct {
 	basePath string
 }
 
+// SetBasePath sets the base path for loading .env files
+func (c *Config) SetBasePath(path string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.basePath = path
+}
+
 // New creates a new Config instance
 func New() *Config {
 	return &Config{
@@ -108,56 +115,136 @@ func (c *Config) GetDefault(key string, defaultValue string) string {
 
 // GetInt retrieves a configuration value as an integer
 func (c *Config) GetInt(key string) (int, error) {
-	// Implementation will be added
-	return 0, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, ok := c.values[key]
+	if !ok {
+		return 0, fmt.Errorf("key not found: %s", key)
+	}
+
+	var result int
+	_, err := fmt.Sscanf(value, "%d", &result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse int: %w", err)
+	}
+
+	return result, nil
 }
 
 // GetIntDefault retrieves a configuration value as an integer with a default value
 func (c *Config) GetIntDefault(key string, defaultValue int) int {
-	// Implementation will be added
-	return defaultValue
+	result, err := c.GetInt(key)
+	if err != nil {
+		return defaultValue
+	}
+	return result
 }
 
 // GetBool retrieves a configuration value as a boolean
 func (c *Config) GetBool(key string) (bool, error) {
-	// Implementation will be added
-	return false, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, ok := c.values[key]
+	if !ok {
+		return false, fmt.Errorf("key not found: %s", key)
+	}
+
+	switch strings.ToLower(value) {
+	case "true", "yes", "1", "on":
+		return true, nil
+	case "false", "no", "0", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value: %s", value)
+	}
 }
 
 // GetBoolDefault retrieves a configuration value as a boolean with a default value
 func (c *Config) GetBoolDefault(key string, defaultValue bool) bool {
-	// Implementation will be added
-	return defaultValue
+	result, err := c.GetBool(key)
+	if err != nil {
+		return defaultValue
+	}
+	return result
 }
 
 // GetFloat retrieves a configuration value as a float64
 func (c *Config) GetFloat(key string) (float64, error) {
-	// Implementation will be added
-	return 0, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, ok := c.values[key]
+	if !ok {
+		return 0, fmt.Errorf("key not found: %s", key)
+	}
+
+	var result float64
+	_, err := fmt.Sscanf(value, "%f", &result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse float: %w", err)
+	}
+
+	return result, nil
 }
 
 // GetFloatDefault retrieves a configuration value as a float64 with a default value
 func (c *Config) GetFloatDefault(key string, defaultValue float64) float64 {
-	// Implementation will be added
-	return defaultValue
+	result, err := c.GetFloat(key)
+	if err != nil {
+		return defaultValue
+	}
+	return result
 }
 
 // GetDuration retrieves a configuration value as a duration
 func (c *Config) GetDuration(key string) (time.Duration, error) {
-	// Implementation will be added
-	return 0, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, ok := c.values[key]
+	if !ok {
+		return 0, fmt.Errorf("key not found: %s", key)
+	}
+
+	return time.ParseDuration(value)
 }
 
 // GetDurationDefault retrieves a configuration value as a duration with a default value
 func (c *Config) GetDurationDefault(key string, defaultValue time.Duration) time.Duration {
-	// Implementation will be added
-	return defaultValue
+	result, err := c.GetDuration(key)
+	if err != nil {
+		return defaultValue
+	}
+	return result
 }
 
 // GetStringSlice retrieves a configuration value as a string slice
 func (c *Config) GetStringSlice(key string, separator string) []string {
-	// Implementation will be added
-	return nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, ok := c.values[key]
+	if !ok {
+		return nil
+	}
+
+	if separator == "" {
+		separator = ","
+	}
+
+	parts := strings.Split(value, separator)
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
 }
 
 // Has checks if a configuration key exists

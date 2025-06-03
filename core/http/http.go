@@ -215,10 +215,15 @@ func (h *Http) Static(prefix, root string, config ...static.Config) contract.Htt
 	// If prefix is empty, it means serving from root, which is common for single page apps or root static.
 	// The static.New middleware handles the case where prefix might be added to the paths it serves from.
 	// For now, direct mapping:
+	var cfg static.Config
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+
 	if prefix == "" { // static.New often expects a root path to serve, prefix is handled by app.Use
-		h.app.Use(static.New(root, config[0]))
+		h.app.Use(static.New(root, cfg))
 	} else {
-		h.app.Use(prefix, static.New(root, config[0]))
+		h.app.Use(prefix, static.New(root, cfg))
 	}
 	return h
 }
@@ -283,8 +288,8 @@ func (r *RouteGroup) Add(methods []string, path string, handler contract.HttpHan
 }
 
 func (r *RouteGroup) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
-	r.group.Group(prefix, handlers...)
-	return &RouteGroup{group: r.group}
+	group := r.group.Group(prefix, handlers...)
+	return &RouteGroup{group: group}
 }
 
 func (r *RouteGroup) Use(handlers ...any) {
