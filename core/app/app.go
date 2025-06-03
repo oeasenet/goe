@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.uber.org/fx"
@@ -94,10 +95,24 @@ func (a *App) Context() context.Context {
 
 // Run starts the application and blocks until it's stopped
 func (a *App) Run() error {
+	// Create the Fx application
+	if err := a.createFxApp(); err != nil {
+		return err
+	}
+
+	// Start the application and block until it's stopped
+	// Fx's Run() method already handles signal handling and graceful shutdown
+	a.container.Run()
+	return nil
+}
+
+// createFxApp creates the Fx application with all registered modules and providers
+func (a *App) createFxApp() error {
 	// Get the logger before acquiring the lock to avoid deadlock
 	logger := a.logger()
 
 	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	// Configure Fx to use our logger
 	a.options = append(a.options, fx.WithLogger(func() fxevent.Logger {
@@ -169,12 +184,24 @@ func (a *App) Run() error {
 
 	// Create the Fx application with all registered options
 	a.container = fx.New(a.options...)
-	a.mu.Unlock()
-
-	// Start the application and block until it's stopped
-	// Fx's Run() method already handles signal handling and graceful shutdown
-	a.container.Run()
 	return nil
+}
+
+// RunWithTimeout starts the application and returns after the specified timeout
+func (a *App) RunWithTimeout(timeout time.Duration) error {
+	// Create the Fx application
+	if err := a.createFxApp(); err != nil {
+		return err
+	}
+
+	// Start the application in a goroutine
+	go a.container.Run()
+
+	// Wait for the timeout
+	time.Sleep(timeout)
+
+	// Stop the application
+	return a.Stop(context.Background())
 }
 
 // RegisterModule registers a module with the application

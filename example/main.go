@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/gofiber/fiber/v3"
+	"time"
 
 	"go.oease.dev/goe/v2"
 )
@@ -11,9 +13,10 @@ func main() {
 	app := goe.New()
 
 	// Configure the HTTP server
-	app.Http().Get("/", func(c interface{}) error {
-		return c.(interface{ JSON(int, interface{}) error }).JSON(200, map[string]interface{}{
-			"message": "Hello, World!",
+	app.Http().Get("/", func(ctx fiber.Ctx) error {
+		return ctx.JSON(goe.Map{
+			"message": "Hello, world!",
+			"env":     app.Config().GetDefault("APP_ENV", "development"),
 		})
 	})
 
@@ -54,8 +57,8 @@ func main() {
 		return nil
 	})
 
-	// Run the application
-	if err := app.Run(); err != nil {
+	// Run the application with a timeout
+	if err := app.RunWithTimeout(10 * time.Second); err != nil {
 		app.Log().Fatal("Application failed", "error", err)
 	}
 }

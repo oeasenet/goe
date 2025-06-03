@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"time"
 )
 
 // App represents the application module interface
@@ -16,6 +17,9 @@ type App interface {
 
 	// Run starts the application and blocks until it's stopped
 	Run() error
+
+	// RunWithTimeout starts the application and returns after the specified timeout
+	RunWithTimeout(timeout time.Duration) error
 
 	// RegisterModule registers a module with the application
 	RegisterModule(module Module) App

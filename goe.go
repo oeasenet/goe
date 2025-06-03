@@ -2,6 +2,7 @@ package goe
 
 import (
 	"sync"
+	"time"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
@@ -29,10 +30,24 @@ type Framework struct {
 	cache  contract.Cache
 }
 
+// ModuleProviders returns the core module providers for dependency injection
+func ModuleProviders() []interface{} {
+	return []interface{}{
+		app.Provider,
+		config.Provider,
+		http.Provider,
+		log.Provider,
+		event.Provider,
+		cache.Provider,
+	}
+}
+
 // New creates a new framework instance
 func New() *Framework {
 	instanceOnce.Do(func() {
+		// Create a new framework instance
 		instance = &Framework{}
+
 		// Initialize all modules directly
 		instance.app = app.New()
 		instance.config = config.New()
@@ -87,6 +102,21 @@ func (f *Framework) Run() error {
 
 	// Run the application
 	return f.app.Run()
+}
+
+// RunWithTimeout initializes and runs the application with a timeout
+func (f *Framework) RunWithTimeout(timeout time.Duration) error {
+	// Register modules with the app
+	f.app.RegisterModules(
+		f.config,
+		f.http,
+		f.log,
+		f.event,
+		f.cache,
+	)
+
+	// Run the application with a timeout
+	return f.app.RunWithTimeout(timeout)
 }
 
 // Global accessor functions
