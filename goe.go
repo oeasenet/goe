@@ -35,8 +35,8 @@ func ModuleProviders() []interface{} {
 	return []interface{}{
 		app.Provider,
 		config.Provider,
-		http.Provider,
 		log.Provider,
+		http.Provider,
 		event.Provider,
 		cache.Provider,
 	}
@@ -91,30 +91,12 @@ func (f *Framework) Cache() contract.Cache {
 
 // Run initializes and runs the application
 func (f *Framework) Run() error {
-	// Register modules with the app
-	f.app.RegisterModules(
-		f.config,
-		f.http,
-		f.log,
-		f.event,
-		f.cache,
-	)
-
 	// Run the application
 	return f.app.Run()
 }
 
 // RunWithTimeout initializes and runs the application with a timeout
 func (f *Framework) RunWithTimeout(timeout time.Duration) error {
-	// Register modules with the app
-	f.app.RegisterModules(
-		f.config,
-		f.http,
-		f.log,
-		f.event,
-		f.cache,
-	)
-
 	// Run the application with a timeout
 	return f.app.RunWithTimeout(timeout)
 }

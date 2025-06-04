@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"go.oease.dev/goe/v2"
 	"sync"
 
 	"github.com/gofiber/fiber/v3"
@@ -18,7 +19,37 @@ type Http struct {
 
 // New creates a new Http instance
 func New() *Http {
-	config := &fiber.Config{}
+	config := &fiber.Config{
+		ServerHeader:                 goe.Config().GetDefault("FIBER_SERVER_HEADER", "GOE Web Server/"+goe.Version),
+		BodyLimit:                    goe.Config().GetIntDefault("FIBER_BODY_LIMIT", 2048*1024*1024),
+		Concurrency:                  goe.Config().GetIntDefault("FIBER_CONCURRENCY", 256*1024),
+		PassLocalsToViews:            true,
+		ReadBufferSize:               4096,
+		WriteBufferSize:              4096,
+		ProxyHeader:                  goe.Config().GetDefault("FIBER_PROXY_HEADER", "X-Forwarded-For"),
+		ErrorHandler:                 nil,
+		DisableKeepalive:             false,
+		DisableDefaultDate:           false,
+		DisableDefaultContentType:    false,
+		DisableHeaderNormalizing:     false,
+		AppName:                      "",
+		StreamRequestBody:            false,
+		DisablePreParseMultipartForm: false,
+		ReduceMemoryUsage:            false,
+		JSONEncoder:                  nil,
+		JSONDecoder:                  nil,
+		CBOREncoder:                  nil,
+		CBORDecoder:                  nil,
+		XMLEncoder:                   nil,
+		XMLDecoder:                   nil,
+		TrustProxy:                   false,
+		TrustProxyConfig:             fiber.TrustProxyConfig{},
+		EnableIPValidation:           false,
+		ColorScheme:                  fiber.Colors{},
+		StructValidator:              nil,
+		RequestMethods:               nil,
+		EnableSplittingOnParsers:     false,
+	}
 	return &Http{
 		config: config,
 		app:    fiber.New(*config),
@@ -26,190 +57,190 @@ func New() *Http {
 }
 
 // Name returns the name of the module
-func (h *Http) Name() string {
+func (m *Http) Name() string {
 	return "http"
 }
 
 // Initialize initializes the http module
-func (h *Http) Initialize(ctx context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.app == nil {
-		h.app = fiber.New(*h.config)
+func (m *Http) Initialize(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.app == nil {
+		m.app = fiber.New(*m.config)
 	}
 	return nil
 }
 
 // Start starts the http module
-func (h *Http) Start(ctx context.Context) error {
+func (m *Http) Start(ctx context.Context) error {
 	// We don't actually start the HTTP server here because it would block
 	// Instead, we just make sure the app is initialized
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.app == nil {
-		h.app = fiber.New(*h.config)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.app == nil {
+		m.app = fiber.New(*m.config)
 	}
 	return nil
 }
 
 // Stop stops the http module
-func (h *Http) Stop(ctx context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.app != nil {
-		return h.app.Shutdown()
+func (m *Http) Stop(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.app != nil {
+		return m.app.Shutdown()
 	}
 	return nil
 }
 
 // Fiber returns the Fiber app instance
-func (h *Http) Fiber() *fiber.App {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.app
+func (m *Http) Fiber() *fiber.App {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.app
 }
 
 // Get registers a route for GET requests
-func (h *Http) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Get(path, handler, middlewares...)
+		m.app.Get(path, handler, middlewares...)
 	}
 
-	return h
+	return m
 }
 
 // Post registers a route for POST requests
-func (h *Http) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Post(path, handler, middlewares...)
+		m.app.Post(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Put registers a route for PUT requests
-func (h *Http) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Put(path, handler, middlewares...)
+		m.app.Put(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Delete registers a route for DELETE requests
-func (h *Http) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Delete(path, handler, middlewares...)
+		m.app.Delete(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Patch registers a route for PATCH requests
-func (h *Http) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Patch(path, handler, middlewares...)
+		m.app.Patch(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Options registers a route for OPTIONS requests
-func (h *Http) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Options(path, handler, middlewares...)
+		m.app.Options(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Head registers a route for HEAD requests
-func (h *Http) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Head(path, handler, middlewares...)
+		m.app.Head(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // All registers a route for all HTTP methods
-func (h *Http) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.All(path, handler, middlewares...)
+		m.app.All(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
-func (h *Http) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Connect(path, handler, middlewares...)
+		m.app.Connect(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
-func (h *Http) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Trace(path, handler, middlewares...)
+		m.app.Trace(path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
-func (h *Http) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if handler != nil {
-		h.app.Add(methods, path, handler, middlewares...)
+		m.app.Add(methods, path, handler, middlewares...)
 	}
-	return h
+	return m
 }
 
 // Group creates a new route group with prefix
-func (h *Http) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	group := h.app.Group(prefix, handlers...)
+	group := m.app.Group(prefix, handlers...)
 	return &RouteGroup{group: group}
 }
 
 // Use registers middleware
-func (h *Http) Use(handlers ...any) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Use(handlers ...any) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	h.app.Use(handlers...)
-	return h
+	m.app.Use(handlers...)
+	return m
 }
 
 // Static serves static files
-func (h *Http) Static(prefix, root string, config ...static.Config) contract.Http {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (m *Http) Static(prefix, root string, config ...static.Config) contract.Http {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	// Use the static middleware: app.Use(prefix, static.New(root, staticCfg))
 	// If prefix is empty, it means serving from root, which is common for single page apps or root static.
@@ -221,21 +252,21 @@ func (h *Http) Static(prefix, root string, config ...static.Config) contract.Htt
 	}
 
 	if prefix == "" { // static.New often expects a root path to serve, prefix is handled by app.Use
-		h.app.Use(static.New(root, cfg))
+		m.app.Use(static.New(root, cfg))
 	} else {
-		h.app.Use(prefix, static.New(root, cfg))
+		m.app.Use(prefix, static.New(root, cfg))
 	}
-	return h
+	return m
 }
 
 // Listen starts the HTTP server
-func (h *Http) Listen(address string) error {
-	return h.app.Listen(address)
+func (m *Http) Listen(address string) error {
+	return m.app.Listen(address)
 }
 
 // Shutdown gracefully shuts down the HTTP server
-func (h *Http) Shutdown(ctx context.Context) error {
-	return h.app.Shutdown()
+func (m *Http) Shutdown(ctx context.Context) error {
+	return m.app.Shutdown()
 }
 
 // RouteGroup implements the contract.RouteGroup interface
