@@ -47,10 +47,7 @@ func (s *UserService) GetUser(id string) map[string]interface{} {
 func main() {
 	// Create application with HTTP enabled
 	_ = goe.New(goe.Options{
-		Name:        "Final Test",
-		Version:     "1.0.0",
-		Environment: "dev",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Providers: []any{
 			NewUserService,
 		},

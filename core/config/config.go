@@ -43,7 +43,10 @@ func (c *config) loadEnvFiles() {
 	// Always load .env first if it exists
 	c.loadEnvFile(".env")
 
-	// Load environment-specific file
+	// Then load .local.env which can override .env values
+	c.loadEnvFile(".local.env")
+
+	// Load environment-specific file based on GOE_ENV
 	env := os.Getenv("GOE_ENV")
 	if env == "" {
 		env = "dev"
@@ -265,10 +268,10 @@ func (c *config) Reload() error {
 	// Clear data
 	c.data = make(map[string]any)
 
-	// Reload env files
+	// Reload env files first (.env, then .local.env, then .{GOE_ENV}.env)
 	c.loadEnvFiles()
 
-	// Reload system env
+	// Reload system env last to ensure highest priority
 	c.loadSystemEnv()
 
 	// Reload from custom sources

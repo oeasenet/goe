@@ -226,10 +226,7 @@ func RegisterAllRoutes(r RouteRegistrar, health HealthController) {
 func main() {
 	// Create application with HTTP enabled
 	_ = goe.New(goe.Options{
-		Name:        "Goe HTTP Example",
-		Version:     "1.0.0",
-		Environment: "dev",
-		WithHTTP:    true, // Enable HTTP module
+		WithHTTP: true, // Enable HTTP module
 		Providers: []any{
 			// Provide services
 			NewUserService,

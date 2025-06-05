@@ -58,11 +58,9 @@ import (
 
 func main() {
 	// Create application with HTTP enabled
+	// App name, version, and environment are configured via .env files
 	_ = goe.New(goe.Options{
-		Name:        "My App",
-		Version:     "1.0.0",
-		Environment: "dev",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel, logger contract.Logger) {
 				app := http.App()
@@ -95,11 +93,10 @@ Goe applications follow a structured lifecycle:
 5. **Shutdown**: Graceful shutdown on interrupt signals
 
 ```go
-// 1. Initialization
+// 1. Initialization (reads settings from config)
 app := goe.New(goe.Options{
-Name:        "My App",
-Version:     "1.0.0",
-Environment: "production",
+	WithHTTP: true,
+	// Other options...
 })
 
 // 2. Registration happens internally
@@ -212,29 +209,67 @@ NewMyModule(goe.Config(), goe.Log()),
 
 ### Configuration
 
-Goe provides a powerful configuration system with environment variable support:
+Goe provides a powerful configuration system with automatic environment-based loading:
+
+#### Environment Detection
+
+The framework automatically detects the environment through the `GOE_ENV` environment variable. This determines which configuration files to load and affects logging behavior.
+
+```bash
+# Set environment before running
+export GOE_ENV=production
+./myapp
+
+# Or inline
+GOE_ENV=production ./myapp
+```
+
+If `GOE_ENV` is not set, it defaults to `dev`.
 
 #### Configuration Files
 
-Create `.env` files in your project root:
+Goe loads configuration files in a specific order, with later files overriding earlier ones:
 
 ```env
-# .env - Default configuration
+# .env - Base configuration (loaded first)
 APP_NAME=My Application
-APP_ENV=development
+APP_VERSION=1.0.0
 DEBUG=true
 HTTP_PORT=8080
 HTTP_HOST=0.0.0.0
 LOG_LEVEL=info
 LOG_FORMAT=console
+DATABASE_URL=postgres://localhost/myapp_dev
 ```
 
 ```env
-# .env.production - Production overrides
-APP_ENV=production
+# .local.env - Local overrides (loaded second)
+# This file is typically gitignored for local development settings
+DATABASE_URL=postgres://localhost/myapp_local
+DEBUG=true
+SECRET_KEY=local-secret-key
+```
+
+```env
+# .{GOE_ENV}.env - Environment-specific configuration (loaded third)
+# For example: .production.env, .staging.env, .dev.env
 DEBUG=false
 LOG_FORMAT=json
+DATABASE_URL=postgres://prod-server/myapp_prod
 ```
+
+#### Configuration Loading Order
+
+1. **`.env`** - Base configuration file (lowest priority)
+2. **`.local.env`** - Local overrides (useful for development)
+3. **`.{GOE_ENV}.env`** - Environment-specific configuration (e.g., `.production.env`)
+4. **System environment variables** - Highest priority, overrides all files
+
+This loading order ensures that:
+- Base settings are defined in `.env`
+- Developers can override settings locally without affecting the repository
+- Environment-specific settings are properly isolated
+- System environment variables always win (useful for secrets in production)
 
 #### Accessing Configuration
 
@@ -253,11 +288,20 @@ return c.SendString(appName)
 }
 ```
 
-#### Configuration Precedence
+#### Configuration Best Practices
 
-1. System environment variables (highest priority)
-2. `.env.{environment}` file
-3. `.env` file (lowest priority)
+1. **Use `.env` for defaults**: Put all default configuration values in `.env` and commit it to version control
+2. **Use `.local.env` for local development**: Add `.local.env` to `.gitignore` for developer-specific settings
+3. **Use `.{GOE_ENV}.env` for environments**: Create separate files for each deployment environment
+4. **Use system environment variables for secrets**: Never commit sensitive data; use environment variables in production
+5. **Document all configuration options**: Add comments in your `.env` file to explain each setting
+
+Example `.gitignore`:
+```gitignore
+.local.env
+.env.local
+*.local.env
+```
 
 ### Logging
 
@@ -473,9 +517,6 @@ func (c *UserController) CreateUser(ctx fiber.Ctx) error {
 
 func main() {
 	_ = goe.New(goe.Options{
-		Name:        "User Service",
-		Version:     "1.0.0",
-		Environment: "dev",
 		WithHTTP:    true,
 		Providers: []any{
 			NewUserService,
@@ -569,7 +610,6 @@ func (m *CacheModule) cleanup() {
 // Usage
 func main() {
 	_ = goe.New(goe.Options{
-		Name: "App with Cache",
 		Modules: []contract.Module{
 			NewCacheModule(),
 		},
@@ -604,13 +644,10 @@ func GetEnvironment() string
 
 ```go
 type Options struct {
-Name        string // Application name
-Version     string // Application version
-Environment string // Environment (dev, staging, production)
-Modules     []contract.Module // Custom modules
-Providers   []any              // Fx providers
-Invokers    []any              // Fx invokers
-WithHTTP    bool               // Enable HTTP module
+Modules   []contract.Module // Custom modules
+Providers []any              // Fx providers
+Invokers  []any              // Fx invokers
+WithHTTP  bool               // Enable HTTP module
 }
 ```
 

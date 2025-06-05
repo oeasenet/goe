@@ -13,10 +13,7 @@ import (
 func main() {
 	// Create application with HTTP enabled
 	_ = goe.New(goe.Options{
-		Name:        "Minimal Test",
-		Version:     "1.0.0",
-		Environment: "dev",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel) {
 				// Register a simple route directly

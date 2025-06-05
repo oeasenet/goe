@@ -28,13 +28,10 @@ var (
 
 // Options represents the application options
 type Options struct {
-	Name        string
-	Version     string
-	Environment string
-	Modules     []contract.Module
-	Providers   []any
-	Invokers    []any
-	WithHTTP    bool // Enable HTTP module
+	Modules   []contract.Module
+	Providers []any
+	Invokers  []any
+	WithHTTP  bool // Enable HTTP module
 }
 
 // New creates a new Goe application
@@ -43,41 +40,41 @@ func New(opts ...Options) contract.Application {
 	defer instance.mu.Unlock()
 
 	// Merge options
-	opt := Options{
-		Name:        "Goe Application",
-		Version:     "1.0.0",
-		Environment: "dev",
-	}
+	opt := Options{}
 
 	if len(opts) > 0 {
 		o := opts[0]
-		if o.Name != "" {
-			opt.Name = o.Name
-		}
-		if o.Version != "" {
-			opt.Version = o.Version
-		}
-		if o.Environment != "" {
-			opt.Environment = o.Environment
-		}
 		opt.Modules = o.Modules
 		opt.Providers = o.Providers
 		opt.Invokers = o.Invokers
 		opt.WithHTTP = o.WithHTTP
 	}
 
-	// Get environment from GOE_ENV if not set
-	if env := os.Getenv("GOE_ENV"); env != "" {
-		opt.Environment = env
-	}
-
-	// Create application
-	instance.app = app.New(opt.Name, opt.Version, opt.Environment)
-
-	// Create core modules
+	// Create config first to read application settings
 	configModule := config.NewModule()
 	instance.config = configModule.Provide()
 
+	// Get application settings from config
+	appName := instance.config.GetString("APP_NAME")
+	if appName == "" {
+		appName = "Goe Application"
+	}
+
+	appVersion := instance.config.GetString("APP_VERSION")
+	if appVersion == "" {
+		appVersion = "1.0.0"
+	}
+
+	// Get environment from GOE_ENV
+	environment := os.Getenv("GOE_ENV")
+	if environment == "" {
+		environment = "dev"
+	}
+
+	// Create application
+	instance.app = app.New(appName, appVersion, environment)
+
+	// Create log module
 	logModule := log.NewModule(instance.config)
 	instance.logger = logModule.Provide()
 
