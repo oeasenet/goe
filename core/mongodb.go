@@ -172,3 +172,7 @@ func (g *GoeMongoDB) Count(model mongodb.IDefaultModel, filter any) (int64, erro
 func (g *GoeMongoDB) Client() *mongodb.MongoDB {
 	return g.mongodbInstance
 }
+
+func (g *GoeMongoDB) Collection(model mongodb.IDefaultModel) *omgo.Collection {
+	return g.mongodbInstance.Collection(model)
+}

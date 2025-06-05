@@ -311,3 +311,10 @@ func (m *MongoDB) Count(model IDefaultModel, filter any) (int64, error) {
 
 	return m.col(model).Find(m.ctx(), filter).Count()
 }
+
+func (m *MongoDB) Collection(model IDefaultModel) *omgo.Collection {
+	if !m.initialized {
+		m.logger.Error("Must initialize MongoDB first, by calling NewMongodb() method")
+	}
+	return m.col(model)
+}

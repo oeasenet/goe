@@ -1,0 +1,64 @@
+package rbac
+
+import (
+	"github.com/gofiber/fiber/v3"
+)
+
+// RBACMiddleware provides middleware for checking user permissions.
+type RBACMiddleware struct {
+	// Potentially add configuration fields here in the future if needed
+	userIdGetter func(ctx fiber.Ctx) string
+}
+
+// NewRBACMiddleware creates a new RBACMiddleware instance.
+func NewRBACMiddleware() *RBACMiddleware {
+	return &RBACMiddleware{}
+}
+
+func (m *RBACMiddleware) setUserIdGetter(f func(ctx fiber.Ctx) string) {
+	m.userIdGetter = f
+}
+
+// DefineRole --- Role Definition ---
+func (m *RBACMiddleware) DefineRole(role *Role) error {
+	return DefineRole(role)
+}
+
+func (m *RBACMiddleware) GetRole(name string) (*Role, bool) {
+	return GetRole(name) // Calls the existing package-level function
+}
+
+// AssignRoleToUser --- Role Assignment ---
+func (m *RBACMiddleware) AssignRoleToUser(userID string, roleName string) error {
+	return AssignRoleToUser(userID, roleName) // Calls the existing package-level function
+}
+
+func (m *RBACMiddleware) RevokeRoleFromUser(userID string, roleName string) error {
+	return RevokeRoleFromUser(userID, roleName) // Calls the existing package-level function
+}
+
+func (m *RBACMiddleware) GetUserRoleNames(userID string) ([]string, error) {
+	return GetUserRoleNames(userID) // Calls the existing package-level function
+}
+
+// --- Direct Permissions ---
+func (m *RBACMiddleware) GrantDirectPermission(userID string, permission Permission) error {
+	return GrantDirectPermission(userID, permission) // Calls the existing package-level function
+}
+
+func (m *RBACMiddleware) RevokeDirectPermission(userID string, permission Permission) error {
+	return RevokeDirectPermission(userID, permission) // Calls the existing package-level function
+}
+
+func (m *RBACMiddleware) GetUserDirectPermissions(userID string) ([]Permission, error) {
+	return GetUserDirectPermissions(userID) // Calls the existing package-level function
+}
+
+// --- Combined Permissions ---
+func (m *RBACMiddleware) GetAllUserPermissions(userID string) ([]Permission, error) {
+	return GetAllUserPermissions(userID) // Calls the existing package-level function
+}
+
+func GetDefaultUserIdGetter(ctx fiber.Ctx) string {
+	return ctx.Locals("userId").(string)
+}

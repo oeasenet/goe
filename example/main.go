@@ -2,12 +2,12 @@ package main
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/bson/primitive" // Needed for ObjectID
 	"go.oease.dev/goe"
 	"go.oease.dev/goe/middlewares"
+	rbac2 "go.oease.dev/goe/middlewares/rbac"
 	"go.oease.dev/goe/modules/rbac" // Needed for rbac types
 	"go.oease.dev/goe/webresult"
 )
@@ -63,10 +63,10 @@ func main() {
 	// IMPORTANT: For this example to work consistently across runs without a real DB for users,
 	// we would typically clear previous assignments for these test users if the DB persists.
 	// However, the RBAC functions are designed to be idempotent where possible (e.g., AssignRoleToUser won't duplicate).
-	
+
 	// User 1: The Admin User (hex string for ObjectID)
-	adminUserIDHex := "650000000000000000000001" 
-	adminUserID, _ := primitive.ObjectIDFromHex(adminUserIDHex) 
+	adminUserIDHex := "650000000000000000000001"
+	adminUserID, _ := primitive.ObjectIDFromHex(adminUserIDHex)
 	if !adminUserID.IsZero() {
 		// It's good practice to revoke any existing roles/permissions before assigning
 		// to ensure a clean state for test users, especially if the underlying DB persists data.
@@ -96,7 +96,7 @@ func main() {
 			goe.UseLog().Infof("Assigned 'editor' role and 'article:feature' direct permission to user %s", editorUserIDHex)
 		}
 	}
-	
+
 	// User 3: The Viewer User
 	viewerUserIDHex := "650000000000000000000003"
 	viewerUserID, _ := primitive.ObjectIDFromHex(viewerUserIDHex)
@@ -110,9 +110,8 @@ func main() {
 	}
 	// --- End of RBAC Setup Example ---
 
-
 	// Initialize RBAC Middleware
-	rbacMw := middlewares.NewRBACMiddleware()
+	rbacMw := rbac2.NewRBACMiddleware()
 	userIDKeyForRBAC := "userID" // The key where MockAuthMiddleware stores the user ID
 
 	// Fiber App
@@ -154,7 +153,7 @@ func main() {
 			return webresult.SendSucceed(ctx, fmt.Sprintf("User %s publishing article (article:update AND article:publish checked).", editorUserIDHex))
 		},
 	)
-	
+
 	// Editor-accessible route for special feature (direct permission)
 	// Requires "article:feature"
 	app.Get("/article/specialfeature",
@@ -174,7 +173,7 @@ func main() {
 			return webresult.SendSucceed(ctx, fmt.Sprintf("User %s creating a new user (user:create permission checked).", adminUserIDHex))
 		},
 	)
-	
+
 	// Test route for a user with NO relevant permissions for this route
 	// Requires "secret:read"
 	app.Get("/secret/data",
@@ -186,7 +185,6 @@ func main() {
 			return webresult.SendSucceed(ctx, "User somehow accessed secret data. This indicates a problem if the user was the viewer.")
 		},
 	)
-
 
 	// File uploader example (remains from original example, can also be RBAC protected)
 	fileUploader := middlewares.NewFileMiddlewares()
@@ -204,7 +202,6 @@ func main() {
 		fileUploader.HandleDelete(),
 	)
 	app.Get("/file/match/:hash", fileUploader.HandleMatch())
-
 
 	err = goe.Run()
 	if err != nil {

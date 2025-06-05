@@ -1,22 +1,18 @@
 package core
 
 import (
-	"github.com/gofiber/fiber/v3" // Keep existing fiber import
+	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/contracts"
 	"go.oease.dev/goe/modules/broker"
 	"go.oease.dev/goe/modules/cache"
-	configModule "go.oease.dev/goe/modules/config" // Added as per task
 	"go.oease.dev/goe/modules/cron"
-	logModule "go.oease.dev/goe/modules/log"       // Added as per task
-	mongoModule "go.oease.dev/goe/modules/mongodb" // Added as per task
 	"go.oease.dev/goe/modules/msearch"
-	rbacModule "go.oease.dev/goe/modules/rbac" // Import for rbac.NewRBACManager
 )
 
-type GoeContainer struct {
+type Container struct {
 	config      contracts.Config
 	logger      contracts.Logger
-	mongodb     contracts.Mongodb // Changed from mongo to mongodb to match task description
+	mongo       contracts.MongoDB
 	meilisearch contracts.Meilisearch
 	queue       contracts.Queue
 	cache       contracts.Cache
@@ -24,226 +20,212 @@ type GoeContainer struct {
 	fiber       contracts.GoeFiber
 	cron        contracts.CronJob
 	emqx        contracts.EMQX
-	rbac        contracts.RBACManager // <-- New RBAC manager field
-	appConfig   *GoeConfig          // Assuming GoeConfig is the type for cfg
+	appConfig   *GoeConfig
 }
 
-var goeContainer *GoeContainer
-var goeConfigInstance *GoeConfig // Assuming this global var for appConfig is needed
+var goeContainerInstance *Container
 
-// NewGoeContainer creates a new GoeContainer instance and initializes all services.
-func NewGoeContainer(cfg *GoeConfig) (*GoeContainer, error) {
-	goeConfigInstance = cfg // Set global app config instance
+func UseGoeContainer() *Container {
+	return goeContainerInstance
+}
 
-	// Initialize Logger (assuming it's needed early and 'logModule' provides NewLog)
-	// The task snippet implies 'log' is already initialized.
-	// For this example, let's assume NewLog takes cfg.Log and cfg.App.Name
-	// This part needs to align with how logging is actually initialized in the project.
-	// If log is passed in or initialized differently in NewApp, this needs adjustment.
-	log := logModule.NewLog(&cfg.Log, cfg.App.Name) // Example initialization
-	log.Debug("Logger initialized.")
-
-	// Initialize Config (assuming it's needed early and 'configModule' provides NewViperConfig)
-	// The task snippet implies 'config' is already initialized for gc.config.
-	config := configModule.NewViperConfig(cfg.App.Name) // Example initialization
-	log.Debug("Config initialized.")
-
-	// Initialize MongoDB
-	var mongo contracts.Mongodb
-	if cfg.Features.MongodbEnabled { // Using cfg.Features.MongodbEnabled from previous attempt
-		// Ensure cfg.Mongodb field exists and has Enable, Uri, Database, Debug fields.
-		// The task uses cfg.Mongodb.Enable directly.
-		mongo = mongoModule.NewMongo(
-			cfg.Mongodb.Uri,
-			cfg.Mongodb.Database,
-			cfg.App.Name,
-			log, // 'log' is the initialized logger
-			cfg.Mongodb.Debug,
-		)
-		err := mongo.Connect()
-		if err != nil {
-			log.Fatalf("Failed to connect to MongoDB: %v", err)
-			return nil, err
-		}
-		log.Debug("MongoDB initialized and connected.")
-	} else {
-		log.Debug("MongoDB is disabled by config.")
-	}
-
-	// Initialize RBAC Manager
-	rbacManager := rbacModule.NewRBACManager() // <-- Initialize RBAC Manager
-	log.Debug("RBAC Manager initialized.")
-
-	// Other initializations would go here (meilisearch, queue, cache, etc.)
-	// For brevity, only showing what's directly in the task snippet or essential.
-	// The original InitX methods might be called here, or their logic integrated.
-
-	gc := &GoeContainer{
-		appConfig: cfg, // Assign cfg to appConfig
+func NewContainer(config contracts.Config, logger contracts.Logger, appConfig *GoeConfig) *Container {
+	goeConfigInstance = appConfig
+	goeContainerInstance = &Container{
 		config:    config,
-		logger:    log,
-		mongodb:   mongo,
-		rbac:      rbacManager, // <-- Assign RBAC Manager
-		// meilisearch, queue, cache, mailer, fiber, cron, emqx would be initialized and assigned here
+		logger:    logger,
+		appConfig: appConfig,
 	}
+	return goeContainerInstance
+}
 
-	// Initialize other components that might depend on the basic container fields
-	// This part is based on the original file's InitX methods.
-	// We need to decide if these InitX methods are called here, or if their logic is integrated.
-	// For now, let's assume they need to be called if they exist and are still relevant.
-	// The following is a simplified representation.
+func (c *Container) InitMongo() {
+	// Initialize MongoDB
+	mdb, err := NewGoeMongoDB(c.appConfig, c.logger)
+	if err != nil {
+		c.logger.Panic("Failed to initialize MongoDB: ", err)
+		return
+	} else {
+		c.mongo = mdb
+	}
+}
 
-	if cfg.Features.MeilisearchEnabled {
-		if cfg.Meilisearch.ApiKey == "" || cfg.Meilisearch.Endpoint == "" {
-			log.Panic("Meilisearch API key and endpoint are required")
+func (c *Container) InitMeilisearch() {
+	if c.appConfig.Features.MeilisearchEnabled {
+		if c.appConfig.Meilisearch.ApiKey == "" {
+			c.logger.Panic("meilisearch api key is required")
+			return
 		}
-		ms := msearch.NewMSearch(cfg.Meilisearch.Endpoint, cfg.Meilisearch.ApiKey, log)
+		if c.appConfig.Meilisearch.Endpoint == "" {
+			c.logger.Panic("meilisearch endpoint is required")
+			return
+		}
+		ms := msearch.NewMSearch(c.appConfig.Meilisearch.Endpoint, c.appConfig.Meilisearch.ApiKey, c.logger)
 		if ms == nil {
-			log.Panic("Failed to initialize Meilisearch")
+			c.logger.Panic("Failed to initialize Meilisearch")
+			return
 		}
-		gc.meilisearch = ms
-		if cfg.Features.SearchDBSyncEnabled && mongo != nil {
-			// Assuming the mongo instance (contracts.Mongodb) can be cast to a type
-			// that has SetMeilisearch, or that mongoModule provides a way to do this.
-			// This might require mongo.(mongoModule.MongoDbImplInterface).SetMeilisearch(ms)
-			// For now, this is a placeholder for the actual mechanism.
-			log.Info("SearchDBSyncEnabled: Binding Meilisearch to MongoDB (actual binding logic depends on mongo type)")
+		c.meilisearch = ms
+		if c.appConfig.Features.SearchDBSyncEnabled {
+			err := c.mongo.(*GoeMongoDB).SetMeilisearch(ms)
+			if err != nil {
+				c.logger.Panic("Failed to bind Meilisearch to MongoDB: ", err)
+				return
+			}
 		}
 	}
+}
 
-	if cfg.Redis.Host != "" && cfg.Redis.Port != 0 { // Simplified condition for cache/queue
-		gc.cache = cache.NewRedisCache(cfg.Redis.Host, cfg.Redis.Port, cfg.Redis.Username, cfg.Redis.Password, RedisDBCache, log)
-		if gc.cache == nil {
-			log.Panic("Failed to initialize Redis Cache")
+func (c *Container) InitCache() {
+	// Initialize Cache
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 {
+		c.cache = cache.NewRedisCache(c.appConfig.Redis.Host, c.appConfig.Redis.Port, c.appConfig.Redis.Username, c.appConfig.Redis.Password, RedisDBCache, c.logger)
+		if c.cache == nil {
+			c.logger.Panic("Failed to initialize Redis Cache")
 		}
-		// Queue initialization might also go here if it uses similar Redis config
-		// q, err := NewGoeQueue(cfg, log) ... gc.queue = q
+	} else {
+		c.logger.Panic("Failed to initialize Redis Cache: missing required redis configuration")
+		return
 	}
-	
-	// Fiber, Mailer, Cron, EMQX initializations would follow similar patterns.
-
-	goeContainer = gc
-	return gc, nil
 }
 
-// UseGoeContainer returns the global GoeContainer instance.
-func UseGoeContainer() *GoeContainer {
-	if goeContainer == nil {
-		panic("GoeContainer not initialized. Call NewApp first.")
+func (c *Container) InitQueue() {
+	// Initialize Queue
+	if c.appConfig.Redis.Host != "" && c.appConfig.Redis.Port != 0 {
+		q, err := NewGoeQueue(c.appConfig, c.logger)
+		if err != nil {
+			c.logger.Panic("Failed to initialize Redis MQ: ", err)
+			return
+		} else {
+			c.queue = q
+		}
+	} else {
+		c.logger.Panic("Failed to initialize Redis MQ: missing required redis configuration")
+		return
 	}
-	return goeContainer
 }
 
-func (gc *GoeContainer) GetConfig() contracts.Config {
-	return gc.config
-}
-
-func (gc *GoeContainer) GetLogger() contracts.Logger {
-	return gc.logger
-}
-
-func (gc *GoeContainer) GetMongo() contracts.Mongodb { // Ensure return type is contracts.Mongodb
-	return gc.mongodb
-}
-
-// GetRBAC returns the RBAC manager instance.
-func (gc *GoeContainer) GetRBAC() contracts.RBACManager { // <-- New RBAC getter
-	if gc.rbac == nil {
-		UseLogger().Fatal("RBAC Manager not initialized")
+func (c *Container) InitMailer() {
+	if c.appConfig.Features.MailerEnabled {
+		if c.queue == nil {
+			c.logger.Panic("Queue is required to initialize mailer")
+			return
+		}
+		// Initialize mailer
+		mailer := NewGoeMailer(c.appConfig, c.queue, c.logger)
+		if mailer == nil {
+			c.logger.Panic("Failed to initialize mailer")
+			return
+		}
+		c.mailer = mailer
 	}
-	return gc.rbac
 }
 
-// Getters for other services (Meilisearch, Queue, Cache, Mailer, Fiber, Cron, EMQX)
-// would be here, like these examples:
-
-func (gc *GoeContainer) GetMeilisearch() contracts.Meilisearch {
-	return gc.meilisearch
-}
-
-func (gc *GoeContainer) GetCache() contracts.Cache {
-	return gc.cache
-}
-
-func (gc *GoeContainer) GetQueue() contracts.Queue {
-	return gc.queue
-}
-
-func (gc *GoeContainer) GetFiber() contracts.GoeFiber {
-	// This might need initialization if not done in NewGoeContainer
-	// For example:
-	// if gc.fiber == nil && gc.appConfig != nil {
-	// 	 fb := NewGoeFiber(gc.appConfig, gc.logger) // Assuming NewGoeFiber exists
-	// 	 gc.fiber = fb
-	// }
-	return gc.fiber
-}
-
-// ... other getters and methods like Close() ...
-
-// Close method from previous version (ensure types match)
-func (gc *GoeContainer) Close() error {
-	if gc.mongodb != nil {
-		// Assuming contracts.Mongodb has a Close method or can be asserted
-		// For example, if it's an interface wrapping a type with Close:
-		// if c, ok := gc.mongodb.(interface{ Close() error }); ok { c.Close() }
-		// Or if underlying type is known:
-		// if m, ok := gc.mongodb.(*mongoModule.Mongo); ok { m.Close() }
+func (c *Container) InitFiber() {
+	fb := NewGoeFiber(c.appConfig, c.logger)
+	if fb == nil {
+		c.logger.Panic("Failed to initialize Fiber")
+		return
 	}
-	if q, ok := gc.queue.(*GoeQueue); ok { // Assuming GoeQueue for queue
-		q.Close()
+	fb.App().Hooks().OnShutdown(func() error {
+		c.logger.Info("Shutting down the server...")
+		return c.Close()
+	})
+	fb.App().Hooks().OnListen(func(data fiber.ListenData) error {
+		err := c.queue.(*GoeQueue).Start()
+		if err != nil {
+			c.logger.Panic("Failed to start MQ: ", err)
+			return err
+		}
+		if c.cron != nil {
+			c.cron.(*cron.CronJobModule).Start()
+		}
+		c.logger.Infof("Server is running on http://%s:%s", data.Host, data.Port)
+		return err
+	})
+	c.fiber = fb
+}
+
+func (c *Container) InitCron() {
+	mod, err := cron.NewCronJobService()
+	if err != nil {
+		c.logger.Panic("Failed to initialize cron job service: ", err)
+		return
 	}
-	if ca, ok := gc.cache.(*cache.RedisCache); ok {
-		ca.Close()
+	c.cron = mod
+}
+
+func (c *Container) InitEMQX() {
+	if c.appConfig.Features.EMQXBrokerEnabled {
+		// init emqx config
+		c.appConfig.EMQX.Complete()
+		// init emqx broker
+		emqx, err := broker.NewEMQX(c.appConfig.EMQX)
+		if err != nil {
+			c.logger.Panic("Failed to initialize emqx broker service: ", err)
+			return
+		}
+		c.emqx = emqx
 	}
-	if cr, ok := gc.cron.(*cron.CronJobModule); ok {
-		cr.Close()
+
+}
+
+func (c *Container) GetConfig() contracts.Config {
+	return c.config
+}
+
+func (c *Container) GetMongo() contracts.MongoDB {
+	return c.mongo
+}
+
+func (c *Container) GetMailer() contracts.Mailer {
+	return c.mailer
+}
+
+func (c *Container) GetMeilisearch() contracts.Meilisearch {
+	return c.meilisearch
+}
+
+func (c *Container) GetLogger() contracts.Logger {
+	return c.logger
+}
+
+func (c *Container) GetQueue() contracts.Queue {
+	return c.queue
+}
+
+func (c *Container) GetCron() contracts.CronJob {
+	return c.cron
+}
+
+func (c *Container) GetCache() contracts.Cache {
+	return c.cache
+}
+
+func (c *Container) GetFiber() contracts.GoeFiber {
+	return c.fiber
+}
+
+func (c *Container) GetEMQX() contracts.EMQX {
+	return c.emqx
+}
+
+// Close closes the container and its dependencies. DON'T NEED TO CALL THIS METHOD MANUALLY, IT WILL BE CALLED AUTOMATICALLY WHEN THE APP SHUTS DOWN.
+func (c *Container) Close() error {
+	if c.mongo != nil {
+		c.mongo.(*GoeMongoDB).mongodbInstance.Close()
 	}
-	if gc.emqx != nil {
-		gc.emqx.Close()
+	if c.queue != nil {
+		c.queue.(*GoeQueue).Close()
+	}
+	if c.cache != nil {
+		c.cache.(*cache.RedisCache).Close()
+	}
+	if c.cron != nil {
+		c.cron.(*cron.CronJobModule).Close()
+	}
+	if c.emqx != nil {
+		c.emqx.Close()
 	}
 	return nil
-}
-
-// Helper methods like InitMongo, InitMeilisearch etc. from previous versions
-// are now integrated into NewGoeContainer or would be called from there.
-// They are removed as separate public methods of GoeContainer if their logic is fully in NewGoeContainer.
-// If they were intended for other uses, they might be kept or refactored.
-// For this task, focusing on the NewGoeContainer structure as per the snippet.
-// The InitX methods on *Container from the original file are not present on *GoeContainer
-// in the task snippet, implying their logic is consolidated or handled differently.
-// For example, the original file had `(c *GoeContainer) InitMongo()`. This is no longer specified.
-
-// These constants were in the original file, might be needed.
-const RedisDBCache = 0
-// type GoeQueue struct {} // Placeholder if needed for Close()
-// type GoeMongoDB struct { mongodbInstance interface{ Close() } } // Placeholder for Close()
-// type GoeFiber struct {} // Placeholder
-// type GoeMailer struct {} // Placeholder
-// type GoeConfig struct {} // Placeholder
-// type GoeEMQX struct {} // Placeholder
-// type GoeCron struct {} // Placeholder
-
-// It's important that the actual types for mongo, queue, cache, etc.
-// are correctly defined and imported so that methods like Close() work.
-// The placeholders above are just for making the example code structure somewhat runnable
-// without full definitions of all dependent types.
-// The contracts interfaces should define these methods if they are to be called on interface types.
-
-// Example placeholder for NewGoeFiber if used in GetFiber()
-// func NewGoeFiber(cfg *GoeConfig, log contracts.Logger) contracts.GoeFiber { return nil }
-// Placeholder for GoeQueue type if used in Close()
-type GoeQueue struct { /* fields */ }
-func (q *GoeQueue) Close() error { return nil }
-// Placeholder for NewGoeQueue if it was used in NewGoeContainer
-// func NewGoeQueue(cfg *GoeConfig, log contracts.Logger) (contracts.Queue, error) { return nil, nil }
-
-// Placeholder for UseLogger if called in GetRBAC
-func UseLogger() contracts.Logger {
-	if goeContainer != nil && goeContainer.logger != nil {
-		return goeContainer.logger
-	}
-	// Fallback or panic if logger is not available
-	// This indicates a problem if called before logger is initialized
-	panic("Logger not available via UseLogger early in container setup")
 }

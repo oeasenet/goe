@@ -20,4 +20,5 @@ type MongoDB interface {
 	IsExist(model mongodb.IDefaultModel, filter any) (bool, error)
 	Count(model mongodb.IDefaultModel, filter any) (int64, error)
 	Client() *mongodb.MongoDB
+	Collection(model mongodb.IDefaultModel) *omgo.Collection
 }
