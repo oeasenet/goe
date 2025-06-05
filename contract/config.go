@@ -1,59 +1,57 @@
 package contract
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
-// Config represents the configuration module interface
+// Config defines the configuration interface
 type Config interface {
-	Module
+	// Get retrieves a configuration value by key
+	Get(key string) any
 
-	// Get retrieves a configuration value as a string
-	Get(key string) string
+	// GetString retrieves a string configuration value
+	GetString(key string) string
 
-	// GetDefault retrieves a configuration value as a string with a default value
-	GetDefault(key string, defaultValue string) string
+	// GetInt retrieves an integer configuration value
+	GetInt(key string) int
 
-	// GetInt retrieves a configuration value as an integer
-	GetInt(key string) (int, error)
+	// GetInt64 retrieves an int64 configuration value
+	GetInt64(key string) int64
 
-	// GetIntDefault retrieves a configuration value as an integer with a default value
-	GetIntDefault(key string, defaultValue int) int
+	// GetFloat64 retrieves a float64 configuration value
+	GetFloat64(key string) float64
 
-	// GetBool retrieves a configuration value as a boolean
-	GetBool(key string) (bool, error)
+	// GetBool retrieves a boolean configuration value
+	GetBool(key string) bool
 
-	// GetBoolDefault retrieves a configuration value as a boolean with a default value
-	GetBoolDefault(key string, defaultValue bool) bool
+	// GetDuration retrieves a time.Duration configuration value
+	GetDuration(key string) time.Duration
 
-	// GetFloat retrieves a configuration value as a float64
-	GetFloat(key string) (float64, error)
+	// GetStringSlice retrieves a string slice configuration value
+	GetStringSlice(key string) []string
 
-	// GetFloatDefault retrieves a configuration value as a float64 with a default value
-	GetFloatDefault(key string, defaultValue float64) float64
+	// GetStringMap retrieves a string map configuration value
+	GetStringMap(key string) map[string]any
 
-	// GetDuration retrieves a configuration value as a duration
-	GetDuration(key string) (time.Duration, error)
-
-	// GetDurationDefault retrieves a configuration value as a duration with a default value
-	GetDurationDefault(key string, defaultValue time.Duration) time.Duration
-
-	// GetStringSlice retrieves a configuration value as a string slice
-	GetStringSlice(key string, separator string) []string
+	// Set sets a configuration value
+	Set(key string, value any)
 
 	// Has checks if a configuration key exists
 	Has(key string) bool
 
-	// Set sets a configuration value
-	Set(key string, value interface{})
+	// All returns all configuration values
+	All() map[string]any
 
-	// Load loads configuration from a specific source
-	Load(ctx context.Context) error
-
-	// Reload reloads configuration from all sources
-	Reload(ctx context.Context) error
+	// Reload reloads the configuration from sources
+	Reload() error
 }
 
-// ConfigProvider is a function that provides a Config instance
-type ConfigProvider func() Config
+// ConfigSource represents a source of configuration values
+type ConfigSource interface {
+	// Name returns the name of the configuration source
+	Name() string
+
+	// Load loads configuration from the source
+	Load() (map[string]any, error)
+
+	// Watch watches for configuration changes
+	Watch(callback func(map[string]any)) error
+}

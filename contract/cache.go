@@ -1,122 +1,45 @@
 package contract
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
-// Cache represents the cache module interface
+// Cache defines the caching interface
 type Cache interface {
-	Module
+	// Get retrieves a value from cache
+	Get(key string) (any, error)
 
-	// Get retrieves a value from the cache
-	Get(ctx context.Context, key string) (interface{}, error)
+	// Set stores a value in cache with TTL
+	Set(key string, value any, ttl time.Duration) error
 
-	// GetString retrieves a string value from the cache
-	GetString(ctx context.Context, key string) (string, error)
+	// Forever stores a value in cache forever
+	Forever(key string, value any) error
 
-	// GetInt retrieves an int value from the cache
-	GetInt(ctx context.Context, key string) (int, error)
+	// Forget removes a value from cache
+	Forget(key string) error
 
-	// GetInt64 retrieves an int64 value from the cache
-	GetInt64(ctx context.Context, key string) (int64, error)
+	// Flush removes all values from cache
+	Flush() error
 
-	// GetFloat64 retrieves a float64 value from the cache
-	GetFloat64(ctx context.Context, key string) (float64, error)
+	// Has checks if a key exists in cache
+	Has(key string) bool
 
-	// GetBool retrieves a bool value from the cache
-	GetBool(ctx context.Context, key string) (bool, error)
+	// Remember gets a value from cache or computes it
+	Remember(key string, ttl time.Duration, callback func() (any, error)) (any, error)
 
-	// Set stores a value in the cache
-	Set(ctx context.Context, key string, value interface{}, ttl ...time.Duration) error
-
-	// SetWithTTL stores a value in the cache with a TTL
-	SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-
-	// Delete removes a value from the cache
-	Delete(ctx context.Context, key string) error
-
-	// Clear removes all values from the cache
-	Clear(ctx context.Context) error
-
-	// Has checks if a key exists in the cache
-	Has(ctx context.Context, key string) (bool, error)
-
-	// Increment increments a numeric value in the cache
-	Increment(ctx context.Context, key string, value int64) (int64, error)
-
-	// Decrement decrements a numeric value in the cache
-	Decrement(ctx context.Context, key string, value int64) (int64, error)
-
-	// Remember gets a value from the cache or stores the result of the callback
-	Remember(ctx context.Context, key string, ttl time.Duration, callback func() (interface{}, error)) (interface{}, error)
-
-	// Forever stores a value in the cache indefinitely
-	Forever(ctx context.Context, key string, value interface{}) error
-
-	// Forget removes a value from the cache (alias for Delete)
-	Forget(ctx context.Context, key string) error
-
-	// Pull retrieves a value from the cache and then removes it
-	Pull(ctx context.Context, key string) (interface{}, error)
-
-	// Tags returns a tagged cache instance
-	Tags(tags ...string) TaggedCache
+	// RememberForever gets a value from cache or computes it forever
+	RememberForever(key string, callback func() (any, error)) (any, error)
 }
 
-// TaggedCache represents a tagged cache instance
-type TaggedCache interface {
-	// Get retrieves a value from the cache
-	Get(ctx context.Context, key string) (interface{}, error)
+// CacheStore represents a cache storage backend
+type CacheStore interface {
+	// Get retrieves a value
+	Get(key string) ([]byte, error)
 
-	// GetString retrieves a string value from the cache
-	GetString(ctx context.Context, key string) (string, error)
+	// Put stores a value
+	Put(key string, value []byte, seconds int) error
 
-	// GetInt retrieves an int value from the cache
-	GetInt(ctx context.Context, key string) (int, error)
+	// Delete removes a value
+	Delete(key string) error
 
-	// GetInt64 retrieves an int64 value from the cache
-	GetInt64(ctx context.Context, key string) (int64, error)
-
-	// GetFloat64 retrieves a float64 value from the cache
-	GetFloat64(ctx context.Context, key string) (float64, error)
-
-	// GetBool retrieves a bool value from the cache
-	GetBool(ctx context.Context, key string) (bool, error)
-
-	// Set stores a value in the cache
-	Set(ctx context.Context, key string, value interface{}, ttl ...time.Duration) error
-
-	// SetWithTTL stores a value in the cache with a TTL
-	SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-
-	// Delete removes a value from the cache
-	Delete(ctx context.Context, key string) error
-
-	// Clear removes all values from the cache with the given tags
-	Clear(ctx context.Context) error
-
-	// Has checks if a key exists in the cache
-	Has(ctx context.Context, key string) (bool, error)
-
-	// Increment increments a numeric value in the cache
-	Increment(ctx context.Context, key string, value int64) (int64, error)
-
-	// Decrement decrements a numeric value in the cache
-	Decrement(ctx context.Context, key string, value int64) (int64, error)
-
-	// Remember gets a value from the cache or stores the result of the callback
-	Remember(ctx context.Context, key string, ttl time.Duration, callback func() (interface{}, error)) (interface{}, error)
-
-	// Forever stores a value in the cache indefinitely
-	Forever(ctx context.Context, key string, value interface{}) error
-
-	// Forget removes a value from the cache (alias for Delete)
-	Forget(ctx context.Context, key string) error
-
-	// Pull retrieves a value from the cache and then removes it
-	Pull(ctx context.Context, key string) (interface{}, error)
+	// Flush removes all values
+	Flush() error
 }
-
-// CacheProvider is a function that provides a Cache instance
-type CacheProvider func() Cache

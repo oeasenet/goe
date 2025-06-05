@@ -1,10 +1,11 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,231 +13,188 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// Config implements the contract.Config interface
-type Config struct {
-	mu       sync.RWMutex
-	values   map[string]string
-	env      string
-	basePath string
+// config implements the Config interface
+type config struct {
+	mu      sync.RWMutex
+	data    map[string]any
+	sources []contract.ConfigSource
+	cache   map[string]any
 }
 
-// SetBasePath sets the base path for loading .env files
-func (c *Config) SetBasePath(path string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.basePath = path
-}
-
-// New creates a new Config instance
-func New() *Config {
-	return &Config{
-		values: make(map[string]string),
-		env:    "dev", // Default environment
+// New creates a new config instance
+func New() contract.Config {
+	c := &config{
+		data:    make(map[string]any),
+		sources: make([]contract.ConfigSource, 0),
+		cache:   make(map[string]any),
 	}
+
+	// Load default env files
+	c.loadEnvFiles()
+
+	// Load system environment variables
+	c.loadSystemEnv()
+
+	return c
 }
 
-// Name returns the name of the module
-func (c *Config) Name() string {
-	return "config"
+// loadEnvFiles loads environment files in order
+func (c *config) loadEnvFiles() {
+	// Always load .env first if it exists
+	c.loadEnvFile(".env")
+
+	// Load environment-specific file
+	env := os.Getenv("GOE_ENV")
+	if env == "" {
+		env = "dev"
+	}
+
+	envFile := fmt.Sprintf(".%s.env", env)
+	c.loadEnvFile(envFile)
 }
 
-// Initialize initializes the config module
-func (c *Config) Initialize(ctx context.Context) error {
-	// Set base path to current working directory if not set
-	if c.basePath == "" {
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
+// loadEnvFile loads a single env file
+func (c *config) loadEnvFile(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return // File doesn't exist, skip
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
-		c.basePath = dir
-	}
 
-	// Load default .env file first
-	defaultEnvPath := filepath.Join(c.basePath, ".env")
-	if _, err := os.Stat(defaultEnvPath); err == nil {
-		if err := c.loadEnvFile(defaultEnvPath); err != nil {
-			return err
+		// Parse key=value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
 		}
-	}
 
-	// Check if GOE_ENV is set in the default .env file or environment
-	if envVal := c.Get("GOE_ENV"); envVal != "" {
-		c.env = envVal
-	} else if envVal := os.Getenv("GOE_ENV"); envVal != "" {
-		c.env = envVal
-		c.Set("GOE_ENV", envVal)
-	}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
 
-	// Load environment-specific .env file
-	envFile := filepath.Join(c.basePath, "."+c.env+".env")
-	if _, err := os.Stat(envFile); err == nil {
-		if err := c.loadEnvFile(envFile); err != nil {
-			return err
-		}
-	}
+		// Remove quotes if present
+		value = strings.Trim(value, `"'`)
 
-	// Load environment variables
+		c.data[key] = value
+	}
+}
+
+// loadSystemEnv loads system environment variables
+func (c *config) loadSystemEnv() {
 	for _, env := range os.Environ() {
-		pair := strings.SplitN(env, "=", 2)
-		if len(pair) == 2 {
-			c.Set(pair[0], pair[1])
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) == 2 {
+			c.data[parts[0]] = parts[1]
 		}
 	}
-
-	return nil
 }
 
-// Start starts the config module
-func (c *Config) Start(ctx context.Context) error {
-	return nil
-}
-
-// Stop stops the config module
-func (c *Config) Stop(ctx context.Context) error {
-	return nil
-}
-
-// Get retrieves a configuration value as a string
-func (c *Config) Get(key string) string {
+// Get retrieves a configuration value by key
+func (c *config) Get(key string) any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.values[key]
-}
 
-// GetDefault retrieves a configuration value as a string with a default value
-func (c *Config) GetDefault(key string, defaultValue string) string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if val, ok := c.values[key]; ok {
+	// Check cache first
+	if val, ok := c.cache[key]; ok {
 		return val
 	}
-	return defaultValue
+
+	// Check data
+	if val, ok := c.data[key]; ok {
+		c.cache[key] = val
+		return val
+	}
+
+	return nil
 }
 
-// GetInt retrieves a configuration value as an integer
-func (c *Config) GetInt(key string) (int, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	value, ok := c.values[key]
-	if !ok {
-		return 0, fmt.Errorf("key not found: %s", key)
+// GetString retrieves a string configuration value
+func (c *config) GetString(key string) string {
+	val := c.Get(key)
+	if val == nil {
+		return ""
 	}
 
-	var result int
-	_, err := fmt.Sscanf(value, "%d", &result)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse int: %w", err)
-	}
-
-	return result, nil
-}
-
-// GetIntDefault retrieves a configuration value as an integer with a default value
-func (c *Config) GetIntDefault(key string, defaultValue int) int {
-	result, err := c.GetInt(key)
-	if err != nil {
-		return defaultValue
-	}
-	return result
-}
-
-// GetBool retrieves a configuration value as a boolean
-func (c *Config) GetBool(key string) (bool, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	value, ok := c.values[key]
-	if !ok {
-		return false, fmt.Errorf("key not found: %s", key)
-	}
-
-	switch strings.ToLower(value) {
-	case "true", "yes", "1", "on":
-		return true, nil
-	case "false", "no", "0", "off":
-		return false, nil
+	switch v := val.(type) {
+	case string:
+		return v
 	default:
-		return false, fmt.Errorf("invalid boolean value: %s", value)
+		return fmt.Sprintf("%v", v)
 	}
 }
 
-// GetBoolDefault retrieves a configuration value as a boolean with a default value
-func (c *Config) GetBoolDefault(key string, defaultValue bool) bool {
-	result, err := c.GetBool(key)
-	if err != nil {
-		return defaultValue
+// GetInt retrieves an integer configuration value
+func (c *config) GetInt(key string) int {
+	val := c.GetString(key)
+	if val == "" {
+		return 0
 	}
-	return result
+
+	i, _ := strconv.Atoi(val)
+	return i
 }
 
-// GetFloat retrieves a configuration value as a float64
-func (c *Config) GetFloat(key string) (float64, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	value, ok := c.values[key]
-	if !ok {
-		return 0, fmt.Errorf("key not found: %s", key)
+// GetInt64 retrieves an int64 configuration value
+func (c *config) GetInt64(key string) int64 {
+	val := c.GetString(key)
+	if val == "" {
+		return 0
 	}
 
-	var result float64
-	_, err := fmt.Sscanf(value, "%f", &result)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse float: %w", err)
-	}
-
-	return result, nil
+	i, _ := strconv.ParseInt(val, 10, 64)
+	return i
 }
 
-// GetFloatDefault retrieves a configuration value as a float64 with a default value
-func (c *Config) GetFloatDefault(key string, defaultValue float64) float64 {
-	result, err := c.GetFloat(key)
-	if err != nil {
-		return defaultValue
+// GetFloat64 retrieves a float64 configuration value
+func (c *config) GetFloat64(key string) float64 {
+	val := c.GetString(key)
+	if val == "" {
+		return 0
 	}
-	return result
+
+	f, _ := strconv.ParseFloat(val, 64)
+	return f
 }
 
-// GetDuration retrieves a configuration value as a duration
-func (c *Config) GetDuration(key string) (time.Duration, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	value, ok := c.values[key]
-	if !ok {
-		return 0, fmt.Errorf("key not found: %s", key)
+// GetBool retrieves a boolean configuration value
+func (c *config) GetBool(key string) bool {
+	val := c.GetString(key)
+	if val == "" {
+		return false
 	}
 
-	return time.ParseDuration(value)
+	b, _ := strconv.ParseBool(val)
+	return b
 }
 
-// GetDurationDefault retrieves a configuration value as a duration with a default value
-func (c *Config) GetDurationDefault(key string, defaultValue time.Duration) time.Duration {
-	result, err := c.GetDuration(key)
-	if err != nil {
-		return defaultValue
+// GetDuration retrieves a time.Duration configuration value
+func (c *config) GetDuration(key string) time.Duration {
+	val := c.GetString(key)
+	if val == "" {
+		return 0
 	}
-	return result
+
+	d, _ := time.ParseDuration(val)
+	return d
 }
 
-// GetStringSlice retrieves a configuration value as a string slice
-func (c *Config) GetStringSlice(key string, separator string) []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	value, ok := c.values[key]
-	if !ok {
-		return nil
+// GetStringSlice retrieves a string slice configuration value
+func (c *config) GetStringSlice(key string) []string {
+	val := c.GetString(key)
+	if val == "" {
+		return []string{}
 	}
 
-	if separator == "" {
-		separator = ","
-	}
-
-	parts := strings.Split(value, separator)
+	// Split by comma
+	parts := strings.Split(val, ",")
 	result := make([]string, 0, len(parts))
-
 	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
 		if trimmed != "" {
@@ -247,68 +205,137 @@ func (c *Config) GetStringSlice(key string, separator string) []string {
 	return result
 }
 
-// Has checks if a configuration key exists
-func (c *Config) Has(key string) bool {
+// GetStringMap retrieves a string map configuration value
+func (c *config) GetStringMap(key string) map[string]any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	_, ok := c.values[key]
-	return ok
+
+	result := make(map[string]any)
+	prefix := key + "."
+
+	for k, v := range c.data {
+		if strings.HasPrefix(k, prefix) {
+			mapKey := strings.TrimPrefix(k, prefix)
+			result[mapKey] = v
+		}
+	}
+
+	return result
 }
 
 // Set sets a configuration value
-func (c *Config) Set(key string, value interface{}) {
+func (c *config) Set(key string, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values[key] = fmt.Sprintf("%v", value)
+
+	c.data[key] = value
+	delete(c.cache, key) // Invalidate cache
 }
 
-// Load loads configuration from a specific source
-func (c *Config) Load(ctx context.Context) error {
-	return c.Initialize(ctx)
+// Has checks if a configuration key exists
+func (c *config) Has(key string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	_, ok := c.data[key]
+	return ok
 }
 
-// Reload reloads configuration from all sources
-func (c *Config) Reload(ctx context.Context) error {
-	c.mu.Lock()
-	c.values = make(map[string]string)
-	c.mu.Unlock()
-	return c.Initialize(ctx)
-}
+// All returns all configuration values
+func (c *config) All() map[string]any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-// loadEnvFile loads environment variables from a file
-func (c *Config) loadEnvFile(filePath string) error {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return err
+	result := make(map[string]any)
+	for k, v := range c.data {
+		result[k] = v
 	}
 
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	return result
+}
+
+// Reload reloads the configuration from sources
+func (c *config) Reload() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Clear cache
+	c.cache = make(map[string]any)
+
+	// Clear data
+	c.data = make(map[string]any)
+
+	// Reload env files
+	c.loadEnvFiles()
+
+	// Reload system env
+	c.loadSystemEnv()
+
+	// Reload from custom sources
+	for _, source := range c.sources {
+		data, err := source.Load()
+		if err != nil {
+			return err
 		}
 
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
+		for k, v := range data {
+			c.data[k] = v
 		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Remove quotes if present
-		if len(value) > 1 && (value[0] == '"' && value[len(value)-1] == '"' || value[0] == '\'' && value[len(value)-1] == '\'') {
-			value = value[1 : len(value)-1]
-		}
-
-		c.Set(key, value)
 	}
 
 	return nil
 }
 
-// Provider provides a Config instance
-func Provider() contract.Config {
-	return New()
+// AddSource adds a configuration source
+func (c *config) AddSource(source contract.ConfigSource) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.sources = append(c.sources, source)
+}
+
+// Module represents the config module for Fx
+type Module struct {
+	config contract.Config
+}
+
+// NewModule creates a new config module
+func NewModule() *Module {
+	return &Module{
+		config: New(),
+	}
+}
+
+// Name returns the module name
+func (m *Module) Name() string {
+	return "config"
+}
+
+// OnStart is called when the module starts
+func (m *Module) OnStart(ctx context.Context) error {
+	// Watch for env file changes
+	go m.watchEnvFiles()
+	return nil
+}
+
+// OnStop is called when the module stops
+func (m *Module) OnStop(ctx context.Context) error {
+	return nil
+}
+
+// watchEnvFiles watches for changes in env files
+func (m *Module) watchEnvFiles() {
+	// Simple file watching implementation
+	// In production, use fsnotify or similar
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		_ = m.config.Reload()
+	}
+}
+
+// Provide returns the config instance for Fx
+func (m *Module) Provide() contract.Config {
+	return m.config
 }

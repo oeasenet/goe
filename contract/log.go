@@ -1,54 +1,54 @@
 package contract
 
-import (
-	"context"
+import "context"
 
-	"go.uber.org/zap"
-)
+// Logger defines the logging interface
+type Logger interface {
+	// Debug logs a debug message
+	Debug(msg string, fields ...Field)
 
-// Log represents the logging module interface
-type Log interface {
-	Module
+	// Info logs an info message
+	Info(msg string, fields ...Field)
 
-	// Debug logs a message at debug level
-	Debug(msg string, fields ...interface{})
+	// Warn logs a warning message
+	Warn(msg string, fields ...Field)
 
-	// Info logs a message at info level
-	Info(msg string, fields ...interface{})
+	// Error logs an error message
+	Error(msg string, fields ...Field)
 
-	// Warn logs a message at warn level
-	Warn(msg string, fields ...interface{})
+	// Fatal logs a fatal message and exits the application
+	Fatal(msg string, fields ...Field)
 
-	// Error logs a message at error level
-	Error(msg string, fields ...interface{})
+	// With creates a new logger with additional fields
+	With(fields ...Field) Logger
 
-	// Fatal logs a message at fatal level and then exits
-	Fatal(msg string, fields ...interface{})
+	// WithContext creates a new logger with context
+	WithContext(ctx context.Context) Logger
 
-	// WithContext returns a logger with context
-	WithContext(ctx context.Context) Log
-
-	// WithFields returns a logger with fields
-	WithFields(fields map[string]interface{}) Log
-
-	// WithField returns a logger with a field
-	WithField(key string, value interface{}) Log
-
-	// Named returns a logger with the specified name
-	Named(name string) Log
-
-	// With returns a logger with the specified fields
-	With(fields ...zap.Field) Log
-
-	// Zap returns the underlying zap logger
-	Zap() *zap.Logger
-
-	// SetLevel sets the logging level
-	SetLevel(level string) error
-
-	// GetLevel gets the current logging level
-	GetLevel() string
+	// WithError creates a new logger with an error field
+	WithError(err error) Logger
 }
 
-// LogProvider is a function that provides a Log instance
-type LogProvider func() Log
+// Field represents a logging field
+type Field interface {
+	Key() string
+	Value() any
+}
+
+// LoggerConfig defines logger configuration
+type LoggerConfig interface {
+	// Level returns the logging level
+	Level() string
+
+	// Format returns the logging format (json, text)
+	Format() string
+
+	// Output returns the output destinations
+	Output() []string
+
+	// EnableCaller returns whether to include caller information
+	EnableCaller() bool
+
+	// EnableStacktrace returns whether to include stack traces
+	EnableStacktrace() bool
+}

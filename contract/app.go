@@ -2,46 +2,29 @@ package contract
 
 import (
 	"context"
-	"time"
+	"go.uber.org/fx"
 )
 
-// App represents the application module interface
-type App interface {
-	Module
+// Application defines the main application interface
+type Application interface {
+	// Name returns the application name
+	Name() string
 
-	// Container returns the dependency injection container
-	Container() interface{}
+	// Version returns the application version
+	Version() string
+
+	// Environment returns the current environment (dev, prod, etc.)
+	Environment() string
 
 	// Context returns the application context
 	Context() context.Context
 
-	// Run starts the application and blocks until it's stopped
-	Run() error
+	// Container returns the underlying Fx app instance
+	Container() *fx.App
 
-	// RunWithTimeout starts the application and returns after the specified timeout
-	RunWithTimeout(timeout time.Duration) error
+	// IsRunning returns true if the application is running
+	IsRunning() bool
 
-	// RegisterModule registers a module with the application
-	RegisterModule(module Module) App
-
-	// RegisterModules registers multiple modules with the application
-	RegisterModules(modules ...Module) App
-
-	// RegisterProvider registers a provider function with the application
-	RegisterProvider(provider interface{}, opts ...interface{}) App
-
-	// RegisterProviders registers multiple provider functions with the application
-	RegisterProviders(providers ...interface{}) App
-
-	// Invoke executes a function after the application has started
-	Invoke(function interface{}, opts ...interface{}) App
-
-	// OnStart registers a function to be called when the application starts
-	OnStart(function interface{}) App
-
-	// OnStop registers a function to be called when the application stops
-	OnStop(function interface{}) App
+	// Register registers new modules, providers, or invokers
+	Register(options ...fx.Option) error
 }
-
-// AppProvider is a function that provides an App instance
-type AppProvider func() App

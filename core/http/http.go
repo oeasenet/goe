@@ -2,332 +2,258 @@ package http
 
 import (
 	"context"
-	"go.oease.dev/goe/v2"
-	"sync"
+	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
-	static "github.com/gofiber/fiber/v3/middleware/static" // New import
+	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"go.oease.dev/goe/v2/contract"
+	"go.uber.org/fx"
 )
 
-// Http implements the contract.Http interface
-type Http struct {
-	mu     sync.RWMutex
+// kernel implements the HTTPKernel interface
+type kernel struct {
 	app    *fiber.App
-	config *fiber.Config
+	config contract.Config
+	logger contract.Logger
 }
 
-// New creates a new Http instance
-func New() *Http {
-	config := &fiber.Config{
-		ServerHeader:                 goe.Config().GetDefault("FIBER_SERVER_HEADER", "GOE Web Server/"+goe.Version),
-		BodyLimit:                    goe.Config().GetIntDefault("FIBER_BODY_LIMIT", 2048*1024*1024),
-		Concurrency:                  goe.Config().GetIntDefault("FIBER_CONCURRENCY", 256*1024),
-		PassLocalsToViews:            true,
-		ReadBufferSize:               4096,
-		WriteBufferSize:              4096,
-		ProxyHeader:                  goe.Config().GetDefault("FIBER_PROXY_HEADER", "X-Forwarded-For"),
-		ErrorHandler:                 nil,
-		DisableKeepalive:             false,
-		DisableDefaultDate:           false,
-		DisableDefaultContentType:    false,
-		DisableHeaderNormalizing:     false,
-		AppName:                      "",
-		StreamRequestBody:            false,
-		DisablePreParseMultipartForm: false,
-		ReduceMemoryUsage:            false,
-		JSONEncoder:                  nil,
-		JSONDecoder:                  nil,
-		CBOREncoder:                  nil,
-		CBORDecoder:                  nil,
-		XMLEncoder:                   nil,
-		XMLDecoder:                   nil,
-		TrustProxy:                   false,
-		TrustProxyConfig:             fiber.TrustProxyConfig{},
-		EnableIPValidation:           false,
-		ColorScheme:                  fiber.Colors{},
-		StructValidator:              nil,
-		RequestMethods:               nil,
-		EnableSplittingOnParsers:     false,
+// New creates a new HTTP kernel
+func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
+	// Create fiber config
+	fiberConfig := fiber.Config{
+		ServerHeader:  config.GetString("HTTP_SERVER_HEADER"),
+		StrictRouting: config.GetBool("HTTP_STRICT_ROUTING"),
+		CaseSensitive: config.GetBool("HTTP_CASE_SENSITIVE"),
+		BodyLimit:     config.GetInt("HTTP_BODY_LIMIT"),
+		ReadTimeout:   config.GetDuration("HTTP_READ_TIMEOUT"),
+		WriteTimeout:  config.GetDuration("HTTP_WRITE_TIMEOUT"),
+		IdleTimeout:   config.GetDuration("HTTP_IDLE_TIMEOUT"),
+		AppName:       config.GetString("APP_NAME"),
+		ErrorHandler:  defaultErrorHandler(logger),
 	}
-	return &Http{
+
+	// Set defaults
+	if fiberConfig.ServerHeader == "" {
+		fiberConfig.ServerHeader = "Goe"
+	}
+	if fiberConfig.BodyLimit == 0 {
+		fiberConfig.BodyLimit = 4 * 1024 * 1024 // 4MB
+	}
+	if fiberConfig.ReadTimeout == 0 {
+		fiberConfig.ReadTimeout = 10 * time.Second
+	}
+	if fiberConfig.WriteTimeout == 0 {
+		fiberConfig.WriteTimeout = 10 * time.Second
+	}
+
+	// Create fiber app
+	app := fiber.New(fiberConfig)
+
+	// Add default middleware
+	app.Use(recover.New())
+	app.Use(requestid.New())
+
+	// Add request logging middleware
+	app.Use(func(c fiber.Ctx) error {
+		start := time.Now()
+
+		// Store request ID in locals for use in handlers
+		requestID := c.Get("X-Request-ID")
+		c.Locals("requestID", requestID)
+
+		// Continue to next middleware
+		err := c.Next()
+
+		// Log request
+		logger.Info("HTTP Request",
+			contract.Field(newField("method", c.Method())),
+			contract.Field(newField("path", c.Path())),
+			contract.Field(newField("status", c.Response().StatusCode())),
+			contract.Field(newField("duration", time.Since(start).String())),
+			contract.Field(newField("request_id", requestID)),
+		)
+
+		return err
+	})
+
+	return &kernel{
+		app:    app,
 		config: config,
-		app:    fiber.New(*config),
+		logger: logger,
 	}
 }
 
-// Name returns the name of the module
-func (m *Http) Name() string {
-	return "http"
-}
-
-// Initialize initializes the http module
-func (m *Http) Initialize(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.app == nil {
-		m.app = fiber.New(*m.config)
-	}
-	return nil
-}
-
-// Start starts the http module
-func (m *Http) Start(ctx context.Context) error {
-	// We don't actually start the HTTP server here because it would block
-	// Instead, we just make sure the app is initialized
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.app == nil {
-		m.app = fiber.New(*m.config)
-	}
-	return nil
-}
-
-// Stop stops the http module
-func (m *Http) Stop(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.app != nil {
-		return m.app.Shutdown()
-	}
-	return nil
-}
-
-// Fiber returns the Fiber app instance
-func (m *Http) Fiber() *fiber.App {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.app
-}
-
-// Get registers a route for GET requests
-func (m *Http) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Get(path, handler, middlewares...)
-	}
-
-	return m
-}
-
-// Post registers a route for POST requests
-func (m *Http) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Post(path, handler, middlewares...)
-	}
-	return m
-}
-
-// Put registers a route for PUT requests
-func (m *Http) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Put(path, handler, middlewares...)
-	}
-	return m
-}
-
-// Delete registers a route for DELETE requests
-func (m *Http) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Delete(path, handler, middlewares...)
-	}
-	return m
-}
-
-// Patch registers a route for PATCH requests
-func (m *Http) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Patch(path, handler, middlewares...)
-	}
-	return m
-}
-
-// Options registers a route for OPTIONS requests
-func (m *Http) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Options(path, handler, middlewares...)
-	}
-	return m
-}
-
-// Head registers a route for HEAD requests
-func (m *Http) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Head(path, handler, middlewares...)
-	}
-	return m
-}
-
-// All registers a route for all HTTP methods
-func (m *Http) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.All(path, handler, middlewares...)
-	}
-	return m
-}
-
-func (m *Http) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Connect(path, handler, middlewares...)
-	}
-	return m
-}
-
-func (m *Http) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Trace(path, handler, middlewares...)
-	}
-	return m
-}
-
-func (m *Http) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if handler != nil {
-		m.app.Add(methods, path, handler, middlewares...)
-	}
-	return m
-}
-
-// Group creates a new route group with prefix
-func (m *Http) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	group := m.app.Group(prefix, handlers...)
-	return &RouteGroup{group: group}
-}
-
-// Use registers middleware
-func (m *Http) Use(handlers ...any) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.app.Use(handlers...)
-	return m
-}
-
-// Static serves static files
-func (m *Http) Static(prefix, root string, config ...static.Config) contract.Http {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Use the static middleware: app.Use(prefix, static.New(root, staticCfg))
-	// If prefix is empty, it means serving from root, which is common for single page apps or root static.
-	// The static.New middleware handles the case where prefix might be added to the paths it serves from.
-	// For now, direct mapping:
-	var cfg static.Config
-	if len(config) > 0 {
-		cfg = config[0]
-	}
-
-	if prefix == "" { // static.New often expects a root path to serve, prefix is handled by app.Use
-		m.app.Use(static.New(root, cfg))
-	} else {
-		m.app.Use(prefix, static.New(root, cfg))
-	}
-	return m
+// App returns the underlying Fiber app
+func (k *kernel) App() *fiber.App {
+	return k.app
 }
 
 // Listen starts the HTTP server
-func (m *Http) Listen(address string) error {
-	return m.app.Listen(address)
+func (k *kernel) Listen(addr string) error {
+	if addr == "" {
+		host := k.config.GetString("HTTP_HOST")
+		if host == "" {
+			host = "0.0.0.0"
+		}
+
+		port := k.config.GetInt("HTTP_PORT")
+		if port == 0 {
+			port = 8080
+		}
+
+		addr = fmt.Sprintf("%s:%d", host, port)
+	}
+
+	k.logger.Info("HTTP server starting",
+		contract.Field(newField("address", addr)),
+	)
+
+	return k.app.Listen(addr)
 }
 
-// Shutdown gracefully shuts down the HTTP server
-func (m *Http) Shutdown(ctx context.Context) error {
-	return m.app.Shutdown()
+// Shutdown gracefully shuts down the server
+func (k *kernel) Shutdown() error {
+	k.logger.Info("HTTP server shutting down")
+	return k.app.Shutdown()
 }
 
-// RouteGroup implements the contract.RouteGroup interface
-type RouteGroup struct {
-	group fiber.Router
+// defaultErrorHandler creates a default error handler
+func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
+	return func(c fiber.Ctx, err error) error {
+		// Default to 500 status code
+		code := fiber.StatusInternalServerError
+
+		// Check if it's a fiber error
+		if e, ok := err.(*fiber.Error); ok {
+			code = e.Code
+		}
+
+		// Log error for 5xx errors
+		if code >= 500 {
+			logger.Error("HTTP Error",
+				contract.Field(newField("error", err.Error())),
+				contract.Field(newField("path", c.Path())),
+				contract.Field(newField("method", c.Method())),
+				contract.Field(newField("status", code)),
+			)
+		}
+
+		// Send error response
+		return c.Status(code).JSON(fiber.Map{
+			"error": err.Error(),
+			"code":  code,
+		})
+	}
 }
 
-func (r *RouteGroup) Get(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Get(path, handler, middlewares...)
+// Module represents the HTTP module for Fx
+type Module struct {
+	kernel contract.HTTPKernel
 }
 
-func (r *RouteGroup) Post(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Post(path, handler, middlewares...)
+// NewModule creates a new HTTP module
+func NewModule(config contract.Config, logger contract.Logger) *Module {
+	return &Module{
+		kernel: New(config, logger),
+	}
 }
 
-func (r *RouteGroup) Put(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Put(path, handler, middlewares...)
+// Name returns the module name
+func (m *Module) Name() string {
+	return "http"
 }
 
-func (r *RouteGroup) Delete(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Delete(path, handler, middlewares...)
+// OnStart is called when the module starts
+func (m *Module) OnStart(ctx context.Context) error {
+	// Get listen address
+	host := m.kernel.(*kernel).config.GetString("HTTP_HOST")
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
+	port := m.kernel.(*kernel).config.GetInt("HTTP_PORT")
+	if port == 0 {
+		port = 8080
+	}
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	// Start server in background
+	go func() {
+		if err := m.kernel.Listen(addr); err != nil {
+			m.kernel.(*kernel).logger.Error("HTTP server error",
+				contract.Field(newField("error", err.Error())),
+			)
+		}
+	}()
+
+	return nil
 }
 
-func (r *RouteGroup) Patch(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Patch(path, handler, middlewares...)
+// OnStop is called when the module stops
+func (m *Module) OnStop(ctx context.Context) error {
+	return m.kernel.Shutdown()
 }
 
-func (r *RouteGroup) Options(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Options(path, handler, middlewares...)
+// Provide returns the HTTP kernel instance for Fx
+func (m *Module) Provide() contract.HTTPKernel {
+	return m.kernel
 }
 
-func (r *RouteGroup) Head(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Head(path, handler, middlewares...)
+// field implementation for HTTP module
+type field struct {
+	key   string
+	value any
 }
 
-func (r *RouteGroup) All(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.All(path, handler, middlewares...)
+func (f *field) Key() string {
+	return f.key
 }
 
-func (r *RouteGroup) Connect(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Connect(path, handler, middlewares...)
+func (f *field) Value() any {
+	return f.value
 }
 
-func (r *RouteGroup) Trace(path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Trace(path, handler, middlewares...)
+func newField(key string, value any) contract.Field {
+	return &field{key: key, value: value}
 }
 
-func (r *RouteGroup) Add(methods []string, path string, handler contract.HttpHandler, middlewares ...contract.HttpHandler) {
-	r.group.Add(methods, path, handler, middlewares...)
+// HandlerParams is used for dependency injection in HTTP handlers
+type HandlerParams struct {
+	fx.In
+
+	Config contract.Config
+	Logger contract.Logger
+	// Add other dependencies that handlers might need
 }
 
-func (r *RouteGroup) Group(prefix string, handlers ...contract.HttpHandler) contract.RouteGroup {
-	group := r.group.Group(prefix, handlers...)
-	return &RouteGroup{group: group}
+// NewHandler creates a fiber handler with dependency injection
+// This helper function makes it easy to create handlers that have access to DI services
+func NewHandler(fn func(c fiber.Ctx, params HandlerParams) error) func(params HandlerParams) fiber.Handler {
+	return func(params HandlerParams) fiber.Handler {
+		return func(c fiber.Ctx) error {
+			return fn(c, params)
+		}
+	}
 }
 
-func (r *RouteGroup) Use(handlers ...any) {
-	r.group.Use(handlers...)
+// RouteRegistrar is a helper for registering routes with DI
+type RouteRegistrar struct {
+	fx.In
+
+	HTTP   contract.HTTPKernel
+	Config contract.Config
+	Logger contract.Logger
 }
 
-// Provider provides an Http instance
-func Provider() contract.Http {
-	return New()
+// RegisterRoutes is a helper function that can be used to register routes
+// Example usage:
+//
+//	fx.Invoke(http.RegisterRoutes(func(r http.RouteRegistrar) {
+//	    r.HTTP.App().Get("/", myHandler)
+//	}))
+func RegisterRoutes(fn func(RouteRegistrar)) any {
+	return fn
 }
