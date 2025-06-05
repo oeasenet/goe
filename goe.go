@@ -114,8 +114,9 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithHTTP flag", log.NewField("enabled", opt.WithHTTP))
 
 	// Add HTTP module if enabled
+	var httpModule *http.Module
 	if opt.WithHTTP {
-		httpModule := http.NewModule(instance.config, instance.logger)
+		httpModule = http.NewModule(instance.config, instance.logger)
 		instance.http = httpModule.Provide()
 
 		instance.logger.Info("Registering HTTP module")
@@ -153,9 +154,9 @@ func New(opts ...Options) contract.Application {
 
 	// Add HTTP service injection BEFORE custom invokers to ensure middleware is applied first
 	if opt.WithHTTP {
-		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider, httpKernel contract.HTTPKernel) {
-			// Use the injected httpKernel instead of instance.http to avoid timing issues
-			httpKernel.App().Use(http.CreateServiceMiddleware(provider))
+		fxOptions = append(fxOptions, fx.Invoke(func(app contract.Application, config contract.Config, logger contract.Logger) {
+			// Set up service middleware with validator
+			httpModule.SetupServiceMiddleware(app, config, logger)
 		}))
 	}
 

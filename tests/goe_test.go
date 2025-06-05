@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -10,12 +11,16 @@ import (
 )
 
 func TestGoeBasicFunctionality(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	// Create a new application
-	app := goe.New(goe.Options{
-		Name:        "Test App",
-		Version:     "1.0.0",
-		Environment: "test",
-	})
+	app := goe.New(goe.Options{})
 
 	// Test that app was created
 	if app == nil {

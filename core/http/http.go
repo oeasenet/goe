@@ -2,10 +2,12 @@ package http
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -15,24 +17,63 @@ import (
 
 // kernel implements the HTTPKernel interface
 type kernel struct {
-	app    *fiber.App
-	config contract.Config
-	logger contract.Logger
+	app       *fiber.App
+	config    contract.Config
+	logger    contract.Logger
+	validator *CustomValidator
 }
 
 // New creates a new HTTP kernel
 func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
-	// Create fiber config
+	// Create validator
+	validator := NewValidator()
+
+	// Create fiber config with all supported options
 	fiberConfig := fiber.Config{
-		ServerHeader:  config.GetString("HTTP_SERVER_HEADER"),
-		StrictRouting: config.GetBool("HTTP_STRICT_ROUTING"),
-		CaseSensitive: config.GetBool("HTTP_CASE_SENSITIVE"),
-		BodyLimit:     config.GetInt("HTTP_BODY_LIMIT"),
-		ReadTimeout:   config.GetDuration("HTTP_READ_TIMEOUT"),
-		WriteTimeout:  config.GetDuration("HTTP_WRITE_TIMEOUT"),
-		IdleTimeout:   config.GetDuration("HTTP_IDLE_TIMEOUT"),
-		AppName:       config.GetString("APP_NAME"),
-		ErrorHandler:  defaultErrorHandler(logger),
+		ServerHeader:       config.GetString("FIBER_SERVER_HEADER"),
+		StrictRouting:      config.GetBool("FIBER_STRICT_ROUTING"),
+		CaseSensitive:      config.GetBool("FIBER_CASE_SENSITIVE"),
+		Immutable:          config.GetBool("FIBER_IMMUTABLE"),
+		UnescapePath:       config.GetBool("FIBER_UNESCAPE_PATH"),
+		BodyLimit:          config.GetInt("FIBER_BODY_LIMIT"),
+		StreamRequestBody:  config.GetBool("FIBER_STREAM_REQUEST_BODY"),
+		Concurrency:        config.GetInt("FIBER_CONCURRENCY"),
+		ProxyHeader:        config.GetString("FIBER_PROXY_HEADER"),
+		AppName:            config.GetString("APP_NAME"),
+		ReduceMemoryUsage:  config.GetBool("FIBER_REDUCE_MEMORY"),
+		JSONEncoder:        sonic.Marshal,
+		JSONDecoder:        sonic.Unmarshal,
+		XMLEncoder:         xml.Marshal,
+		EnableIPValidation: config.GetBool("FIBER_ENABLE_IP_VALIDATION"),
+		ColorScheme:        fiber.DefaultColors,
+		StructValidator:    validator,
+		ErrorHandler:       defaultErrorHandler(logger),
+	}
+
+	// Handle TrustProxy configuration
+	if config.GetBool("FIBER_TRUST_PROXY") {
+		fiberConfig.TrustProxy = true
+
+		// Parse trusted proxies
+		trustedProxies := config.GetStringSlice("FIBER_TRUST_PROXIES")
+		if len(trustedProxies) > 0 {
+			fiberConfig.TrustProxyConfig = fiber.TrustProxyConfig{
+				Proxies:   trustedProxies,
+				LinkLocal: config.GetBool("FIBER_TRUST_LINK_LOCAL"),
+				Loopback:  config.GetBool("FIBER_TRUST_LOOPBACK"),
+				Private:   config.GetBool("FIBER_TRUST_PRIVATE"),
+			}
+			// Set defaults for trust proxy config if not specified
+			if !config.Has("FIBER_TRUST_LINK_LOCAL") {
+				fiberConfig.TrustProxyConfig.LinkLocal = true
+			}
+			if !config.Has("FIBER_TRUST_LOOPBACK") {
+				fiberConfig.TrustProxyConfig.Loopback = true
+			}
+			if !config.Has("FIBER_TRUST_PRIVATE") {
+				fiberConfig.TrustProxyConfig.Private = true
+			}
+		}
 	}
 
 	// Set defaults
@@ -42,11 +83,31 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	if fiberConfig.BodyLimit == 0 {
 		fiberConfig.BodyLimit = 4 * 1024 * 1024 // 4MB
 	}
+	if !config.Has("FIBER_STREAM_REQUEST_BODY") {
+		fiberConfig.StreamRequestBody = true
+	}
+	if fiberConfig.Concurrency == 0 {
+		fiberConfig.Concurrency = 256 * 1024 // Fiber's default
+	}
+
+	// Set timeouts from HTTP_ prefixed config for backward compatibility
 	if fiberConfig.ReadTimeout == 0 {
-		fiberConfig.ReadTimeout = 10 * time.Second
+		fiberConfig.ReadTimeout = config.GetDuration("HTTP_READ_TIMEOUT")
+		if fiberConfig.ReadTimeout == 0 {
+			fiberConfig.ReadTimeout = 10 * time.Second
+		}
 	}
 	if fiberConfig.WriteTimeout == 0 {
-		fiberConfig.WriteTimeout = 10 * time.Second
+		fiberConfig.WriteTimeout = config.GetDuration("HTTP_WRITE_TIMEOUT")
+		if fiberConfig.WriteTimeout == 0 {
+			fiberConfig.WriteTimeout = 10 * time.Second
+		}
+	}
+	if fiberConfig.IdleTimeout == 0 {
+		fiberConfig.IdleTimeout = config.GetDuration("HTTP_IDLE_TIMEOUT")
+		if fiberConfig.IdleTimeout == 0 {
+			fiberConfig.IdleTimeout = 30 * time.Second
+		}
 	}
 
 	// Create fiber app
@@ -80,15 +141,21 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	})
 
 	return &kernel{
-		app:    app,
-		config: config,
-		logger: logger,
+		app:       app,
+		config:    config,
+		logger:    logger,
+		validator: validator,
 	}
 }
 
 // App returns the underlying Fiber app
 func (k *kernel) App() *fiber.App {
 	return k.app
+}
+
+// Validator returns the struct validator
+func (k *kernel) Validator() any {
+	return k.validator
 }
 
 // Listen starts the HTTP server
@@ -184,13 +251,16 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 
 // Module represents the HTTP module for Fx
 type Module struct {
-	kernel contract.HTTPKernel
+	kernel    contract.HTTPKernel
+	validator *CustomValidator
 }
 
 // NewModule creates a new HTTP module
 func NewModule(config contract.Config, logger contract.Logger) *Module {
+	kernel := New(config, logger)
 	return &Module{
-		kernel: New(config, logger),
+		kernel:    kernel,
+		validator: kernel.Validator().(*CustomValidator),
 	}
 }
 
@@ -234,6 +304,22 @@ func (m *Module) OnStop(ctx context.Context) error {
 // Provide returns the HTTP kernel instance for Fx
 func (m *Module) Provide() contract.HTTPKernel {
 	return m.kernel
+}
+
+// ProvideValidator returns the validator instance
+func (m *Module) ProvideValidator() *CustomValidator {
+	return m.validator
+}
+
+// SetupServiceMiddleware sets up the service injection middleware
+func (m *Module) SetupServiceMiddleware(app contract.Application, config contract.Config, logger contract.Logger) {
+	services := Services{
+		App:       app,
+		Config:    config,
+		Logger:    logger,
+		Validator: m.validator,
+	}
+	m.kernel.App().Use(InjectServices(services))
 }
 
 // field implementation for HTTP module

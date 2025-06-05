@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -17,12 +18,17 @@ import (
 )
 
 func TestHTTPModule(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test HTTP App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	// Create app with HTTP enabled
 	app := goe.New(goe.Options{
-		Name:        "Test HTTP App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 	})
 
 	if app == nil {
@@ -43,11 +49,16 @@ func TestHTTPModule(t *testing.T) {
 }
 
 func TestHTTPRouting(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test Routing App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	_ = goe.New(goe.Options{
-		Name:        "Test Routing App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel) {
 				app := http.App()
@@ -144,11 +155,16 @@ func TestHTTPRouting(t *testing.T) {
 }
 
 func TestHTTPContextHelpers(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test Context App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	_ = goe.New(goe.Options{
-		Name:        "Test Context App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel, logger contract.Logger, config contract.Config) {
 				app := http.App()
@@ -204,13 +220,18 @@ func TestHTTPContextHelpers(t *testing.T) {
 }
 
 func TestHTTPMiddleware(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test Middleware App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	requestCount := 0
 
 	_ = goe.New(goe.Options{
-		Name:        "Test Middleware App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel, logger contract.Logger) {
 				app := http.App()
@@ -256,11 +277,16 @@ func TestHTTPMiddleware(t *testing.T) {
 }
 
 func TestHTTPErrorHandling(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test Error App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	_ = goe.New(goe.Options{
-		Name:        "Test Error App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel) {
 				app := http.App()
@@ -319,6 +345,14 @@ func TestHTTPErrorHandling(t *testing.T) {
 }
 
 func TestHTTPDependencyInjection(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test DI App")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
 	// Test service
 	type TestService struct {
 		logger contract.Logger
@@ -326,10 +360,7 @@ func TestHTTPDependencyInjection(t *testing.T) {
 	}
 
 	_ = goe.New(goe.Options{
-		Name:        "Test DI App",
-		Version:     "1.0.0",
-		Environment: "test",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Providers: []any{
 			func(logger contract.Logger) *TestService {
 				return &TestService{

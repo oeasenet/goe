@@ -19,9 +19,10 @@ const (
 
 // Services holds all the services that can be injected into handlers
 type Services struct {
-	App    contract.Application
-	Config contract.Config
-	Logger contract.Logger
+	App       contract.Application
+	Config    contract.Config
+	Logger    contract.Logger
+	Validator *CustomValidator
 	// Add more services as needed
 }
 
@@ -62,6 +63,11 @@ func GetLogger(c fiber.Ctx) contract.Logger {
 // GetApp retrieves application from the context
 func GetApp(c fiber.Ctx) contract.Application {
 	return GetServices(c).App
+}
+
+// GetValidator retrieves validator from the context
+func GetValidator(c fiber.Ctx) *CustomValidator {
+	return GetServices(c).Validator
 }
 
 // Handler creates a handler with dependency injection

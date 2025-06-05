@@ -10,10 +10,7 @@ import (
 func main() {
 	// Create application with HTTP enabled
 	_ = goe.New(goe.Options{
-		Name:        "Simple Test",
-		Version:     "1.0.0",
-		Environment: "dev",
-		WithHTTP:    true,
+		WithHTTP: true,
 		Invokers: []any{
 			func(http contract.HTTPKernel, logger contract.Logger, config contract.Config) {
 				app := http.App()

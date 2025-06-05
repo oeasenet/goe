@@ -341,7 +341,7 @@ return c.SendStatus(200)
 
 ### HTTP Server
 
-Goe integrates GoFiber v3 for high-performance HTTP handling:
+Goe integrates GoFiber v3 for high-performance HTTP handling with comprehensive configuration options:
 
 #### Basic Routes
 
@@ -388,6 +388,92 @@ api.Get("/users", getUsers)
 }
 ```
 
+#### Configuration
+
+The HTTP module supports extensive configuration through environment variables:
+
+```env
+# Basic HTTP configuration
+HTTP_HOST=0.0.0.0
+HTTP_PORT=8080
+HTTP_READ_TIMEOUT=10s
+HTTP_WRITE_TIMEOUT=10s
+HTTP_IDLE_TIMEOUT=30s
+
+# Fiber framework configuration
+FIBER_SERVER_HEADER=MyApp              # Server header value
+FIBER_STRICT_ROUTING=false             # Enable strict routing (exact match)
+FIBER_CASE_SENSITIVE=false             # Enable case sensitive routing
+FIBER_IMMUTABLE=false                  # Enable immutable mode
+FIBER_UNESCAPE_PATH=false              # Unescape path values
+FIBER_BODY_LIMIT=4194304               # Max body size in bytes (4MB)
+FIBER_STREAM_REQUEST_BODY=true         # Enable request body streaming
+FIBER_CONCURRENCY=262144               # Maximum concurrent connections
+FIBER_REDUCE_MEMORY=false              # Reduce memory usage
+FIBER_ENABLE_IP_VALIDATION=false       # Enable IP validation
+
+# Proxy configuration
+FIBER_TRUST_PROXY=false                # Trust proxy headers
+FIBER_PROXY_HEADER=X-Forwarded-For     # Custom proxy header
+FIBER_TRUST_PROXIES=192.168.1.0/24,10.0.0.0/8  # Trusted proxy IPs/CIDRs
+FIBER_TRUST_LINK_LOCAL=true            # Trust link-local addresses
+FIBER_TRUST_LOOPBACK=true              # Trust loopback addresses
+FIBER_TRUST_PRIVATE=true               # Trust private addresses
+```
+
+#### Request Validation
+
+Goe includes built-in request validation using go-playground/validator:
+
+```go
+// Define your request struct with validation tags
+type CreateUserRequest struct {
+    Name     string `json:"name" validate:"required,min=3,max=50"`
+    Email    string `json:"email" validate:"required,email"`
+    Age      int    `json:"age" validate:"required,min=18,max=120"`
+    Password string `json:"password" validate:"required,min=8"`
+}
+
+func createUserHandler(c fiber.Ctx) error {
+    // Get validator from context
+    validator := http.GetValidator(c)
+    
+    // Parse request body
+    var req CreateUserRequest
+    if err := c.Bind().JSON(&req); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+    }
+    
+    // Validate request
+    if err := validator.Validate(req); err != nil {
+        return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+    }
+    
+    // Process valid request...
+    return c.JSON(fiber.Map{"status": "created"})
+}
+
+// Register custom validation rules
+func registerCustomValidations(http contract.HTTPKernel) {
+    validator := http.Validator().(*http.CustomValidator)
+    
+    // Register custom validation function
+    validator.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
+        phone := fl.Field().String()
+        // Custom phone validation logic
+        return len(phone) >= 10 && len(phone) <= 15
+    })
+    
+    // Register struct-level validation
+    validator.RegisterStructValidation(func(sl validator.StructLevel) {
+        user := sl.Current().Interface().(CreateUserRequest)
+        if user.Age < 21 && strings.Contains(user.Email, "@bar.com") {
+            sl.ReportError(user.Age, "age", "Age", "bartender", "")
+        }
+    }, CreateUserRequest{})
+}
+```
+
 #### Context Helpers
 
 Access services in HTTP handlers without circular dependencies:
@@ -402,6 +488,9 @@ config := http.GetConfig(c)
 
 // Get application instance
 app := http.GetApp(c)
+
+// Get validator
+validator := http.GetValidator(c)
 
 logger.Info("Request received",
 log.NewField("path", c.Path()),

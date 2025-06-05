@@ -110,11 +110,15 @@ func TestLogFormatInDifferentEnvironments(t *testing.T) {
 }
 
 func TestLoggerWithFields(t *testing.T) {
-	_ = goe.New(goe.Options{
-		Name:        "Test Logger Fields",
-		Version:     "1.0.0",
-		Environment: "test",
-	})
+	// Set test environment variables
+	os.Setenv("APP_NAME", "Test Logger Fields")
+	os.Setenv("APP_VERSION", "1.0.0")
+	os.Setenv("GOE_ENV", "test")
+	defer os.Unsetenv("APP_NAME")
+	defer os.Unsetenv("APP_VERSION")
+	defer os.Unsetenv("GOE_ENV")
+
+	_ = goe.New(goe.Options{})
 
 	logger := goe.Log()
 
