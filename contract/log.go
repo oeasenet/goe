@@ -1,6 +1,9 @@
 package contract
 
-import "context"
+import (
+	"context"
+	"go.uber.org/zap"
+)
 
 // Logger defines the logging interface
 type Logger interface {
@@ -27,6 +30,8 @@ type Logger interface {
 
 	// WithError creates a new logger with an error field
 	WithError(err error) Logger
+
+	GetLogger() *zap.SugaredLogger
 }
 
 // Field represents a logging field

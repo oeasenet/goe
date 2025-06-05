@@ -17,6 +17,10 @@ type zapLogger struct {
 	sugar  *zap.SugaredLogger
 }
 
+func (l *zapLogger) GetLogger() *zap.SugaredLogger {
+	return l.sugar
+}
+
 // New creates a new logger instance using zap
 func New(config contract.LoggerConfig) contract.Logger {
 	// Check if we're in production based on environment or explicit format
