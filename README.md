@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Status-Beta-yellow?style=for-the-badge" alt="Status">
 </div>
 
-Goe is a modern Go application framework that combines the best practices from Java Spring Boot, Golang Goravel, and
+Goe is a modern Go application framework that combines the best practices from frameworks in other languages and
 GoFiber. Built entirely on Uber's Fx dependency injection framework, Goe prioritizes developer experience,
 extensibility, and concurrent safety.
 
