@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"github.com/gookit/goutil/strutil"
 	"go.mongodb.org/mongo-driver/bson"
+	officialOpts "go.mongodb.org/mongo-driver/mongo/options"
 	"go.oease.dev/goe/modules/mongodb"
+	"go.oease.dev/omgo/options"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/core"
-	// "go.oease.dev/goe/models"; // No longer needed directly here if rbac module handles models
 	"go.oease.dev/goe/webresult"
 )
 
@@ -56,7 +57,7 @@ func (m *RBACMiddleware) CheckPermission(requiredPermissions []Permission, mode 
 
 		// Add permissions from roles
 		for _, roleName := range userRoleNames {
-			role, found := GetRole(roleName) // Using GetRole from modules/rbac/rbac.go
+			role, found := GetRole(roleName)
 			if found {
 				for _, p := range role.Permissions {
 					currentUserPermissions[p] = true
@@ -258,12 +259,14 @@ func GrantDirectPermission(userID string, permission Permission) error {
 	directPermsModel := &UserDirectPermission{}
 
 	filter := bson.M{"user_id": userID}
-	update := bson.M{"$addToSet": bson.M{"permissions": permission}}
+	update := bson.M{"$set": bson.M{"$addToSet": bson.M{"permissions": permission}}}
 	// $addToSet ensures the permission is only added if it's not already present.
 
 	// Upsert ensures that if the user document doesn't exist, it's created.
 	// The BeforeInsert hook in UserDirectPermission model will initialize empty Permissions slice.
-	err, _ := mongo.Collection(directPermsModel).Upsert(context.Background(), filter, update)
+	opt := officialOpts.Update().SetUpsert(true)
+	opts := options.UpdateOptions{UpdateOptions: opt}
+	err := mongo.Collection(directPermsModel).UpdateOne(context.Background(), filter, update, opts)
 	if err != nil {
 		return fmt.Errorf("RBAC: Error granting direct permission '%s' to user '%s': %w", permission, userID, err)
 	}

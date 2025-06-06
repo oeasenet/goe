@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"fmt"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -15,7 +16,7 @@ func NewRBACMiddleware() *RBACMiddleware {
 	return &RBACMiddleware{}
 }
 
-func (m *RBACMiddleware) setUserIdGetter(f func(ctx fiber.Ctx) string) {
+func (m *RBACMiddleware) SetUserIdGetter(f func(ctx fiber.Ctx) string) {
 	m.userIdGetter = f
 }
 
@@ -60,5 +61,9 @@ func (m *RBACMiddleware) GetAllUserPermissions(userID string) ([]Permission, err
 }
 
 func GetDefaultUserIdGetter(ctx fiber.Ctx) string {
-	return ctx.Locals("userId").(string)
+	fmt.Print(ctx.Locals("userId"))
+	if ctx.Locals("user_id") == nil {
+		return ""
+	}
+	return ctx.Locals("user_id").(string)
 }
