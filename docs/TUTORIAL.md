@@ -92,9 +92,6 @@ import (
 func main() {
     // Create application
     _ = goe.New(goe.Options{
-        Name:        "Task API",
-        Version:     "1.0.0",
-        Environment: "dev",
         WithHTTP:    true,
         Invokers: []any{
             setupRoutes,
@@ -121,6 +118,7 @@ func setupRoutes(http contract.HTTPKernel, logger contract.Logger) {
     logger.Info("Routes configured")
 }
 ```
+Note: Goe automatically reads the application name, version, and environment from configuration and environment files.
 
 Run the application:
 
@@ -1210,8 +1208,6 @@ import (
 func TestController_CreateTask_Integration(t *testing.T) {
     // Setup Goe application for testing
     _ = goe.New(goe.Options{
-        Name:        "Test App",
-        Environment: "test",
         WithHTTP:    true,
         Providers: []any{
             NewMockDatabase,
@@ -1356,9 +1352,6 @@ import (
 
 func main() {
     _ = goe.New(goe.Options{
-        Name:        "Task API",
-        Version:     "1.0.0",
-        Environment: goe.GetEnvironment(),
         WithHTTP:    true,
         Modules: []contract.Module{
             database.NewModule,
