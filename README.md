@@ -16,6 +16,7 @@ extensibility, and concurrent safety.
 - **🌐 HTTP Server**: Integrated GoFiber v3 with automatic request logging and middleware
 - **📝 Structured Logging**: Uber's Zap logger with pretty console output for development
 - **⚙️ Configuration Management**: Environment-based configuration with hot reload support
+- **💾 Cache Support**: Multiple cache drivers via Fiber's storage interface (Memory, Redis, SQLite, etc.)
 - **🔧 Module System**: Extensible module system with lifecycle hooks
 - **🛡️ Type Safety**: Leverages Go's type system for compile-time safety
 - **🎯 Developer Experience**: Simple global accessors and intuitive APIs
@@ -32,6 +33,7 @@ extensibility, and concurrent safety.
     - [Configuration](#configuration)
     - [Logging](#logging)
     - [HTTP Server](#http-server)
+    - [Cache](#cache)
 - [Examples](#examples)
 - [API Reference](#api-reference)
 - [Best Practices](#best-practices)
@@ -503,6 +505,122 @@ return c.JSON(fiber.Map{
 })
 }
 ```
+
+### Cache
+
+Goe provides a powerful caching system built on Fiber's storage interface, supporting multiple drivers out of the box:
+
+#### Basic Usage
+
+```go
+// Enable cache in your application
+app := goe.New(goe.Options{
+    WithCache: true,
+})
+
+// Access cache via dependency injection
+func useCacheExample(cache contract.Cache) {
+    // Set a value with TTL
+    cache.Set("user:123", user, 5*time.Minute)
+    
+    // Get a value
+    value, err := cache.Get("user:123")
+    
+    // Check if key exists
+    if cache.Has("user:123") {
+        // Key exists
+    }
+    
+    // Remove a key
+    cache.Forget("user:123")
+    
+    // Store forever (no expiration)
+    cache.Forever("config:app", appConfig)
+}
+```
+
+#### Type-safe Operations
+
+```go
+import "go.oease.dev/goe/v2/core/cache"
+
+// Store and retrieve with type safety
+user := User{ID: 1, Name: "John"}
+cache.Set("user:1", user, 10*time.Minute)
+
+// Get with type
+retrievedUser, err := cache.GetT[User](cache, "user:1")
+
+// Remember pattern - compute only on cache miss
+product, err := cache.RememberT(cache, "product:1", 1*time.Hour, func() (Product, error) {
+    // This only runs if not in cache
+    return fetchProductFromDB(1)
+})
+```
+
+#### Cache Configuration
+
+Configure cache drivers via environment variables:
+
+```bash
+# Memory driver (default)
+CACHE_DRIVER=memory
+CACHE_MEMORY_GC_INTERVAL=10s
+
+# Redis driver for distributed caching
+CACHE_DRIVER=redis
+CACHE_REDIS_URL=redis://localhost:6379/0
+# Or use individual settings:
+CACHE_REDIS_HOSTS=localhost:6379
+CACHE_REDIS_PASSWORD=secret
+CACHE_REDIS_DATABASE=0
+
+# Common settings
+CACHE_PREFIX=myapp
+CACHE_TTL=2h
+```
+
+#### Multiple Cache Stores
+
+```go
+func setupMultipleStores(manager contract.CacheManager) {
+    // Default store
+    defaultCache := manager.Store()
+    
+    // Named store with different configuration
+    sessionCache := manager.Store("sessions")
+    
+    // Use different stores for different purposes
+    defaultCache.Set("app:config", config, 24*time.Hour)
+    sessionCache.Set("session:abc123", sessionData, 30*time.Minute)
+}
+```
+
+Configuration for multiple stores:
+
+```bash
+# Primary cache (Redis)
+CACHE_STORE=primary
+CACHE_primary_DRIVER=redis
+CACHE_primary_REDIS_DATABASE=0
+
+# Session cache (Memory)
+CACHE_sessions_DRIVER=memory
+CACHE_sessions_PREFIX=sessions
+```
+
+#### Available Drivers
+
+Goe supports all Fiber storage drivers:
+- **memory**: Fast in-memory cache (default)
+- **redis**: Redis with auto-pipelining and client-side caching
+- **sqlite3**: SQLite-based persistent cache
+- **postgres**: PostgreSQL storage
+- **mysql**: MySQL storage
+- **mongodb**: MongoDB storage
+- Plus many more...
+
+See the [Cache Documentation](docs/CACHE.md) for detailed information on all available drivers and advanced usage.
 
 ## 📖 Examples
 

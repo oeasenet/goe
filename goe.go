@@ -7,6 +7,7 @@ import (
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
+	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/log"
@@ -18,11 +19,12 @@ import (
 var (
 	// Global instance holder
 	instance struct {
-		app    contract.Application
-		config contract.Config
-		logger contract.Logger
-		http   contract.HTTPKernel
-		mu     sync.RWMutex
+		app          contract.Application
+		config       contract.Config
+		logger       contract.Logger
+		http         contract.HTTPKernel
+		cacheManager contract.CacheManager
+		mu           sync.RWMutex
 	}
 )
 
@@ -32,6 +34,7 @@ type Options struct {
 	Providers []any
 	Invokers  []any
 	WithHTTP  bool // Enable HTTP module
+	WithCache bool // Enable Cache module
 }
 
 // New creates a new Goe application
@@ -48,6 +51,7 @@ func New(opts ...Options) contract.Application {
 		opt.Providers = o.Providers
 		opt.Invokers = o.Invokers
 		opt.WithHTTP = o.WithHTTP
+		opt.WithCache = o.WithCache
 	}
 
 	// Create config first to read application settings
@@ -80,10 +84,10 @@ func New(opts ...Options) contract.Application {
 
 	// Build Fx options
 	fxOptions := []fx.Option{
-		// Configure Fx to use our custom logger
+		// Configure Fx to use our custom logger that logs at debug level
 		fx.WithLogger(func() fxevent.Logger {
 			zapLogger := logModule.ProvideZap()
-			return &fxevent.ZapLogger{Logger: zapLogger}
+			return log.NewFxDebugLogger(zapLogger)
 		}),
 
 		// Provide core services
@@ -112,6 +116,29 @@ func New(opts ...Options) contract.Application {
 	}
 
 	instance.logger.Info("WithHTTP flag", log.NewField("enabled", opt.WithHTTP))
+	instance.logger.Info("WithCache flag", log.NewField("enabled", opt.WithCache))
+
+	// Add Cache module if enabled
+	var cacheModule *cache.Module
+	if opt.WithCache {
+		cacheModule = cache.NewModule(instance.config, instance.logger)
+		instance.cacheManager = cacheModule.Provide()
+
+		instance.logger.Info("Registering Cache module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.CacheManager { return instance.cacheManager }),
+			fx.Provide(func() contract.Cache { return cacheModule.ProvideCache() }),
+			fx.Module(cacheModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: cacheModule.OnStart,
+						OnStop:  cacheModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
 
 	// Add HTTP module if enabled
 	var httpModule *http.Module
@@ -252,4 +279,16 @@ func HTTP() contract.HTTPKernel {
 // httpAccessor is used internally to access HTTP without locking
 func httpAccessor() contract.HTTPKernel {
 	return instance.http
+}
+
+// Cache returns the global cache manager instance
+func Cache() contract.CacheManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.cacheManager == nil {
+		panic("Cache module not initialized. Set WithCache: true in goe.New() options")
+	}
+
+	return instance.cacheManager
 }

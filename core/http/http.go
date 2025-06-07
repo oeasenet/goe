@@ -130,11 +130,11 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 
 		// Log request
 		logger.Info("HTTP Request",
-			contract.Field(newField("method", c.Method())),
-			contract.Field(newField("path", c.Path())),
-			contract.Field(newField("status", c.Response().StatusCode())),
-			contract.Field(newField("duration", time.Since(start).String())),
-			contract.Field(newField("request_id", requestID)),
+			contract.Field(NewField("method", c.Method())),
+			contract.Field(NewField("path", c.Path())),
+			contract.Field(NewField("status", c.Response().StatusCode())),
+			contract.Field(NewField("duration", time.Since(start).String())),
+			contract.Field(NewField("request_id", requestID)),
 		)
 
 		return err
@@ -175,7 +175,7 @@ func (k *kernel) Listen(addr string) error {
 	}
 
 	k.logger.Info("HTTP server starting",
-		contract.Field(newField("address", addr)),
+		contract.Field(NewField("address", addr)),
 	)
 
 	return k.app.Listen(addr)
@@ -205,10 +205,10 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 		// Log error for 5xx errors
 		if respCode >= 500 {
 			logger.Error("HTTP Error",
-				contract.Field(newField("error", err.Error())),
-				contract.Field(newField("path", ctx.Path())),
-				contract.Field(newField("method", ctx.Method())),
-				contract.Field(newField("status", respCode)),
+				contract.Field(NewField("error", err.Error())),
+				contract.Field(NewField("path", ctx.Path())),
+				contract.Field(NewField("method", ctx.Method())),
+				contract.Field(NewField("status", respCode)),
 			)
 		}
 
@@ -288,7 +288,7 @@ func (m *Module) OnStart(ctx context.Context) error {
 	go func() {
 		if err := m.kernel.Listen(addr); err != nil {
 			m.kernel.(*kernel).logger.Error("HTTP server error",
-				contract.Field(newField("error", err.Error())),
+				contract.Field(NewField("error", err.Error())),
 			)
 		}
 	}()
@@ -336,7 +336,8 @@ func (f *field) Value() any {
 	return f.value
 }
 
-func newField(key string, value any) contract.Field {
+// NewField creates a new field for structured logging
+func NewField(key string, value any) contract.Field {
 	return &field{key: key, value: value}
 }
 
