@@ -24,6 +24,7 @@ type Services struct {
 	Logger    contract.Logger
 	Validator *CustomValidator
 	// Add more services as needed
+	Cache contract.Cache
 }
 
 // InjectServices creates a middleware that injects services into the context
@@ -88,6 +89,7 @@ type ServiceProvider struct {
 	App    contract.Application
 	Config contract.Config
 	Logger contract.Logger
+	Cache  contract.Cache
 }
 
 // CreateServiceMiddleware creates a middleware that injects services
@@ -96,6 +98,7 @@ func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 		App:    provider.App,
 		Config: provider.Config,
 		Logger: provider.Logger,
+		Cache:  provider.Cache,
 	}
 	return InjectServices(services)
 }
