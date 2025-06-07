@@ -55,6 +55,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/redis/rueidis v1.0.61 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
