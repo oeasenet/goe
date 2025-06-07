@@ -273,6 +273,9 @@ This loading order ensures that:
 - Environment-specific settings are properly isolated
 - System environment variables always win (useful for secrets in production)
 
+For a complete list of supported configuration variables, see
+[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
+
 #### Accessing Configuration
 
 ```go
