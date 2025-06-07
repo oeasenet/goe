@@ -9,6 +9,7 @@ import (
 	"go.oease.dev/goe/v2/core/app"
 	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
+	"go.oease.dev/goe/v2/core/db" // + Import the new db package
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/log"
 	"go.uber.org/fx"
@@ -24,6 +25,7 @@ var (
 		logger       contract.Logger
 		http         contract.HTTPKernel
 		cacheManager contract.CacheManager
+	db           contract.DB // + Add db instance
 		mu           sync.RWMutex
 	}
 )
@@ -35,6 +37,7 @@ type Options struct {
 	Invokers  []any
 	WithHTTP  bool // Enable HTTP module
 	WithCache bool // Enable Cache module
+	WithDB    bool // + Enable DB module
 }
 
 // New creates a new Goe application
@@ -52,6 +55,7 @@ func New(opts ...Options) contract.Application {
 		opt.Invokers = o.Invokers
 		opt.WithHTTP = o.WithHTTP
 		opt.WithCache = o.WithCache
+		opt.WithDB = o.WithDB // + Assign WithDB
 	}
 
 	// Create config first to read application settings
@@ -117,6 +121,7 @@ func New(opts ...Options) contract.Application {
 
 	instance.logger.Info("WithHTTP flag", log.NewField("enabled", opt.WithHTTP))
 	instance.logger.Info("WithCache flag", log.NewField("enabled", opt.WithCache))
+	instance.logger.Info("WithDB flag", log.NewField("enabled", opt.WithDB))
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
@@ -134,6 +139,29 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: cacheModule.OnStart,
 						OnStop:  cacheModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add DB module if enabled
+	var dbModule *db.DatabaseModule
+	if opt.WithDB {
+		dbModule = db.NewDBModule(instance.config, instance.logger) // Pass config and logger
+		instance.db = dbModule.Provide() // Store the contract.DB instance
+
+		instance.logger.Info("Registering DB module")
+
+		fxOptions = append(fxOptions,
+			// Provide contract.DB for dependency injection
+			fx.Provide(func() contract.DB { return instance.db }),
+			// Register DB module with its lifecycle hooks
+			fx.Module(dbModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: dbModule.OnStart,
+						OnStop:  dbModule.OnStop,
 					})
 				}),
 			),
@@ -291,4 +319,16 @@ func Cache() contract.CacheManager {
 	}
 
 	return instance.cacheManager
+}
+
+// DB returns the global DB instance
+func DB() contract.DB {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.db == nil {
+		panic("DB module not initialized. Set WithDB: true in goe.New() options, and ensure DB connection is configured.")
+	}
+
+	return instance.db
 }
