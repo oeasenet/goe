@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"go.oease.dev/goe/v2/types"
 	"strings" // Added for strings.ToUpper
 	"sync"
 
@@ -41,8 +42,8 @@ func (dbm *DatabaseModule) Instance() *gorm.DB {
 	conn, err := dbm.Connection(defaultConnectionName)
 	if err != nil {
 		dbm.logger.Error("Failed to get default database instance",
-			contract.NewField("connection_name", defaultConnectionName),
-			contract.NewField("error", err),
+			types.NewField("connection_name", defaultConnectionName),
+			types.NewField("error", err),
 		)
 		return nil
 	}
@@ -77,35 +78,70 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
+	// Get default connection name
 	defaultConnectionName := dbm.config.GetString("DB_CONNECTION")
 	if defaultConnectionName == "" {
 		defaultConnectionName = "default"
 	}
 
-	dbm.logger.Info("Attempting to connect to default database", contract.NewField("connection_config_name", defaultConnectionName))
-
-	// The 'connect' method uses 'default' for config keys like DB_DRIVER, DB_HOST
-	// or DB_MYCONN_DRIVER if name is 'myconn'.
-	// So, if defaultConnectionName from config is e.g. "main_db", we pass "main_db" to connect.
-	// If defaultConnectionName is "default" (or was empty and defaulted to "default"), we pass "default".
+	// Connect to default database
+	dbm.logger.Info("Attempting to connect to default database", types.NewField("connection_config_name", defaultConnectionName))
 	db, err := dbm.connect(defaultConnectionName)
 	if err != nil {
 		dbm.logger.Error("Failed to connect to default database",
-			contract.NewField("connection_config_name", defaultConnectionName),
-			contract.NewField("error", err.Error()),
+			types.NewField("connection_config_name", defaultConnectionName),
+			types.NewField("error", err.Error()),
 		)
 		// Allow app to start, Instance() will return nil.
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
-		dbm.logger.Info("Successfully connected to default database", contract.NewField("connection_config_name", defaultConnectionName))
+		dbm.logger.Info("Successfully connected to default database", types.NewField("connection_config_name", defaultConnectionName))
 	}
 
-	// TODO: Implement logic for multiple connections based on a configuration like DB_CONNECTIONS_LIST="secondary_db,tertiary_db"
-	// Then iterate through these names, call dbm.connect(name), and store them in dbm.connections[name].
+	// Connect to additional databases if configured
+	connectionsList := dbm.config.GetString("DB_CONNECTIONS")
+	if connectionsList != "" {
+		// Split the comma-separated list of connection names
+		connectionNames := strings.Split(connectionsList, ",")
+		for _, connName := range connectionNames {
+			connName = strings.TrimSpace(connName)
 
-	// Auto-migration logic (optional, based on config)
-	// Check general DB_AUTO_MIGRATE or specific DB_CONNNAME_AUTO_MIGRATE
+			// Skip if it's the default connection (already connected)
+			if connName == defaultConnectionName {
+				continue
+			}
+
+			// Skip if empty
+			if connName == "" {
+				continue
+			}
+
+			dbm.logger.Info("Attempting to connect to additional database", types.NewField("connection_name", connName))
+			conn, err := dbm.connect(connName)
+			if err != nil {
+				dbm.logger.Error("Failed to connect to additional database",
+					types.NewField("connection_name", connName),
+					types.NewField("error", err.Error()),
+				)
+				// Continue with other connections
+			} else {
+				dbm.connections[connName] = conn
+				dbm.logger.Info("Successfully connected to additional database", types.NewField("connection_name", connName))
+
+				// Check for auto-migration for this connection
+				autoMigrateKey := fmt.Sprintf("DB_%s_AUTO_MIGRATE", strings.ToUpper(connName))
+				if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateKey) {
+					dbm.logger.Info("Auto-migration is enabled for connection. Models should be registered and migrated by the application.",
+						types.NewField("connection_name", connName),
+						types.NewField("checked_config_key", autoMigrateKey),
+					)
+				}
+			}
+		}
+	}
+
+	// Auto-migration logic for default connection (optional, based on config)
 	autoMigrateConfigKey := fmt.Sprintf("DB_%s_AUTO_MIGRATE", strings.ToUpper(defaultConnectionName))
 	if nameKeyIsDefault := strings.ToLower(defaultConnectionName) == "default"; nameKeyIsDefault {
 		autoMigrateConfigKey = "DB_AUTO_MIGRATE" // for "default" connection, use DB_AUTO_MIGRATE
@@ -114,13 +150,13 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateConfigKey) {
 		if db != nil {
 			dbm.logger.Info("Auto-migration is enabled for default connection. Models should be registered and migrated by the application.",
-				contract.NewField("connection_config_name", defaultConnectionName),
-				contract.NewField("checked_config_key", autoMigrateConfigKey),
+				types.NewField("connection_config_name", defaultConnectionName),
+				types.NewField("checked_config_key", autoMigrateConfigKey),
 			)
 		} else {
 			dbm.logger.Warn("Auto-migration enabled for default connection, but connection failed.",
-				contract.NewField("connection_config_name", defaultConnectionName),
-				contract.NewField("checked_config_key", autoMigrateConfigKey),
+				types.NewField("connection_config_name", defaultConnectionName),
+				types.NewField("checked_config_key", autoMigrateConfigKey),
 			)
 		}
 	}
@@ -136,15 +172,15 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 
 	var lastErr error
 	for name, conn := range dbm.connections {
-		dbm.logger.Info("Closing database connection", contract.NewField("connection", name))
+		dbm.logger.Info("Closing database connection", types.NewField("connection", name))
 		sqlDB, err := conn.DB()
 		if err != nil {
-			dbm.logger.Error("Failed to get SQL DB from GORM instance for closing", contract.NewField("connection", name), contract.NewField("error", err))
+			dbm.logger.Error("Failed to get SQL DB from GORM instance for closing", types.NewField("connection", name), types.NewField("error", err))
 			lastErr = err
 			continue
 		}
 		if err := sqlDB.Close(); err != nil {
-			dbm.logger.Error("Failed to close database connection", contract.NewField("connection", name), contract.NewField("error", err))
+			dbm.logger.Error("Failed to close database connection", types.NewField("connection", name), types.NewField("error", err))
 			lastErr = err
 		}
 		delete(dbm.connections, name)

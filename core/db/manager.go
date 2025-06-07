@@ -1,7 +1,9 @@
 package db
 
 import (
+	"context"
 	"fmt"
+	"go.oease.dev/goe/v2/types"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 
 	// GORM logger configuration
 	gormLogLevel := gormlogger.Silent
-	if dbm.config.GetBool(configPrefix + "LOG_MODE") || dbm.config.GetBool("DB_LOG_MODE") { // Allow global and per-connection log mode
+	if dbm.config.GetBool(configPrefix+"LOG_MODE") || dbm.config.GetBool("DB_LOG_MODE") { // Allow global and per-connection log mode
 		gormLogLevel = gormlogger.Info
 	}
 
@@ -52,7 +54,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 			SlowThreshold:             200 * time.Millisecond, // Can be made configurable
 			LogLevel:                  gormLogLevel,
 			IgnoreRecordNotFoundError: dbm.config.GetBool(configPrefix + "IGNORE_RECORD_NOT_FOUND_ERROR"), // Default false
-			Colorful:                  false, // Usually true for dev, false for prod. Let's keep it false for structured logging.
+			Colorful:                  false,                                                              // Usually true for dev, false for prod. Let's keep it false for structured logging.
 		},
 	)
 
@@ -83,9 +85,9 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 	db, err := gorm.Open(dialector, gormConfig)
 	if err != nil {
 		dbm.logger.Error("Failed to connect to database",
-			contract.NewField("connection", name),
-			contract.NewField("driver", driver),
-			contract.NewField("error", err.Error()), // Log only error message, not the full error struct
+			types.NewField("connection", name),
+			types.NewField("driver", driver),
+			types.NewField("error", err.Error()), // Log only error message, not the full error struct
 		)
 		return nil, fmt.Errorf("failed to connect to %s database '%s': %w", driver, name, err)
 	}
@@ -93,7 +95,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 	// Configure connection pool (can be made configurable)
 	sqlDB, err := db.DB()
 	if err != nil {
-		dbm.logger.Error("Failed to get underlying sql.DB for connection pool setup", contract.NewField("connection", name), contract.NewField("error", err))
+		dbm.logger.Error("Failed to get underlying sql.DB for connection pool setup", types.NewField("connection", name), types.NewField("error", err))
 		// Not returning error here, as the connection itself was successful. Log and proceed.
 	} else {
 		maxIdleConns := dbm.config.GetInt(configPrefix + "MAX_IDLE_CONNS")
@@ -105,7 +107,6 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 			sqlDB.SetMaxIdleConns(10) // Default
 		}
 
-
 		maxOpenConns := dbm.config.GetInt(configPrefix + "MAX_OPEN_CONNS")
 		if maxOpenConns > 0 {
 			sqlDB.SetMaxOpenConns(maxOpenConns)
@@ -114,7 +115,6 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 		} else {
 			sqlDB.SetMaxOpenConns(100) // Default
 		}
-
 
 		connMaxLifetime := dbm.config.GetDuration(configPrefix + "CONN_MAX_LIFETIME")
 		if connMaxLifetime > 0 {
@@ -127,8 +127,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 		}
 	}
 
-
-	dbm.logger.Info("Database connection established successfully", contract.NewField("connection", name), contract.NewField("driver", driver))
+	dbm.logger.Info("Database connection established successfully", types.NewField("connection", name), types.NewField("driver", driver))
 	return db, nil
 }
 
@@ -137,7 +136,7 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 	// Allow providing a full DSN directly
 	directDSN := dbm.config.GetString(configPrefix + "DSN")
 	if directDSN != "" {
-		dbm.logger.Info("Using direct DSN for connection", contract.NewField("connection", name))
+		dbm.logger.Info("Using direct DSN for connection", types.NewField("connection", name))
 		return directDSN, nil
 	}
 
@@ -155,13 +154,12 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 		if dbname == "" {
 			// Default to an in-memory database if no path is provided, common for testing
 			// Or you could make this an error: return "", fmt.Errorf("database path (DB_DATABASE or DB_%s_DATABASE) not configured for SQLite connection '%s'", strings.ToUpper(name), name)
-			dbm.logger.Info("SQLite database path not specified, using in-memory database.", contract.NewField("connection", name))
+			dbm.logger.Info("SQLite database path not specified, using in-memory database.", types.NewField("connection", name))
 			return ":memory:", nil
 		}
 		// TODO: Add support for query params for SQLite if needed, e.g., "file:path?cache=shared&mode=memory"
 		return dbname, nil
 	}
-
 
 	// Check for required fields for other drivers
 	if host == "" {
@@ -233,6 +231,13 @@ type GoeGormLogger struct {
 	goeLogger contract.Logger
 }
 
+func (l *GoeGormLogger) Printf(s string, i ...interface{}) {
+	if i != nil {
+		s = fmt.Sprintf(s, i...)
+	}
+	l.goeLogger.Info(s)
+}
+
 // NewGoeGormLogger creates a new GoeGormLogger
 func NewGoeGormLogger(logger contract.Logger) *GoeGormLogger {
 	return &GoeGormLogger{goeLogger: logger}
@@ -265,14 +270,14 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 	fields := []contract.Field{
-		contract.NewField("module", "gorm"),
-		contract.NewField("elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6)),
-		contract.NewField("sql", sql),
-		contract.NewField("rows", rows),
+		types.NewField("module", "gorm"),
+		types.NewField("elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6)),
+		types.NewField("sql", sql),
+		types.NewField("rows", rows),
 	}
 
 	if err != nil && err != gorm.ErrRecordNotFound { // Don't log RecordNotFound as an error from Trace, GORM handles it.
-		l.goeLogger.Error("GORM Trace Error", append(fields, contract.NewField("error", err.Error()))...)
+		l.goeLogger.Error("GORM Trace Error", append(fields, types.NewField("error", err.Error()))...)
 		return
 	}
 
@@ -282,7 +287,6 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 	// l.goeLogger.Warn(fmt.Sprintf("GORM Slow Query (%.3fms)", float64(elapsed.Nanoseconds())/1e6), fields...)
 	// return
 	// }
-
 
 	l.goeLogger.Debug("GORM Trace", fields...)
 }
@@ -296,9 +300,9 @@ func convertGormLogData(data []interface{}) []contract.Field {
 			continue // Should not happen with GORM's internal logging format
 		}
 		if i+1 < len(data) {
-			fields = append(fields, contract.NewField(key, data[i+1]))
+			fields = append(fields, types.NewField(key, data[i+1]))
 		} else {
-			fields = append(fields, contract.NewField(key, nil))
+			fields = append(fields, types.NewField(key, nil))
 		}
 	}
 	return fields

@@ -25,7 +25,7 @@ var (
 		logger       contract.Logger
 		http         contract.HTTPKernel
 		cacheManager contract.CacheManager
-	db           contract.DB // + Add db instance
+		db           contract.DB // Database instance
 		mu           sync.RWMutex
 	}
 )
@@ -149,7 +149,7 @@ func New(opts ...Options) contract.Application {
 	var dbModule *db.DatabaseModule
 	if opt.WithDB {
 		dbModule = db.NewDBModule(instance.config, instance.logger) // Pass config and logger
-		instance.db = dbModule.Provide() // Store the contract.DB instance
+		instance.db = dbModule.Provide()                            // Store the contract.DB instance
 
 		instance.logger.Info("Registering DB module")
 
