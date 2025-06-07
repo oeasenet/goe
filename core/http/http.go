@@ -121,9 +121,12 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	app.Use(func(c fiber.Ctx) error {
 		start := time.Now()
 
-		// Store request ID in locals for use in handlers
-		requestID := c.Get("X-Request-ID")
-		c.Locals("requestID", requestID)
+		// Retrieve request ID set by the requestid middleware
+		requestID := requestid.FromContext(c)
+		if requestID == "" {
+			requestID = c.Get(fiber.HeaderXRequestID)
+		}
+		c.Locals(string(RequestIDKey), requestID)
 
 		// Continue to next middleware
 		err := c.Next()
