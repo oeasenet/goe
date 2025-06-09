@@ -1,18 +1,18 @@
 package rbac
 
 import (
-	"errors"
 	"fmt"
 	"go.oease.dev/goe/core"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson" // Required for cleanupMwTestData
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.oease.dev/goe"
 	"go.oease.dev/goe/webresult"
 )
@@ -31,94 +31,141 @@ var testUser1ID = "testUser1ID"
 var testUser2ID = "testUser2ID"
 
 func TestMain(m *testing.M) {
+	setWorkingDir()
+
+	err := goe.NewApp()
+	if err != nil {
+		panic(err)
+	}
+
 	// Define roles and assign permissions for test users
 	// These interact with the actual RBAC service, potentially hitting the DB.
 	// Ensure DB is clean or use unique user IDs for each test run if state is an issue.
 	// The rbac_test.go TestMain should handle general cleanup if using the same DB.
-	err := setupTestRBACData()
+	err = setupTestRBACData()
 	if err != nil {
 		fmt.Println("Failed to setup test RBAC data for middleware tests:", err)
 	}
+	goe.UseLog().Info("Test RBAC Data defined.")
 
-	// Teardown: Clean up RBAC data for these specific test users
-	defer cleanupMwTestData()
-
-	// Initialize Fiber app and RBAC middleware
-	testApp = fiber.New(fiber.Config{
-		ErrorHandler: func(ctx fiber.Ctx, err error) error { // Custom error handler for tests
-			// Check if the error is a fiber.Error
-			var fiberError *fiber.Error
-			if errors.As(err, &fiberError) {
-				// Use fiberError.Code and fiberError.Message
-				return ctx.Status(fiberError.Code).JSON(fiber.Map{"message": fiberError.Message})
-			}
-			return nil // Response already sent
-		},
-	})
+	// Fiber App
+	testApp = goe.UseFiber().App()
 	rbacMw = NewRBACMiddleware()
+	rbacMw.SetUserIdGetter(GetDefaultUserIdGetter)
 
 	// Define a common success handler for protected routes
 	successHandler := func(ctx fiber.Ctx) error {
 		return webresult.SendSucceed(ctx, "Access Granted")
 	}
 
+	// optional, this is for test
+	testApp.Use(setUserIDMiddleware())
+
 	// Setup test routes
 	// Route requiring "article:read" (Viewer)
 	testApp.Get("/view-article",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserViewer); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 	)
 
 	// Route requiring "article:edit" (Editor)
 	testApp.Get("/edit-article",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserEditor); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:edit"}, MatchAtLeastOne),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:edit"}, MatchAtLeastOne),
 	)
 
 	// Route requiring "article:publish" AND "article:review" (Admin via role, Editor needs direct for review)
 	testApp.Get("/publish-reviewed-article",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserAdmin); return ctx.Next() }, // Test with Admin
-		rbacMw.CheckPermission([]Permission{"article:publish", "article:review"}, MatchAll),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:publish", "article:review"}, MatchAll),
 	)
 	testApp.Get("/publish-reviewed-article-editor-fail", // Editor lacks article:review
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserEditor); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:publish", "article:review"}, MatchAll),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:publish", "article:review"}, MatchAll),
 	)
 
 	// Route for user with no permissions
 	testApp.Get("/no-perms-test",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserNoPerms); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 	)
 
 	// Route for missing userID in locals
 	testApp.Get("/missing-userid",
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 	)
 
 	// Route for invalid userID format in locals
 	testApp.Get("/invalid-userid-format",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, "not-an-object-id"); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
 	)
 
-	// Route for zero primitive.ObjectID in locals
-	testApp.Get("/zero-objectid",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, primitive.NilObjectID); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAtLeastOne),
+	// Define a route specifically for the direct permission test
+	testApp.Get("/feature-special-direct",
 		successHandler,
+		rbacMw.CheckPermission([]Permission{"feature:special"}, MatchAtLeastOne),
+	)
+
+	// mwTestUserViewer has "article:read"
+	testApp.Get("/atleastone-hasone",
+		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read", "article:write"}, MatchAtLeastOne),
+	)
+
+	// mwTestUserNoPerms has no permissions
+	testApp.Get("/atleastone-hasnone",
+		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:delete", "article:write"}, MatchAtLeastOne),
+	)
+
+	// mwTestUserViewer has "article:read"
+	testApp.Get("/matchall-hassingle",
+		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAll),
+	)
+
+	// mwTestUserViewer has "article:read" but not "article:write"
+	testApp.Get("/matchall-missingmultiple",
+		successHandler,
+		rbacMw.CheckPermission([]Permission{"article:read", "article:write"}, MatchAll),
 	)
 
 	exitVal := m.Run()
 
+	// Teardown: Clean up RBAC data for these specific test users
+	cleanupMwTestData()
 	os.Exit(exitVal)
+}
+
+func setWorkingDir() {
+	// 获取当前文件的路径
+	_, currentFilePath, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("Could not get current file path")
+	}
+
+	// 从 /goe/middleware/rbac 跳转到项目根目录 /goe
+	rootPath := filepath.Join(filepath.Dir(currentFilePath), "../../")
+
+	// 切换工作目录到根目录
+	err := os.Chdir(rootPath)
+	if err != nil {
+		panic("Failed to change working directory: %v")
+	}
+}
+
+func setUserIDMiddleware() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		userID := c.Query(UserIDKey)
+		if userID == "" {
+			return c.Status(fiber.StatusForbidden).SendString("Missing user ID")
+		}
+		c.Locals(UserIDKey, userID)
+		fmt.Println(c.Locals(UserIDKey))
+		return c.Next()
+	}
 }
 
 func setupTestRBACData() error {
@@ -154,22 +201,22 @@ func setupTestRBACData() error {
 	err = AssignRoleToUser(mwTestUserAdmin, "mw_admin")
 	if err != nil {
 		fmt.Printf("Failed to assign mw_admin role: %v\n", err)
-	} // Added \n
+	}
 
 	err = AssignRoleToUser(mwTestUserEditor, "mw_editor")
 	if err != nil {
 		fmt.Printf("Failed to assign mw_editor role: %v\n", err)
-	} // Added \n
+	}
 	// Grant editor a direct permission for a specific test
 	err = GrantDirectPermission(mwTestUserEditor, "feature:special")
 	if err != nil {
 		fmt.Printf("Failed to grant direct permission to mwTestUserEditor: %v\n", err)
-	} // Added \n
+	}
 
 	err = AssignRoleToUser(mwTestUserViewer, "mw_viewer")
 	if err != nil {
 		fmt.Printf("Failed to assign mw_viewer role: %v\n", err)
-	} // Added \n
+	}
 
 	return nil
 }
@@ -187,26 +234,11 @@ func cleanupMwTestData() {
 		return
 	}
 
-	usersToClean := []string{mwTestUserAdmin, mwTestUserEditor, mwTestUserViewer, mwTestUserNoPerms}
-
-	for _, userID := range usersToClean {
-		// Could call rbac.RevokeRoleFromUser for all known test roles,
-		// but direct DB deletion is more thorough for cleanup.
-		// Need to use the actual model types here for DeleteMany
-		_, err := mongoInstance.DeleteMany(&UserRoleAssignment{}, bson.M{"user_id": userID})
-		if err != nil {
-			fmt.Printf("MW Cleanup error (UserRoleAssignment) for %s: %v\n", userID, err)
-		} // Added \n
-
-		_, err = mongoInstance.DeleteMany(&UserDirectPermission{}, bson.M{"user_id": userID})
-		if err != nil {
-			fmt.Printf("MW Cleanup error (UserDirectPermission) for %s: %v\n", userID, err)
-		} // Added \n
-	}
+	usersToClean := []string{mwTestUserAdmin, mwTestUserEditor, mwTestUserViewer, mwTestUserNoPerms, testUser1ID, testUser2ID}
 
 	// Delete from user_role_assignments
 	roleAssignmentModel := &UserRoleAssignment{}
-	_, err := mongoInstance.DeleteMany(roleAssignmentModel, bson.M{"user_id": bson.M{"$in": []string{testUser1ID, testUser2ID}}})
+	_, err := mongoInstance.DeleteMany(roleAssignmentModel, bson.M{"user_id": bson.M{"$in": usersToClean}})
 	if err != nil {
 		fmt.Printf("Error cleaning up UserRoleAssignments: %v\n", err) // Added newline
 	} else {
@@ -215,42 +247,52 @@ func cleanupMwTestData() {
 
 	// Delete from user_direct_permissions
 	directPermissionModel := &UserDirectPermission{}
-	_, err = mongoInstance.DeleteMany(directPermissionModel, bson.M{"user_id": bson.M{"$in": []string{testUser1ID, testUser2ID}}})
+	_, err = mongoInstance.DeleteMany(directPermissionModel, bson.M{"user_id": bson.M{"$in": usersToClean}})
 	if err != nil {
 		fmt.Printf("Error cleaning up UserDirectPermissions: %v\n", err) // Added newline
 	} else {
 		fmt.Println("UserDirectPermissions cleaned.")
 	}
 
+	// delete test roles
+	role := &Role{}
+	rolesToClean := []string{"mw_admin", "mw_editor", "mw_viewer", "test_admin", "test_editor", "test_viewer"}
+	_, err = mongoInstance.DeleteMany(role, bson.M{"name": bson.M{"$in": rolesToClean}})
+	if err != nil {
+		fmt.Printf("Error cleaning up Roles: %v\n", err) // Added newline
+	} else {
+		fmt.Println("Roles cleaned.")
+	}
+
 	fmt.Println("Middleware test RBAC data cleaned.")
 }
 
 func TestRBACMiddleware_AccessGranted_Viewer(t *testing.T) {
-	req := httptest.NewRequest("GET", "/view-article", nil)
+	req := httptest.NewRequest("GET", "/view-article"+"?user_id="+mwTestUserViewer, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Viewer should access /view-article")
 }
 
 func TestRBACMiddleware_AccessGranted_Editor(t *testing.T) {
-	req := httptest.NewRequest("GET", "/edit-article", nil)
+	req := httptest.NewRequest("GET", "/edit-article"+"?user_id="+mwTestUserEditor, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Editor should access /edit-article")
 }
 
 func TestRBACMiddleware_AccessGranted_Admin_MatchAll(t *testing.T) {
-	req := httptest.NewRequest("GET", "/publish-reviewed-article", nil)
+	req := httptest.NewRequest("GET", "/publish-reviewed-article"+"?user_id="+mwTestUserAdmin, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Admin should access /publish-reviewed-article with MatchAll")
 }
 
 func TestRBACMiddleware_AccessDenied_Editor_MatchAll_MissingOne(t *testing.T) {
-	req := httptest.NewRequest("GET", "/publish-reviewed-article-editor-fail", nil)
+	req := httptest.NewRequest("GET", "/publish-reviewed-article-editor-fail"+"?user_id="+mwTestUserEditor, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Editor should be denied /publish-reviewed-article-editor-fail due to missing 'article:review'")
 }
 
 func TestRBACMiddleware_AccessDenied_NoPermissions(t *testing.T) {
-	req := httptest.NewRequest("GET", "/no-perms-test", nil)
+	req := httptest.NewRequest("GET", "/no-perms-test"+"?user_id="+mwTestUserNoPerms, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "User with no permissions should be denied")
 }
@@ -264,78 +306,42 @@ func TestRBACMiddleware_AccessDenied_MissingUserID(t *testing.T) {
 }
 
 func TestRBACMiddleware_AccessDenied_InvalidUserIDFormat(t *testing.T) {
-	req := httptest.NewRequest("GET", "/invalid-userid-format", nil)
+	req := httptest.NewRequest("GET", "/invalid-userid-format"+"?user_id="+"not-an-user-id", nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Request with invalid userID format should be denied")
 }
 
-func TestRBACMiddleware_AccessDenied_ZeroObjectID(t *testing.T) {
-	req := httptest.NewRequest("GET", "/zero-objectid", nil)
-	resp, _ := testApp.Test(req)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Request with Zero ObjectID should be denied")
-}
-
 // Test direct permission for editor
 func TestRBACMiddleware_DirectPermission_Editor(t *testing.T) {
-	// Define a route specifically for the direct permission test
-	testApp.Get("/feature-special-direct",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserEditor); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"feature:special"}, MatchAtLeastOne),
-		func(ctx fiber.Ctx) error { return webresult.SendSucceed(ctx, "Direct Access Granted") },
-	)
-	req := httptest.NewRequest("GET", "/feature-special-direct", nil)
+	req := httptest.NewRequest("GET", "/feature-special-direct"+"?user_id="+mwTestUserEditor, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Editor should access /feature-special-direct via direct permission")
 }
 
 // Test MatchAtLeastOne: User has one of the required permissions
 func TestRBACMiddleware_MatchAtLeastOne_HasOne(t *testing.T) {
-	// mwTestUserViewer has "article:read"
-	testApp.Get("/atleastone-hasone",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserViewer); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read", "article:write"}, MatchAtLeastOne),
-		func(ctx fiber.Ctx) error { return webresult.SendSucceed(ctx, "Access Granted - AtLeastOne") },
-	)
-	req := httptest.NewRequest("GET", "/atleastone-hasone", nil)
+	req := httptest.NewRequest("GET", "/atleastone-hasone"+"?user_id="+mwTestUserViewer, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // Test MatchAtLeastOne: User has none of the required permissions
 func TestRBACMiddleware_MatchAtLeastOne_HasNone(t *testing.T) {
-	// mwTestUserNoPerms has no permissions
-	testApp.Get("/atleastone-hasnone",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserNoPerms); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:delete", "article:write"}, MatchAtLeastOne),
-		func(ctx fiber.Ctx) error { return webresult.SendSucceed(ctx, "Access Granted - AtLeastOne") }, // Should not reach here
-	)
-	req := httptest.NewRequest("GET", "/atleastone-hasnone", nil)
+	req := httptest.NewRequest("GET", "/atleastone-hasnone"+"?user_id="+mwTestUserNoPerms, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 // Test MatchAll: User has all required (single permission)
 func TestRBACMiddleware_MatchAll_HasAll_Single(t *testing.T) {
-	// mwTestUserViewer has "article:read"
-	testApp.Get("/matchall-hassingle",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserViewer); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read"}, MatchAll),
-		func(ctx fiber.Ctx) error { return webresult.SendSucceed(ctx, "Access Granted - MatchAll Single") },
-	)
-	req := httptest.NewRequest("GET", "/matchall-hassingle", nil)
+	req := httptest.NewRequest("GET", "/matchall-hassingle"+"?user_id="+mwTestUserViewer, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // Test MatchAll: User is missing one of multiple required
 func TestRBACMiddleware_MatchAll_MissingOne_Multiple(t *testing.T) {
-	// mwTestUserViewer has "article:read" but not "article:write"
-	testApp.Get("/matchall-missingmultiple",
-		func(ctx fiber.Ctx) error { ctx.Locals(testUserIDKey, mwTestUserViewer); return ctx.Next() },
-		rbacMw.CheckPermission([]Permission{"article:read", "article:write"}, MatchAll),
-		func(ctx fiber.Ctx) error { return webresult.SendSucceed(ctx, "Access Granted - MatchAll Multiple") }, // Should not reach
-	)
-	req := httptest.NewRequest("GET", "/matchall-missingmultiple", nil)
+	req := httptest.NewRequest("GET", "/matchall-missingmultiple"+"?user_id="+mwTestUserViewer, nil)
 	resp, _ := testApp.Test(req)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
@@ -350,29 +356,18 @@ func TestRoleDefinition(t *testing.T) {
 	_, found = GetRole("non_existent_role")
 	assert.False(t, found, "Expected 'non_existent_role' not to be found")
 
-	// Test defining a role with empty name (should be logged as warning by DefineRole)
+	// Test defining a role with empty name (should be error DefineRole)
 	err := DefineRole(&Role{Name: "", Permissions: []Permission{"p:a"}})
-	assert.NoError(t, err, "Error defining role")
-	_, found = GetRole("")
-	// Depending on implementation of DefineRole, an empty string role name might be stored or rejected.
-	// Current DefineRole in rbac.go will store it. If that's undesirable, DefineRole should prevent it.
-	// For this test, we'll assume it might be stored but GetRole might not find it if it's filtered,
-	// or it might be found if stored. The provided rbac.go stores it.
-	// assert.False(t, found, "Role with empty name should not be retrievable if DefineRole guards against it or stores it specially")
-	// Based on current rbac.go, it *will* be found if an empty name is allowed by DefineRole.
-	// However, the original test implies it shouldn't be found, suggesting DefineRole might filter.
-	// Let's adjust the assertion based on DefineRole's behavior of logging a warning but still adding.
-	// If DefineRole was stricter and returned an error or didn't add, then False would be correct.
-	role, found = GetRole("")
-	assert.True(t, found, "Role with empty name was defined, should be found")
-	assert.Equal(t, "", role.Name)
+	assert.Error(t, err, "Error defining role")
 
-	// Test defining a role with nil/empty permissions (should be logged)
+	// test get roles by empty role name
+	role, found = GetRole("")
+	assert.False(t, found, "Role with empty name was defined, should be found")
+	assert.Nil(t, role)
+
+	// Test defining a role with nil/empty permissions (should be Error)
 	err = DefineRole(&Role{Name: "empty_perm_role", Permissions: nil})
-	assert.NoError(t, err, "Error defining role")
-	role, found = GetRole("empty_perm_role")
-	assert.True(t, found)
-	assert.Empty(t, role.Permissions) // Permissions should be an empty slice, not nil, if initialized by DefineRole or Role struct
+	assert.Error(t, err)
 }
 
 func TestRoleAssignment(t *testing.T) {
@@ -544,4 +539,38 @@ func TestGetUserDirectPermissions_NoDirectPerms(t *testing.T) {
 	perms, err := GetUserDirectPermissions(freshUserID)
 	assert.NoError(t, err)
 	assert.Empty(t, perms)
+}
+
+func TestDeleteRole(t *testing.T) {
+	freshUserID := "freshUserID"
+	cleanupUser(freshUserID)
+	//should be empty, not error
+	perms, err := GetUserDirectPermissions(freshUserID)
+	assert.Empty(t, perms)
+
+	role := &Role{
+		Name:        "Expired",
+		Permissions: []Permission{"expired:view", "expired:update"},
+	}
+	err = DefineRole(role)
+	assert.NoError(t, err)
+
+	err = AssignRoleToUser(freshUserID, role.Name)
+	assert.NoError(t, err)
+
+	permissions, err := GetAllUserPermissions(freshUserID)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, permissions, role.Permissions)
+
+	err = DeleteRole(role.Name)
+	assert.NoError(t, err)
+
+	permissions, err = GetAllUserPermissions(freshUserID)
+	assert.NoError(t, err)
+	assert.Empty(t, permissions)
+
+	r, found := GetRole(role.Name)
+	assert.Nil(t, r)
+	assert.False(t, found)
+
 }

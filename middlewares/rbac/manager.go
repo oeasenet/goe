@@ -7,7 +7,6 @@ import (
 
 // RBACMiddleware provides middleware for checking user permissions.
 type RBACMiddleware struct {
-	// Potentially add configuration fields here in the future if needed
 	userIdGetter func(ctx fiber.Ctx) string
 }
 
@@ -29,6 +28,10 @@ func (m *RBACMiddleware) GetRole(name string) (*Role, bool) {
 	return GetRole(name) // Calls the existing package-level function
 }
 
+func (m *RBACMiddleware) DeleteRole(name string) error {
+	return DeleteRole(name)
+}
+
 // AssignRoleToUser --- Role Assignment ---
 func (m *RBACMiddleware) AssignRoleToUser(userID string, roleName string) error {
 	return AssignRoleToUser(userID, roleName) // Calls the existing package-level function
@@ -43,6 +46,7 @@ func (m *RBACMiddleware) GetUserRoleNames(userID string) ([]string, error) {
 }
 
 // --- Direct Permissions ---
+
 func (m *RBACMiddleware) GrantDirectPermission(userID string, permission Permission) error {
 	return GrantDirectPermission(userID, permission) // Calls the existing package-level function
 }
@@ -56,14 +60,16 @@ func (m *RBACMiddleware) GetUserDirectPermissions(userID string) ([]Permission, 
 }
 
 // --- Combined Permissions ---
+
 func (m *RBACMiddleware) GetAllUserPermissions(userID string) ([]Permission, error) {
 	return GetAllUserPermissions(userID) // Calls the existing package-level function
 }
 
+// GetDefaultUserIdGetter retrieves the user ID from the context locals using the UserIDKey.
 func GetDefaultUserIdGetter(ctx fiber.Ctx) string {
-	fmt.Print(ctx.Locals("userId"))
-	if ctx.Locals("user_id") == nil {
+	fmt.Print(ctx.Locals(UserIDKey))
+	if ctx.Locals(UserIDKey) == nil {
 		return ""
 	}
-	return ctx.Locals("user_id").(string)
+	return ctx.Locals(UserIDKey).(string)
 }

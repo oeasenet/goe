@@ -81,7 +81,6 @@ func main() {
 	// Initialize RBAC Middleware
 	rbacMw := rbac.NewRBACMiddleware()
 	rbacMw.SetUserIdGetter(rbac.GetDefaultUserIdGetter)
-	// The key where MockAuthMiddleware stores the user ID
 
 	// Fiber App
 	app := goe.UseFiber().App()
@@ -161,12 +160,12 @@ func main() {
 
 func SetUserIDMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		userID := c.Query("user_id")
+		userID := c.Query(rbac.UserIDKey)
 		if userID == "" {
-			return c.Status(fiber.StatusUnauthorized).SendString("Missing user ID")
+			return c.Status(fiber.StatusForbidden).SendString("Missing user ID")
 		}
-		c.Locals("user_id", userID)
-		fmt.Println(c.Locals("user_id"))
+		c.Locals(rbac.UserIDKey, userID)
+		fmt.Println(c.Locals(rbac.UserIDKey))
 		return c.Next()
 	}
 }

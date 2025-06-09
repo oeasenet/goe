@@ -4,6 +4,8 @@ import (
 	"go.oease.dev/goe/modules/mongodb"
 )
 
+var UserIDKey = "user_id"
+
 // Permission is a string representing an action on a feature.
 // Format: "feature:action" (e.g., "article:read", "user:create")
 type Permission string

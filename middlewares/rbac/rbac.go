@@ -19,11 +19,6 @@ import (
 // CheckPermission returns a fiber.Handler that checks if the current user has
 // the required permissions.
 //
-// userIDKey is the key used to retrieve the user's ID from ctx.Locals().
-// It's assumed that a prior middleware (e.g., auth middleware) has already
-// authenticated the user and stored their ID (as string or primitive.ObjectID)
-// in fiber.Ctx.Locals().
-//
 // requiredPermissions are the permissions needed to access the route.
 //
 // mode specifies whether all or at least one of the requiredPermissions are needed.
@@ -32,7 +27,7 @@ func (m *RBACMiddleware) CheckPermission(requiredPermissions []Permission, mode 
 		userID := m.userIdGetter(ctx)
 		if strutil.IsBlank(userID) {
 			core.UseGoeContainer().GetLogger().Warn("RBAC: User ID is BLANK")
-			return webresult.Forbidden("Access denied. User identifier is zero.")
+			return webresult.Forbidden("Access denied.")
 		}
 
 		// Use actual functions from rbac module
@@ -115,8 +110,8 @@ func (m *RBACMiddleware) CheckPermission(requiredPermissions []Permission, mode 
 	}
 }
 
-// DefineRole adds or updates a role definition in the global store.
-// This is intended to be called during application initialization.
+// DefineRole adds a role to mongoDB.
+// if role exists, will update permission
 func DefineRole(role *Role) error {
 	if strutil.IsBlank(role.Name) {
 		core.UseGoeContainer().GetLogger().Warn("RBAC: Attempted to define a role with an empty name.")
@@ -127,7 +122,12 @@ func DefineRole(role *Role) error {
 		return errors.New("role has no permissions")
 	}
 
-	_, err := core.UseGoeContainer().GetMongo().Insert(role)
+	filter := bson.M{"name": role.Name}
+	update := bson.M{"$set": bson.M{"permissions": role.Permissions}}
+
+	opt := officialOpts.Update().SetUpsert(true)
+	opts := options.UpdateOptions{UpdateOptions: opt}
+	err := core.UseGoeContainer().GetMongo().Collection(role).UpdateOne(context.Background(), filter, update, opts)
 	if err != nil {
 		return err
 	}
@@ -138,6 +138,10 @@ func DefineRole(role *Role) error {
 // GetRole retrieves a defined role by its name.
 // Returns the role and true if found, otherwise an empty Role and false.
 func GetRole(name string) (*Role, bool) {
+	if strutil.IsBlank(name) {
+		core.UseGoeContainer().GetLogger().Warn("RBAC: Attempted to define a role with an empty name.")
+		return nil, false
+	}
 	role := &Role{}
 	hasResult, err := core.UseGoeContainer().GetMongo().FindOne(role, bson.M{"name": name}, role)
 	if err != nil {
@@ -148,6 +152,25 @@ func GetRole(name string) (*Role, bool) {
 		return nil, false
 	}
 	return role, hasResult
+}
+
+// DeleteRole deletes a role by its name from the database.
+func DeleteRole(name string) error {
+	if strutil.IsBlank(name) {
+		core.UseGoeContainer().GetLogger().Warn("RBAC: Attempted to define a role with an empty name.")
+		return errors.New("role name is blank")
+	}
+
+	_, err := core.UseGoeContainer().GetMongo().DeleteMany(&Role{}, bson.M{"name": name})
+	if err != nil {
+		return err
+	}
+
+	_, err = core.UseGoeContainer().GetMongo().DeleteMany(&UserRoleAssignment{}, bson.M{"role_name": name})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // === Role Management ===
@@ -185,7 +208,6 @@ func AssignRoleToUser(userID string, roleName string) error {
 		UserID:   userID,
 		RoleName: roleName,
 	}
-	// DefaultModel fields (ID, CreatedAt, UpdatedAt) will be set by BeforeInsert hook
 
 	_, err = mongo.Insert(newAssignment)
 	if err != nil {
@@ -259,35 +281,16 @@ func GrantDirectPermission(userID string, permission Permission) error {
 	directPermsModel := &UserDirectPermission{}
 
 	filter := bson.M{"user_id": userID}
-	update := bson.M{"$set": bson.M{"$addToSet": bson.M{"permissions": permission}}}
+	update := bson.M{"$addToSet": bson.M{"permissions": permission}}
 	// $addToSet ensures the permission is only added if it's not already present.
 
 	// Upsert ensures that if the user document doesn't exist, it's created.
-	// The BeforeInsert hook in UserDirectPermission model will initialize empty Permissions slice.
 	opt := officialOpts.Update().SetUpsert(true)
 	opts := options.UpdateOptions{UpdateOptions: opt}
 	err := mongo.Collection(directPermsModel).UpdateOne(context.Background(), filter, update, opts)
 	if err != nil {
 		return fmt.Errorf("RBAC: Error granting direct permission '%s' to user '%s': %w", permission, userID, err)
 	}
-
-	// Ensure the UserDirectPermission document is properly initialized if it was just created
-	// This is especially for the case where $addToSet on a non-existent array field might behave unexpectedly
-	// or if we want to ensure CreatedAt/UpdatedAt are set on creation.
-	// The BeforeInsert hook should handle this, but an explicit check or an UpdateOne
-	// with "$setOnInsert" for CreatedAt might be more robust if upsert creates the doc.
-	// The current DefaultModel and hooks should manage this.
-	// Forcing an update to set UpdatedAt:
-	// If the document was upserted and is new, BeforeInsert runs.
-	// If it existed, we should ensure UpdatedAt is touched.
-	// $currentDate might be better here if we don't rely on hooks for existing docs.
-	// However, our current DefaultModel hooks only run for Insert/Update calls via the mongo wrapper.
-	// A direct UpdateOne like this bypasses DefaultModel's BeforeUpdate.
-	// Let's try to fetch and save to trigger hooks if it's cleaner.
-
-	// Simpler approach: just log. The $addToSet and upsert are generally fine.
-	// Hooks are for ORM-like methods (mongo.Insert, mongo.Update).
-	// For now, we assume the update operation is sufficient and hooks are for the specific ORM methods.
 
 	core.UseGoeContainer().GetLogger().Infof("RBAC: Granted direct permission '%s' to user '%s'.", permission, userID)
 	return nil
@@ -387,5 +390,3 @@ func GetAllUserPermissions(userID string) ([]Permission, error) {
 
 	return finalPermissionsList, nil
 }
-
-// Placeholder functions fetchUserRoleNames and fetchUserDirectPermissions are now removed.
