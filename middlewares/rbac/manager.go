@@ -32,6 +32,10 @@ func (m *RBACMiddleware) DeleteRole(name string) error {
 	return DeleteRole(name)
 }
 
+func (m *RBACMiddleware) ListRoles(pageSize, currentPage int64) ([]*Role, error) {
+	return ListRoles(pageSize, currentPage)
+}
+
 // AssignRoleToUser --- Role Assignment ---
 func (m *RBACMiddleware) AssignRoleToUser(userID string, roleName string) error {
 	return AssignRoleToUser(userID, roleName) // Calls the existing package-level function

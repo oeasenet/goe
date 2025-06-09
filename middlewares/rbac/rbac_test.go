@@ -19,7 +19,6 @@ import (
 
 var testApp *fiber.App
 var rbacMw *RBACMiddleware
-var testUserIDKey = "userID"
 
 // Test User IDs for middleware tests
 var mwTestUserAdmin = "TestUserAdmin"
@@ -572,5 +571,44 @@ func TestDeleteRole(t *testing.T) {
 	r, found := GetRole(role.Name)
 	assert.Nil(t, r)
 	assert.False(t, found)
+}
 
+func TestListRoles(t *testing.T) {
+	cleanupMwTestData()
+	roles := []*Role{
+		{
+			Name:        "ExpiredOne",
+			Permissions: []Permission{"expired:view", "expired:update"},
+		},
+		{
+			Name:        "ExpiredTwo",
+			Permissions: []Permission{"expired:create", "expired:delete"},
+		},
+		{
+			Name:        "ExpiredThree",
+			Permissions: []Permission{"expired:update", "expired:create"},
+		},
+	}
+	for _, role := range roles {
+		err := DefineRole(role)
+		assert.NoError(t, err)
+	}
+
+	result, err := ListRoles(3, 1)
+	var actual []*Role
+	for _, r := range result {
+		actual = append(actual, &Role{
+			Name:        r.Name,
+			Permissions: r.Permissions,
+		})
+	}
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, actual, roles)
+
+	err = DeleteRole(roles[0].Name)
+	assert.NoError(t, err)
+	err = DeleteRole(roles[1].Name)
+	assert.NoError(t, err)
+	err = DeleteRole(roles[2].Name)
+	assert.NoError(t, err)
 }

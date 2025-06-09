@@ -74,6 +74,7 @@ func (m *MongoDB) FindPage(model IDefaultModel, filter any, res any, pageSize in
 	var opt *FindPageOption
 	if len(option) > 0 && option[0] != nil {
 		opt = option[0]
+		defer releaseFindPageOption(opt)
 	} else {
 		opt = nil
 	}
@@ -126,7 +127,7 @@ func (m *MongoDB) FindPage(model IDefaultModel, filter any, res any, pageSize in
 		m.logger.Error(err)
 		return 0, 0
 	}
-	releaseFindPageOption(opt)
+
 	return countDoc, totalPage
 }
 

@@ -173,6 +173,19 @@ func DeleteRole(name string) error {
 	return nil
 }
 
+func ListRoles(pageSize int64, currentPage int64) ([]*Role, error) {
+	if pageSize <= 0 {
+		return []*Role{}, errors.New("page size is illegal")
+	}
+	if currentPage <= 0 {
+		return []*Role{}, errors.New("current page is illegal")
+	}
+	r := &Role{}
+	roles := make([]*Role, pageSize)
+	_, _ = core.UseGoeContainer().GetMongo().FindPage(r, nil, &roles, pageSize, currentPage)
+	return roles, nil
+}
+
 // === Role Management ===
 
 // AssignRoleToUser assigns a role to a user.
