@@ -10,7 +10,7 @@ permissions:
     id-token: write
 
 env:
-    GO_VERSION: '1.23'
+    GO_VERSION: '1.24'
 
 jobs:
     test:
@@ -28,7 +28,7 @@ jobs:
                     cache: true
 
             -   name: Run tests
-                run: go test -v -race ./tests/...
+                run: go test -v -race ./...
 
             -   name: Run linter
                 uses: golangci/golangci-lint-action@v6
@@ -103,10 +103,8 @@ jobs:
 
             -   name: Generate Go docs
                 run: |
-                    go install golang.org/x/tools/cmd/godoc@latest
                     mkdir -p docs/api
-                    # Generate package documentation
-                    go doc -all . > docs/api/goe.md || true
+                    go doc -all . > docs/api/goe.md || echo "Documentation generation skipped"
 
             -   name: Deploy to GitHub Pages
                 if: github.repository_owner == 'oeasenet'
