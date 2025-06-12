@@ -1,56 +1,36 @@
 version: 2
 updates:
-  # Go modules
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "oeasenet"
-    assignees:
-      - "oeasenet"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "go"
-    # Group minor and patch updates
-    groups:
-      fiber:
-        patterns:
-          - "github.com/gofiber/*"
-      uber:
-        patterns:
-          - "go.uber.org/*"
-      gorm:
-        patterns:
-          - "gorm.io/*"
-      testing:
-        patterns:
-          - "github.com/stretchr/testify"
-          - "github.com/go-playground/validator*"
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "oeasenet"
-    assignees:
-      - "oeasenet"
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "github-actions"
+    # Go modules
+    -   package-ecosystem: "gomod"
+        directory: "/"
+        schedule:
+            interval: "weekly"
+            day: "monday"
+            time: "09:00"
+            timezone: "UTC"
+        open-pull-requests-limit: 10
+        reviewers:
+            - "oeasenet"
+        assignees:
+            - "oeasenet"
+        commit-message:
+            prefix: "deps"
+            include: "scope"
+        labels:
+            - "dependencies"
+            - "go"
+        # Group minor and patch updates
+        groups:
+            fiber:
+                patterns:
+                    - "github.com/gofiber/*"
+            uber:
+                patterns:
+                    - "go.uber.org/*"
+            gorm:
+                patterns:
+                    - "gorm.io/*"
+            testing:
+                patterns:
+                    - "github.com/stretchr/testify"
+                    - "github.com/go-playground/validator*"
