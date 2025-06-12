@@ -1,7 +1,7 @@
 # Goe - Modern Go Application Framework 🚀
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
+  <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
   <img src="https://img.shields.io/badge/License-Apache_2.0-green?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Status-Beta-yellow?style=for-the-badge" alt="Status">
   <!-- Consider adding other relevant badges like build status, code coverage, etc. -->
