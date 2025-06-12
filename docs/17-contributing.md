@@ -26,7 +26,7 @@ Before contributing, please read our [Code of Conduct](../CODE_OF_CONDUCT.md). W
 ## Setting Up Your Development Environment
 
 1.  **Prerequisites**:
-    *   Go 1.21 or newer.
+    *   Go 1.24 or newer.
     *   Git.
     *   A GitHub account.
 
