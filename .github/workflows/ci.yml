@@ -35,13 +35,13 @@ jobs:
                 run: go mod verify
 
             -   name: Run tests
-                run: go test -v -race -coverprofile=coverage.out ./...
+                run: go test -v -race -coverprofile=coverage.txt -coverpkg=$(go list ./... | grep -v '/tests' | paste -sd,) ./...
 
             -   name: Upload coverage to Codecov
                 if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.24'
                 uses: codecov/codecov-action@v5
                 with:
-                    file: ./coverage.out
+                    file: ./coverage.txt
                     token: ${{ secrets.CODECOV_TOKEN }}
                     fail_ci_if_error: false
 
