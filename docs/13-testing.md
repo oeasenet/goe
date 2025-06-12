@@ -53,8 +53,10 @@ To test `CalculatorService.Add`:
 package calculator
 
 import (
+	"context" // Added for WithContext
 	"testing"
-	"go.oease.dev/goe/v2/core/log" // For a mock or test logger
+	"go.oease.dev/goe/v2/contract" // Changed from core/log
+	"go.uber.org/zap"             // Added for GetLogger return type if not nil
 	// "github.com/stretchr/testify/assert" // Popular assertion library (optional)
 )
 
@@ -63,14 +65,14 @@ type MockLogger struct {
 	// Add fields to capture log messages if needed for assertions
 }
 
-func (m *MockLogger) Debug(msg string, fields ...log.Field) {}
-func (m *MockLogger) Info(msg string, fields ...log.Field)  {}
-func (m *MockLogger) Warn(msg string, fields ...log.Field)  {}
-func (m *MockLogger) Error(msg string, fields ...log.Field) {}
-func (m *MockLogger) Fatal(msg string, fields ...log.Field) {} // In tests, maybe panic or set a flag
-func (m *MockLogger) With(fields ...log.Field) log.Logger   { return m }
-func (m *MockLogger) WithContext(ctx context.Context) log.Logger { return m }
-func (m *MockLogger) WithError(err error) log.Logger        { return m }
+func (m *MockLogger) Debug(msg string, fields ...contract.Field) {}
+func (m *MockLogger) Info(msg string, fields ...contract.Field)  {}
+func (m *MockLogger) Warn(msg string, fields ...contract.Field)  {}
+func (m *MockLogger) Error(msg string, fields ...contract.Field) {}
+func (m *MockLogger) Fatal(msg string, fields ...contract.Field) {} // In tests, maybe panic or set a flag
+func (m *MockLogger) With(fields ...contract.Field) contract.Logger   { return m }
+func (m *MockLogger) WithContext(ctx context.Context) contract.Logger { return m }
+func (m *MockLogger) WithError(err error) contract.Logger        { return m }
 func (m *MockLogger) GetLogger() *zap.SugaredLogger { return nil } // Return a dummy if not used
 
 func TestCalculatorService_Add(t *testing.T) {

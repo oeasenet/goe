@@ -133,7 +133,7 @@ Before contributing, please read our [Code of Conduct](../CODE_OF_CONDUCT.md). W
 3.  **Code Review**:
     *   Project maintainers and other contributors will review your PR.
     *   Be prepared to discuss your changes and make adjustments based on feedback.
-    *   Respond to comments পেশাদারীভাবে (professionally) and constructively.
+    *   Respond to comments professionally and constructively.
 
 4.  **CI Checks**:
     The Goe project likely has Continuous Integration (CI) checks (e.g., GitHub Actions) that automatically build your code, run tests, and perform other checks. Ensure these pass.
