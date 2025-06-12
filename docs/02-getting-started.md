@@ -4,7 +4,7 @@ This guide will walk you through installing Goe, setting up your first project, 
 
 ## ✅ Prerequisites
 
-*   **Go**: Goe requires Go version 1.21 or newer. You can download it from [golang.org](https://golang.org/dl/).
+*   **Go**: Goe requires Go version 1.24 or newer. You can download it from [golang.org](https://golang.org/dl/).
     *   To check your Go version: `go version`
 
 ## 📦 Installation
