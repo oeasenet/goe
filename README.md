@@ -1,16 +1,28 @@
-# Goe
+# Goe - Modern Go Application Framework
 
-**Goe** is a lightweight application framework for Go that brings dependency injection and sensible defaults. It is built on [Fx](https://github.com/uber-go/fx) and [Fiber](https://github.com/gofiber/fiber).
+<div align="center">
+  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
+  <img src="https://img.shields.io/badge/License-Apache_2.0-green?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/badge/Status-Beta-yellow?style=for-the-badge" alt="Status">
+</div>
 
-## Features
+Goe is a modern Go application framework that combines the best practices from frameworks in other languages and
+GoFiber. Built entirely on Uber's Fx dependency injection framework, Goe prioritizes developer experience,
+extensibility, and concurrent safety.
 
-- Simple application bootstrap with modules
-- Pluggable HTTP server using Fiber
-- Structured logging via Zap
-- Configuration loaded from `.env` files and environment variables
-- Optional cache and database modules
+## 🚀 Features
 
-## Getting Started
+- **🔌 Dependency Injection**: Built on Uber's Fx for powerful, type-safe dependency injection
+- **🌐 HTTP Server**: Integrated GoFiber v3 with automatic request logging and middleware
+- **📝 Structured Logging**: Uber's Zap logger with pretty console output for development
+- **⚙️ Configuration Management**: Environment-based configuration with hot reload support
+- **💾 Cache Support**: Multiple cache drivers via Fiber's storage interface (Memory, Redis, SQLite, etc.)
+- **🔧 Module System**: Extensible module system with lifecycle hooks
+- **🛡️ Type Safety**: Leverages Go's type system for compile-time safety
+- **🎯 Developer Experience**: Simple global accessors and intuitive APIs
+- **🔄 Concurrent Safe**: Thread-safe operations throughout the framework
+
+## 🚀 Getting Started
 
 Install the dependency:
 
@@ -33,7 +45,7 @@ func main() {
 
 For a step by step guide see [docs/Getting Started](docs/getting-started.md).
 
-## Documentation
+## 📖 Documentation
 
 Detailed documentation is available in the [docs](docs/README.md) directory. Topics include:
 
