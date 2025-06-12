@@ -1,10 +1,7 @@
 
 # Default target
-all: test-contract test-core
+all: test
 
 # Run all tests
-test-contract:
-	go test -v ./tests/contract/...
-
-test-core:
-	go test -v ./tests/core/...
+test:
+	go test -v -race ./tests/...

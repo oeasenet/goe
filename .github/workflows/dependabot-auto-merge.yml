@@ -1,0 +1,77 @@
+name: Dependabot Auto-merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge Dependabot PRs
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+        cache: true
+
+    - name: Run tests
+      run: go test -v -race ./...
+
+    - name: Check if PR is for patch/minor updates
+      id: check-update-type
+      run: |
+        # Get the PR title to determine update type
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        
+        # Check if it's a patch or minor update (not major)
+        if echo "$PR_TITLE" | grep -qE "bump.*from.*to.*\.[0-9]+\.[0-9]+$"; then
+          echo "is_safe_update=true" >> $GITHUB_OUTPUT
+        elif echo "$PR_TITLE" | grep -qE "bump.*from.*[0-9]+\.[0-9]+\.[0-9]+.*to.*[0-9]+\.[0-9]+\.[0-9]+"; then
+          # Extract version numbers to compare
+          OLD_VERSION=$(echo "$PR_TITLE" | grep -oE "from [0-9]+\.[0-9]+\.[0-9]+" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          NEW_VERSION=$(echo "$PR_TITLE" | grep -oE "to [0-9]+\.[0-9]+\.[0-9]+" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          
+          OLD_MAJOR=$(echo "$OLD_VERSION" | cut -d. -f1)
+          NEW_MAJOR=$(echo "$NEW_VERSION" | cut -d. -f1)
+          
+          if [ "$OLD_MAJOR" = "$NEW_MAJOR" ]; then
+            echo "is_safe_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_safe_update=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "is_safe_update=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Auto-approve and merge
+      if: steps.check-update-type.outputs.is_safe_update == 'true'
+      run: |
+        # Approve the PR
+        gh pr review --approve "${{ github.event.pull_request.number }}"
+        
+        # Wait a moment for CI to complete
+        sleep 30
+        
+        # Merge the PR
+        gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Comment on major update
+      if: steps.check-update-type.outputs.is_safe_update == 'false'
+      run: |
+        gh pr comment "${{ github.event.pull_request.number }}" --body "🚨 This appears to be a major version update. Please review manually before merging."
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

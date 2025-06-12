@@ -1,0 +1,193 @@
+name: Security
+
+on:
+    schedule:
+        -   cron: '0 6 * * 1' # Weekly on Monday at 6 AM UTC
+    push:
+        branches: [ v2 ]
+    pull_request:
+        branches: [ v2 ]
+
+permissions:
+    contents: read
+    security-events: write
+
+env:
+    GO_VERSION: '1.23'
+
+jobs:
+    govulncheck:
+        name: Go Vulnerability Check
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Set up Go
+                uses: actions/setup-go@v5
+                with:
+                    go-version: ${{ env.GO_VERSION }}
+                    cache: true
+
+            -   name: Install govulncheck
+                run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+            -   name: Run govulncheck
+                run: govulncheck ./...
+
+    nancy:
+        name: Nancy Security Scan
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Set up Go
+                uses: actions/setup-go@v5
+                with:
+                    go-version: ${{ env.GO_VERSION }}
+                    cache: true
+
+            -   name: Install Nancy
+                run: go install github.com/sonatypecommunity/nancy@latest
+
+            -   name: Run Nancy
+                run: |
+                    go list -json -deps ./... | nancy sleuth
+
+    gosec:
+        name: Gosec Security Scanner
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Set up Go
+                uses: actions/setup-go@v5
+                with:
+                    go-version: ${{ env.GO_VERSION }}
+                    cache: true
+
+            -   name: Run Gosec Security Scanner
+                uses: securecodewarrior/github-action-gosec@master
+                with:
+                    args: '-fmt sarif -out gosec.sarif ./...'
+
+            -   name: Upload SARIF file
+                if: always()
+                uses: github/codeql-action/upload-sarif@v3
+                with:
+                    sarif_file: gosec.sarif
+
+    codeql:
+        name: CodeQL Analysis
+        runs-on: ubuntu-latest
+        if: github.event_name != 'schedule' # Skip CodeQL on scheduled runs
+
+        permissions:
+            security-events: write
+            packages: read
+            actions: read
+            contents: read
+
+        strategy:
+            fail-fast: false
+            matrix:
+                language: [ 'go' ]
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Initialize CodeQL
+                uses: github/codeql-action/init@v3
+                with:
+                    languages: ${{ matrix.language }}
+                    queries: +security-and-quality
+
+            -   name: Set up Go
+                uses: actions/setup-go@v5
+                with:
+                    go-version: ${{ env.GO_VERSION }}
+                    cache: true
+
+            -   name: Autobuild
+                uses: github/codeql-action/autobuild@v3
+
+            -   name: Perform CodeQL Analysis
+                uses: github/codeql-action/analyze@v3
+                with:
+                    category: "/language:${{matrix.language}}"
+
+    semgrep:
+        name: Semgrep Scan
+        runs-on: ubuntu-latest
+        if: github.actor != 'dependabot[bot]'
+
+        container:
+            image: semgrep/semgrep
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Run Semgrep
+                run: |
+                    semgrep --config=auto --sarif --output=semgrep.sarif ./
+                continue-on-error: true
+
+            -   name: Upload SARIF file
+                if: always()
+                uses: github/codeql-action/upload-sarif@v3
+                with:
+                    sarif_file: semgrep.sarif
+
+    dependency-review:
+        name: Dependency Review
+        runs-on: ubuntu-latest
+        if: github.event_name == 'pull_request'
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Dependency Review
+                uses: actions/dependency-review-action@v4
+                with:
+                    fail-on-severity: high
+                    deny-licenses: GPL-2.0, GPL-3.0
+                    comment-summary-in-pr: always
+
+    license-check:
+        name: License Check
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Set up Go
+                uses: actions/setup-go@v5
+                with:
+                    go-version: ${{ env.GO_VERSION }}
+                    cache: true
+
+            -   name: Install go-licenses
+                run: go install github.com/google/go-licenses@latest
+
+            -   name: Check licenses
+                run: |
+                    go-licenses check ./...
+
+            -   name: Generate license report
+                run: |
+                    go-licenses report ./... > licenses.txt
+
+            -   name: Upload license report
+                uses: actions/upload-artifact@v4
+                with:
+                    name: license-report
+                    path: licenses.txt
