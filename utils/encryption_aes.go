@@ -14,7 +14,7 @@ type DataEncryptionUtils struct {
 	key []byte
 }
 
-func UseEncryption(key string) *DataEncryptionUtils {
+func UseAesEncryption(key string) *DataEncryptionUtils {
 	if key == "" {
 		// default key, has to be 32 characters
 		// key = "OEASE$GOE@2024"

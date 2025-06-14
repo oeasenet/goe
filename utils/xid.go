@@ -2,6 +2,6 @@ package utils
 
 import "github.com/rs/xid"
 
-func GenXid() string {
+func GenerateXid() string {
 	return xid.New().String()
 }

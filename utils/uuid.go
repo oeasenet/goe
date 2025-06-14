@@ -1,0 +1,16 @@
+package utils
+
+import (
+	"github.com/google/uuid"
+	"strings"
+)
+
+// GenerateUUIDv7 generates a UUID version 7 string without dashes and returns it. Returns an empty string on error.
+func GenerateUUIDv7() string {
+	uuidWithDashes, err := uuid.NewV7()
+	if err != nil {
+		return ""
+	}
+	uuidWithoutDashes := strings.Replace(uuidWithDashes.String(), "-", "", -1)
+	return uuidWithoutDashes
+}
