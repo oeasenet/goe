@@ -44,6 +44,7 @@ jobs:
                     file: ./coverage.txt
                     token: ${{ secrets.CODECOV_TOKEN }}
                     fail_ci_if_error: false
+                    handle_no_reports_found: true
 
     # Let's not do this for now.
     #    lint:
