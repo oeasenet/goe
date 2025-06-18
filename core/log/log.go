@@ -160,36 +160,86 @@ func customCallerEncoder(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayE
 	enc.AppendString("\x1b[90m" + short + "\x1b[0m") // Gray color
 }
 
-// Debug logs a debug message
-func (l *zapLogger) Debug(msg string, fields ...contract.Field) {
-	l.logger.Debug(msg, convertFields(fields)...)
+// Debug logs a debug message with any arguments
+func (l *zapLogger) Debug(msg string, args ...any) {
+	l.sugar.Debugw(msg, args...)
 }
 
-// Info logs an info message
-func (l *zapLogger) Info(msg string, fields ...contract.Field) {
-	l.logger.Info(msg, convertFields(fields)...)
+// Info logs an info message with any arguments
+func (l *zapLogger) Info(msg string, args ...any) {
+	l.sugar.Infow(msg, args...)
 }
 
-// Warn logs a warning message
-func (l *zapLogger) Warn(msg string, fields ...contract.Field) {
-	l.logger.Warn(msg, convertFields(fields)...)
+// Warn logs a warning message with any arguments
+func (l *zapLogger) Warn(msg string, args ...any) {
+	l.sugar.Warnw(msg, args...)
 }
 
-// Error logs an error message
-func (l *zapLogger) Error(msg string, fields ...contract.Field) {
-	l.logger.Error(msg, convertFields(fields)...)
+// Error logs an error message with any arguments
+func (l *zapLogger) Error(msg string, args ...any) {
+	l.sugar.Errorw(msg, args...)
 }
 
-// Fatal logs a fatal message and exits the application
-func (l *zapLogger) Fatal(msg string, fields ...contract.Field) {
-	l.logger.Fatal(msg, convertFields(fields)...)
+// Fatal logs a fatal message and exits the application with any arguments
+func (l *zapLogger) Fatal(msg string, args ...any) {
+	l.sugar.Fatalw(msg, args...)
 }
 
-// With creates a new logger with additional fields
-func (l *zapLogger) With(fields ...contract.Field) contract.Logger {
+// Debugf logs a debug message with printf-style formatting
+func (l *zapLogger) Debugf(template string, args ...any) {
+	l.sugar.Debugf(template, args...)
+}
+
+// Infof logs an info message with printf-style formatting
+func (l *zapLogger) Infof(template string, args ...any) {
+	l.sugar.Infof(template, args...)
+}
+
+// Warnf logs a warning message with printf-style formatting
+func (l *zapLogger) Warnf(template string, args ...any) {
+	l.sugar.Warnf(template, args...)
+}
+
+// Errorf logs an error message with printf-style formatting
+func (l *zapLogger) Errorf(template string, args ...any) {
+	l.sugar.Errorf(template, args...)
+}
+
+// Fatalf logs a fatal message and exits the application with printf-style formatting
+func (l *zapLogger) Fatalf(template string, args ...any) {
+	l.sugar.Fatalf(template, args...)
+}
+
+// Debugw logs a debug message with key-value pairs
+func (l *zapLogger) Debugw(msg string, keysAndValues ...any) {
+	l.sugar.Debugw(msg, keysAndValues...)
+}
+
+// Infow logs an info message with key-value pairs
+func (l *zapLogger) Infow(msg string, keysAndValues ...any) {
+	l.sugar.Infow(msg, keysAndValues...)
+}
+
+// Warnw logs a warning message with key-value pairs
+func (l *zapLogger) Warnw(msg string, keysAndValues ...any) {
+	l.sugar.Warnw(msg, keysAndValues...)
+}
+
+// Errorw logs an error message with key-value pairs
+func (l *zapLogger) Errorw(msg string, keysAndValues ...any) {
+	l.sugar.Errorw(msg, keysAndValues...)
+}
+
+// Fatalw logs a fatal message and exits the application with key-value pairs
+func (l *zapLogger) Fatalw(msg string, keysAndValues ...any) {
+	l.sugar.Fatalw(msg, keysAndValues...)
+}
+
+// With creates a new logger with additional key-value pairs
+func (l *zapLogger) With(keysAndValues ...any) contract.Logger {
 	return &zapLogger{
-		logger: l.logger.With(convertFields(fields)...),
-		sugar:  l.sugar.With(convertFieldsToArgs(fields)...),
+		logger: l.logger.With(convertArgsToFields(keysAndValues)...),
+		sugar:  l.sugar.With(keysAndValues...),
 	}
 }
 
@@ -242,6 +292,25 @@ func fieldsToArgs(fields []zap.Field) []interface{} {
 		args = append(args, f.Key, f.Interface)
 	}
 	return args
+}
+
+// convertArgsToFields converts key-value pairs to zap.Field slice
+func convertArgsToFields(keysAndValues []any) []zap.Field {
+	if len(keysAndValues)%2 != 0 {
+		// If odd number of arguments, add a placeholder for the last value
+		keysAndValues = append(keysAndValues, "MISSING_VALUE")
+	}
+
+	fields := make([]zap.Field, 0, len(keysAndValues)/2)
+	for i := 0; i < len(keysAndValues); i += 2 {
+		key, ok := keysAndValues[i].(string)
+		if !ok {
+			key = fmt.Sprintf("key_%d", i/2)
+		}
+		value := keysAndValues[i+1]
+		fields = append(fields, zap.Any(key, value))
+	}
+	return fields
 }
 
 // Module represents the log module for Fx

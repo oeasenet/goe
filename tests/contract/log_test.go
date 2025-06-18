@@ -16,28 +16,68 @@ type MockLogger struct {
 	mock.Mock
 }
 
-func (m *MockLogger) Debug(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Debug(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Info(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Info(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Warn(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Warn(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Error(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Error(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Fatal(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Fatal(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) With(fields ...contract.Field) contract.Logger {
-	args := m.Called(fields)
+func (m *MockLogger) Debugf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Infof(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Warnf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Errorf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Fatalf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Debugw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Infow(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Warnw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Errorw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Fatalw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) With(keysAndValues ...any) contract.Logger {
+	args := m.Called(keysAndValues)
 	return args.Get(0).(contract.Logger)
 }
 
@@ -108,11 +148,6 @@ func TestLoggerInterface(t *testing.T) {
 	// Create a mock logger
 	logger := new(MockLogger)
 
-	// Create a mock field
-	field := new(MockField)
-	field.On("Key").Return("test_key")
-	field.On("Value").Return("test_value")
-
 	// Set up expectations
 	logger.On("Debug", "debug message", mock.Anything).Return()
 	logger.On("Info", "info message", mock.Anything).Return()
@@ -124,25 +159,20 @@ func TestLoggerInterface(t *testing.T) {
 	logger.On("WithError", mock.Anything).Return(logger)
 	logger.On("GetLogger").Return(&zap.SugaredLogger{})
 
-	// Test the methods
-	logger.Debug("debug message", field)
-	logger.Info("info message", field)
-	logger.Warn("warn message", field)
-	logger.Error("error message", field)
-	logger.Fatal("fatal message", field)
+	// Test the methods with key-value pairs
+	logger.Debug("debug message", "key", "value")
+	logger.Info("info message", "key", "value")
+	logger.Warn("warn message", "key", "value")
+	logger.Error("error message", "key", "value")
+	logger.Fatal("fatal message", "key", "value")
 
-	assert.Equal(t, logger, logger.With(field))
+	assert.Equal(t, logger, logger.With("key", "value"))
 	assert.Equal(t, logger, logger.WithContext(context.Background()))
 	assert.Equal(t, logger, logger.WithError(errors.New("test error")))
 	assert.NotNil(t, logger.GetLogger())
 
-	// Call the Key() and Value() methods explicitly to satisfy the expectations
-	assert.Equal(t, "test_key", field.Key())
-	assert.Equal(t, "test_value", field.Value())
-
 	// Verify expectations
 	logger.AssertExpectations(t)
-	field.AssertExpectations(t)
 }
 
 func TestFieldInterface(t *testing.T) {

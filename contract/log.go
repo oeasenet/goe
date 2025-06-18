@@ -7,23 +7,53 @@ import (
 
 // Logger defines the logging interface
 type Logger interface {
-	// Debug logs a debug message
-	Debug(msg string, fields ...Field)
+	// Debug logs a debug message with any arguments
+	Debug(msg string, args ...any)
 
-	// Info logs an info message
-	Info(msg string, fields ...Field)
+	// Info logs an info message with any arguments
+	Info(msg string, args ...any)
 
-	// Warn logs a warning message
-	Warn(msg string, fields ...Field)
+	// Warn logs a warning message with any arguments
+	Warn(msg string, args ...any)
 
-	// Error logs an error message
-	Error(msg string, fields ...Field)
+	// Error logs an error message with any arguments
+	Error(msg string, args ...any)
 
-	// Fatal logs a fatal message and exits the application
-	Fatal(msg string, fields ...Field)
+	// Fatal logs a fatal message and exits the application with any arguments
+	Fatal(msg string, args ...any)
 
-	// With creates a new logger with additional fields
-	With(fields ...Field) Logger
+	// Debugf logs a debug message with printf-style formatting
+	Debugf(template string, args ...any)
+
+	// Infof logs an info message with printf-style formatting
+	Infof(template string, args ...any)
+
+	// Warnf logs a warning message with printf-style formatting
+	Warnf(template string, args ...any)
+
+	// Errorf logs an error message with printf-style formatting
+	Errorf(template string, args ...any)
+
+	// Fatalf logs a fatal message and exits the application with printf-style formatting
+	Fatalf(template string, args ...any)
+
+	// Debugw logs a debug message with key-value pairs
+	Debugw(msg string, keysAndValues ...any)
+
+	// Infow logs an info message with key-value pairs
+	Infow(msg string, keysAndValues ...any)
+
+	// Warnw logs a warning message with key-value pairs
+	Warnw(msg string, keysAndValues ...any)
+
+	// Errorw logs an error message with key-value pairs
+	Errorw(msg string, keysAndValues ...any)
+
+	// Fatalw logs a fatal message and exits the application with key-value pairs
+	Fatalw(msg string, keysAndValues ...any)
+
+	// With creates a new logger with additional key-value pairs
+	With(keysAndValues ...any) Logger
 
 	// WithContext creates a new logger with context
 	WithContext(ctx context.Context) Logger
