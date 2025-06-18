@@ -98,7 +98,7 @@ func main() {
 		// so use standard log.Fatalf or similar.
 		// However, if only goe.Run() fails, the goe.Log() might be available.
 		if goe.App().Container() != nil && goe.App().Container().Err() != nil {
-			goe.Log().Fatal("Failed to initialize Goe application", contract.NewField("error", goe.App().Container().Err()))
+			goe.Log().Fatal("Failed to initialize Goe application", "error", goe.App().Container().Err())
 		} else {
 			// A more primitive logging for very early failures
 			println("Critical error: Failed to create Goe application instance.")
@@ -123,7 +123,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 
 	// Define a simple route
 	fiberApp.Get("/", func(c fiber.Ctx) error {
-		logger.Info("Received request for /", contract.NewField("remote_ip", c.IP()))
+		logger.Info("Received request for /", "remote_ip", c.IP())
 		return c.SendString("Hello, World from Goe! 👋")
 	})
 

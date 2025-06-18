@@ -119,9 +119,10 @@ func New(opts ...Options) contract.Application {
 		),
 	}
 
-	instance.logger.Info("WithHTTP flag", log.NewField("enabled", opt.WithHTTP))
-	instance.logger.Info("WithCache flag", log.NewField("enabled", opt.WithCache))
-	instance.logger.Info("WithDB flag", log.NewField("enabled", opt.WithDB))
+	instance.logger.Info("WithHTTP flag", "enabled", opt.WithHTTP)
+	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
+	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
+	instance.logger.Info("WithSearch flag", "enabled", opt.WithSearch)
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
@@ -222,7 +223,7 @@ func New(opts ...Options) contract.Application {
 
 	// Register all options with the application
 	if err := instance.app.Register(fxOptions...); err != nil {
-		instance.logger.Fatal("Failed to create application", log.NewField("error", err))
+		instance.logger.Fatal("Failed to create application", "error", err)
 	}
 
 	return instance.app

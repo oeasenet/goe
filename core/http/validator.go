@@ -70,14 +70,14 @@ func (vp *ValidatorProvider) Provide() *CustomValidator {
 func (vp *ValidatorProvider) RegisterCustomValidation(tag string, fn validator.Func) error {
 	if err := vp.validator.RegisterValidation(tag, fn); err != nil {
 		vp.logger.Error("Failed to register custom validation",
-			NewField("tag", tag),
-			NewField("error", err.Error()),
+			"tag", tag,
+			"error", err.Error(),
 		)
 		return err
 	}
 
 	vp.logger.Debug("Registered custom validation",
-		NewField("tag", tag),
+		"tag", tag,
 	)
 	return nil
 }

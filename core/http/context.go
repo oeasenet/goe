@@ -55,7 +55,7 @@ func GetLogger(c fiber.Ctx) contract.Logger {
 
 	// Add request ID to logger if available
 	if requestID, ok := c.Locals(string(RequestIDKey)).(string); ok && requestID != "" {
-		logger = logger.With(NewField("request_id", requestID))
+		logger = logger.With("request_id", requestID)
 	}
 
 	return logger
