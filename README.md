@@ -97,6 +97,4 @@ We adhere to a [Code of Conduct](../CODE_OF_CONDUCT.md) to ensure a welcoming co
 
 ## 📝 License
 
-Goe is released under the [Apache 2.0 License](LICENSE).
-
-```
+Goe is released under the [MIT License](LICENSE).
