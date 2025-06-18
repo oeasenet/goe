@@ -122,7 +122,6 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithHTTP flag", "enabled", opt.WithHTTP)
 	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
-	instance.logger.Info("WithSearch flag", "enabled", opt.WithSearch)
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
