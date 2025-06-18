@@ -61,19 +61,3 @@ func (m *Module) Provide() contract.CacheManager {
 func (m *Module) ProvideCache() contract.Cache {
 	return m.manager.Store()
 }
-
-// field implements the Field interface
-type field struct {
-	key   string
-	value any
-}
-
-// Key returns the field key
-func (f *field) Key() string {
-	return f.key
-}
-
-// Value returns the field value
-func (f *field) Value() any {
-	return f.value
-}
