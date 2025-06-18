@@ -31,12 +31,11 @@ func TestSugaredLoggingDemo(t *testing.T) {
 		t.Log("Key-value logging methods work correctly")
 	})
 
-	// Test that the logger still supports structured logging
-	t.Run("Structured logging compatibility", func(t *testing.T) {
-		field := log.NewField("test_key", "test_value")
-		logger.Info("Structured log message", field)
+	// Test that the logger supports the new key-value approach
+	t.Run("New key-value logging", func(t *testing.T) {
+		logger.Info("Key-value log message", "test_key", "test_value")
 
 		// Test passes if no panic occurs
-		t.Log("Structured logging still works correctly")
+		t.Log("New key-value logging works correctly")
 	})
 }

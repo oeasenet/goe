@@ -133,11 +133,11 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 
 		// Log request
 		logger.Info("HTTP Request",
-			contract.Field(NewField("method", c.Method())),
-			contract.Field(NewField("path", c.Path())),
-			contract.Field(NewField("status", c.Response().StatusCode())),
-			contract.Field(NewField("duration", time.Since(start).String())),
-			contract.Field(NewField("request_id", requestID)),
+			"method", c.Method(),
+			"path", c.Path(),
+			"status", c.Response().StatusCode(),
+			"duration", time.Since(start).String(),
+			"request_id", requestID,
 		)
 
 		return err
@@ -178,7 +178,7 @@ func (k *kernel) Listen(addr string) error {
 	}
 
 	k.logger.Info("HTTP server starting",
-		contract.Field(NewField("address", addr)),
+		"address", addr,
 	)
 
 	return k.app.Listen(addr)
@@ -208,10 +208,10 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 		// Log error for 5xx errors
 		if respCode >= 500 {
 			logger.Error("HTTP Error",
-				contract.Field(NewField("error", err.Error())),
-				contract.Field(NewField("path", ctx.Path())),
-				contract.Field(NewField("method", ctx.Method())),
-				contract.Field(NewField("status", respCode)),
+				"error", err.Error(),
+				"path", ctx.Path(),
+				"method", ctx.Method(),
+				"status", respCode,
 			)
 		}
 
@@ -291,7 +291,7 @@ func (m *Module) OnStart(ctx context.Context) error {
 	go func() {
 		if err := m.kernel.Listen(addr); err != nil {
 			m.kernel.(*kernel).logger.Error("HTTP server error",
-				contract.Field(NewField("error", err.Error())),
+				"error", err.Error(),
 			)
 		}
 	}()

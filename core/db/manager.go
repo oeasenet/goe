@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"go.oease.dev/goe/v2/types"
 	"strings"
 	"time"
 
@@ -85,9 +84,9 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 	db, err := gorm.Open(dialector, gormConfig)
 	if err != nil {
 		dbm.logger.Error("Failed to connect to database",
-			types.NewField("connection", name),
-			types.NewField("driver", driver),
-			types.NewField("error", err.Error()), // Log only error message, not the full error struct
+			"connection", name,
+			"driver", driver,
+			"error", err.Error(), // Log only error message, not the full error struct
 		)
 		return nil, fmt.Errorf("failed to connect to %s database '%s': %w", driver, name, err)
 	}
@@ -95,7 +94,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 	// Configure connection pool (can be made configurable)
 	sqlDB, err := db.DB()
 	if err != nil {
-		dbm.logger.Error("Failed to get underlying sql.DB for connection pool setup", types.NewField("connection", name), types.NewField("error", err))
+		dbm.logger.Error("Failed to get underlying sql.DB for connection pool setup", "connection", name, "error", err)
 		// Not returning error here, as the connection itself was successful. Log and proceed.
 	} else {
 		maxIdleConns := dbm.config.GetInt(configPrefix + "MAX_IDLE_CONNS")
@@ -127,7 +126,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 		}
 	}
 
-	dbm.logger.Info("Database connection established successfully", types.NewField("connection", name), types.NewField("driver", driver))
+	dbm.logger.Info("Database connection established successfully", "connection", name, "driver", driver)
 	return db, nil
 }
 
@@ -136,7 +135,7 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 	// Allow providing a full DSN directly
 	directDSN := dbm.config.GetString(configPrefix + "DSN")
 	if directDSN != "" {
-		dbm.logger.Info("Using direct DSN for connection", types.NewField("connection", name))
+		dbm.logger.Info("Using direct DSN for connection", "connection", name)
 		return directDSN, nil
 	}
 
@@ -154,7 +153,7 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 		if dbname == "" {
 			// Default to an in-memory database if no path is provided, common for testing
 			// Or you could make this an error: return "", fmt.Errorf("database path (DB_DATABASE or DB_%s_DATABASE) not configured for SQLite connection '%s'", strings.ToUpper(name), name)
-			dbm.logger.Info("SQLite database path not specified, using in-memory database.", types.NewField("connection", name))
+			dbm.logger.Info("SQLite database path not specified, using in-memory database.", "connection", name)
 			return ":memory:", nil
 		}
 		// TODO: Add support for query params for SQLite if needed, e.g., "file:path?cache=shared&mode=memory"
@@ -252,60 +251,66 @@ func (l *GoeGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface 
 
 // Info prints info messages
 func (l *GoeGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Info(msg, convertGormLogData(data)...)
+	l.goeLogger.Info(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Warn prints warning messages
 func (l *GoeGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Warn(msg, convertGormLogData(data)...)
+	l.goeLogger.Warn(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Error prints error messages
 func (l *GoeGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Error(msg, convertGormLogData(data)...)
+	l.goeLogger.Error(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Trace prints SQL query execution information
 func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	elapsed := time.Since(begin)
 	sql, rows := fc()
-	fields := []contract.Field{
-		types.NewField("module", "gorm"),
-		types.NewField("elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6)),
-		types.NewField("sql", sql),
-		types.NewField("rows", rows),
-	}
 
 	if err != nil && err != gorm.ErrRecordNotFound { // Don't log RecordNotFound as an error from Trace, GORM handles it.
-		l.goeLogger.Error("GORM Trace Error", append(fields, types.NewField("error", err.Error()))...)
+		l.goeLogger.Error("GORM Trace Error",
+			"module", "gorm",
+			"elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6),
+			"sql", sql,
+			"rows", rows,
+			"error", err.Error(),
+		)
 		return
 	}
 
 	// Configurable slow query threshold
 	// slowThreshold := 200 * time.Millisecond // This should come from GORM config or dbm.config
 	// if l.config.SlowThreshold != 0 && elapsed > l.config.SlowThreshold {
-	// l.goeLogger.Warn(fmt.Sprintf("GORM Slow Query (%.3fms)", float64(elapsed.Nanoseconds())/1e6), fields...)
+	// l.goeLogger.Warn(fmt.Sprintf("GORM Slow Query (%.3fms)", float64(elapsed.Nanoseconds())/1e6), "module", "gorm", "elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6), "sql", sql, "rows", rows)
 	// return
 	// }
 
-	l.goeLogger.Debug("GORM Trace", fields...)
+	l.goeLogger.Debug("GORM Trace",
+		"module", "gorm",
+		"elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6),
+		"sql", sql,
+		"rows", rows,
+	)
 }
 
-// convertGormLogData converts GORM's variadic data to contract.Field
-func convertGormLogData(data []interface{}) []contract.Field {
-	fields := make([]contract.Field, 0, len(data)/2)
+// convertGormLogDataToArgs converts GORM's variadic data to key-value pairs
+func convertGormLogDataToArgs(data []interface{}) []any {
+	args := make([]any, 0, len(data))
 	for i := 0; i < len(data); i += 2 {
 		key, ok := data[i].(string)
 		if !ok {
 			continue // Should not happen with GORM's internal logging format
 		}
+		args = append(args, key)
 		if i+1 < len(data) {
-			fields = append(fields, types.NewField(key, data[i+1]))
+			args = append(args, data[i+1])
 		} else {
-			fields = append(fields, types.NewField(key, nil))
+			args = append(args, nil)
 		}
 	}
-	return fields
+	return args
 }
 
 // Update DatabaseModule's OnStart to use the connect method

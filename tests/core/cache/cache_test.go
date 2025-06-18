@@ -119,28 +119,68 @@ type MockLogger struct {
 	mock.Mock
 }
 
-func (m *MockLogger) Debug(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Debug(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Info(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Info(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Warn(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Warn(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Error(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Error(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) Fatal(msg string, fields ...contract.Field) {
-	m.Called(msg, fields)
+func (m *MockLogger) Fatal(msg string, args ...any) {
+	m.Called(msg, args)
 }
 
-func (m *MockLogger) With(fields ...contract.Field) contract.Logger {
-	args := m.Called(fields)
+func (m *MockLogger) Debugf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Infof(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Warnf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Errorf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Fatalf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Debugw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Infow(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Warnw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Errorw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) Fatalw(msg string, keysAndValues ...any) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLogger) With(keysAndValues ...any) contract.Logger {
+	args := m.Called(keysAndValues)
 	return args.Get(0).(contract.Logger)
 }
 

@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"go.oease.dev/goe/v2/types"
 	"strings" // Added for strings.ToUpper
 	"sync"
 
@@ -42,8 +41,8 @@ func (dbm *DatabaseModule) Instance() *gorm.DB {
 	conn, err := dbm.Connection(defaultConnectionName)
 	if err != nil {
 		dbm.logger.Error("Failed to get default database instance",
-			types.NewField("connection_name", defaultConnectionName),
-			types.NewField("error", err),
+			"connection_name", defaultConnectionName,
+			"error", err,
 		)
 		return nil
 	}
@@ -85,18 +84,18 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	}
 
 	// Connect to default database
-	dbm.logger.Info("Attempting to connect to default database", types.NewField("connection_config_name", defaultConnectionName))
+	dbm.logger.Info("Attempting to connect to default database", "connection_config_name", defaultConnectionName)
 	db, err := dbm.connect(defaultConnectionName)
 	if err != nil {
 		dbm.logger.Error("Failed to connect to default database",
-			types.NewField("connection_config_name", defaultConnectionName),
-			types.NewField("error", err.Error()),
+			"connection_config_name", defaultConnectionName,
+			"error", err.Error(),
 		)
 		// Allow app to start, Instance() will return nil.
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
-		dbm.logger.Info("Successfully connected to default database", types.NewField("connection_config_name", defaultConnectionName))
+		dbm.logger.Info("Successfully connected to default database", "connection_config_name", defaultConnectionName)
 	}
 
 	// Connect to additional databases if configured
@@ -117,24 +116,24 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 				continue
 			}
 
-			dbm.logger.Info("Attempting to connect to additional database", types.NewField("connection_name", connName))
+			dbm.logger.Info("Attempting to connect to additional database", "connection_name", connName)
 			conn, err := dbm.connect(connName)
 			if err != nil {
 				dbm.logger.Error("Failed to connect to additional database",
-					types.NewField("connection_name", connName),
-					types.NewField("error", err.Error()),
+					"connection_name", connName,
+					"error", err.Error(),
 				)
 				// Continue with other connections
 			} else {
 				dbm.connections[connName] = conn
-				dbm.logger.Info("Successfully connected to additional database", types.NewField("connection_name", connName))
+				dbm.logger.Info("Successfully connected to additional database", "connection_name", connName)
 
 				// Check for auto-migration for this connection
 				autoMigrateKey := fmt.Sprintf("DB_%s_AUTO_MIGRATE", strings.ToUpper(connName))
 				if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateKey) {
 					dbm.logger.Info("Auto-migration is enabled for connection. Models should be registered and migrated by the application.",
-						types.NewField("connection_name", connName),
-						types.NewField("checked_config_key", autoMigrateKey),
+						"connection_name", connName,
+						"checked_config_key", autoMigrateKey,
 					)
 				}
 			}
@@ -150,13 +149,13 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateConfigKey) {
 		if db != nil {
 			dbm.logger.Info("Auto-migration is enabled for default connection. Models should be registered and migrated by the application.",
-				types.NewField("connection_config_name", defaultConnectionName),
-				types.NewField("checked_config_key", autoMigrateConfigKey),
+				"connection_config_name", defaultConnectionName,
+				"checked_config_key", autoMigrateConfigKey,
 			)
 		} else {
 			dbm.logger.Warn("Auto-migration enabled for default connection, but connection failed.",
-				types.NewField("connection_config_name", defaultConnectionName),
-				types.NewField("checked_config_key", autoMigrateConfigKey),
+				"connection_config_name", defaultConnectionName,
+				"checked_config_key", autoMigrateConfigKey,
 			)
 		}
 	}
@@ -172,15 +171,15 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 
 	var lastErr error
 	for name, conn := range dbm.connections {
-		dbm.logger.Info("Closing database connection", types.NewField("connection", name))
+		dbm.logger.Info("Closing database connection", "connection", name)
 		sqlDB, err := conn.DB()
 		if err != nil {
-			dbm.logger.Error("Failed to get SQL DB from GORM instance for closing", types.NewField("connection", name), types.NewField("error", err))
+			dbm.logger.Error("Failed to get SQL DB from GORM instance for closing", "connection", name, "error", err)
 			lastErr = err
 			continue
 		}
 		if err := sqlDB.Close(); err != nil {
-			dbm.logger.Error("Failed to close database connection", types.NewField("connection", name), types.NewField("error", err))
+			dbm.logger.Error("Failed to close database connection", "connection", name, "error", err)
 			lastErr = err
 		}
 		delete(dbm.connections, name)

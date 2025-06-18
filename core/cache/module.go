@@ -36,8 +36,8 @@ func (m *Module) Name() string {
 // OnStart is called when the module starts
 func (m *Module) OnStart(ctx context.Context) error {
 	m.logger.Info("Cache module started",
-		&field{key: "driver", value: m.manager.Driver()},
-		&field{key: "store", value: m.config.GetString("CACHE_STORE")},
+		"driver", m.manager.Driver(),
+		"store", m.config.GetString("CACHE_STORE"),
 	)
 	return nil
 }

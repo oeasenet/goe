@@ -1,7 +1,5 @@
 package types
 
-import "go.oease.dev/goe/v2/contract"
-
 // Version represents the current version of the Goe framework
 const Version = "1.0.0"
 
@@ -43,22 +41,4 @@ func (e Environment) IsProduction() bool {
 // IsTesting returns true if the environment is testing
 func (e Environment) IsTesting() bool {
 	return e == EnvTest
-}
-
-type field struct {
-	key   string
-	value any
-}
-
-func (f *field) Key() string {
-	return f.key
-}
-
-func (f *field) Value() any {
-	return f.value
-}
-
-// NewField creates a new field for structured logging
-func NewField(key string, value any) contract.Field {
-	return &field{key: key, value: value}
 }
