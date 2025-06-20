@@ -29,3 +29,10 @@ type DB interface {
 	// These models will be migrated automatically during startup if auto-migration is enabled for that connection
 	RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{})
 }
+
+type DBModel struct {
+	ID        string         `gorm:"primaryKey"`
+	CreatedAt int64          `gorm:"autoCreateTime:milli"`
+	UpdatedAt int64          `gorm:"autoUpdateTime:milli"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
