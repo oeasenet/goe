@@ -238,6 +238,7 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 }
 
 // AutoMigrate performs auto migration for the given GORM models on the default connection
+// Use RegisterModelsForMigration() for fully automated migration unless you want to do everything manually after the app successfully started.
 func (dbm *DatabaseModule) AutoMigrate(dst ...interface{}) error {
 	defaultDB := dbm.Instance() // This already resolves the default connection name
 	if defaultDB == nil {
