@@ -34,6 +34,14 @@ func (m *MockDB) AutoMigrateOnConnection(connectionName string, dst ...interface
 	return args.Error(0)
 }
 
+func (m *MockDB) RegisterModelsForMigration(dst ...interface{}) {
+	m.Called(dst)
+}
+
+func (m *MockDB) RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{}) {
+	m.Called(connectionName, dst)
+}
+
 // TestModel is a simple model for testing auto migration
 type TestModel struct {
 	ID   uint   `gorm:"primaryKey"`
@@ -55,6 +63,8 @@ func TestDBInterface(t *testing.T) {
 	db.On("Connection", "test_connection").Return(mockGormDB, nil)
 	db.On("AutoMigrate", mock.Anything).Return(nil)
 	db.On("AutoMigrateOnConnection", "test_connection", mock.Anything).Return(nil)
+	db.On("RegisterModelsForMigration", mock.Anything).Return()
+	db.On("RegisterModelsForMigrationOnConnection", "test_connection", mock.Anything).Return()
 
 	// Test the methods
 	assert.Equal(t, mockGormDB, db.Instance())
@@ -69,6 +79,10 @@ func TestDBInterface(t *testing.T) {
 
 	// Test auto migration on a specific connection
 	assert.Nil(t, db.AutoMigrateOnConnection("test_connection", model))
+
+	// Test model registration methods
+	db.RegisterModelsForMigration(model)
+	db.RegisterModelsForMigrationOnConnection("test_connection", model)
 
 	// Verify expectations
 	db.AssertExpectations(t)

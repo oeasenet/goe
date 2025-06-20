@@ -18,14 +18,18 @@ type DatabaseModule struct {
 	// defaultConnectionName string // This can be derived from config when needed
 	connections map[string]*gorm.DB
 	// gormConfig *gorm.Config // To be added later for more GORM specific configs
+
+	// Migration registration storage
+	registeredModels map[string][]interface{} // connectionName -> models slice
 }
 
 // NewDBModule creates a new DatabaseModule instance
 func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule {
 	return &DatabaseModule{
-		config:      config,
-		logger:      logger,
-		connections: make(map[string]*gorm.DB),
+		config:           config,
+		logger:           logger,
+		connections:      make(map[string]*gorm.DB),
+		registeredModels: make(map[string][]interface{}),
 	}
 }
 
@@ -131,10 +135,33 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 				// Check for auto-migration for this connection
 				autoMigrateKey := fmt.Sprintf("DB_%s_AUTO_MIGRATE", strings.ToUpper(connName))
 				if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateKey) {
-					dbm.logger.Info("Auto-migration is enabled for connection. Models should be registered and migrated by the application.",
+					dbm.logger.Info("Auto-migration is enabled for connection",
 						"connection_name", connName,
 						"checked_config_key", autoMigrateKey,
 					)
+
+					// Perform auto-migration for registered models
+					if models, exists := dbm.registeredModels[connName]; exists && len(models) > 0 {
+						dbm.logger.Info("Performing auto-migration for registered models",
+							"connection_name", connName,
+							"model_count", len(models),
+						)
+						if err := conn.AutoMigrate(models...); err != nil {
+							dbm.logger.Error("Failed to auto-migrate registered models",
+								"connection_name", connName,
+								"error", err,
+							)
+						} else {
+							dbm.logger.Info("Successfully auto-migrated registered models",
+								"connection_name", connName,
+								"model_count", len(models),
+							)
+						}
+					} else {
+						dbm.logger.Info("No models registered for auto-migration on this connection",
+							"connection_name", connName,
+						)
+					}
 				}
 			}
 		}
@@ -148,10 +175,33 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 	if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateConfigKey) {
 		if db != nil {
-			dbm.logger.Info("Auto-migration is enabled for default connection. Models should be registered and migrated by the application.",
+			dbm.logger.Info("Auto-migration is enabled for default connection",
 				"connection_config_name", defaultConnectionName,
 				"checked_config_key", autoMigrateConfigKey,
 			)
+
+			// Perform auto-migration for registered models on default connection
+			if models, exists := dbm.registeredModels[defaultConnectionName]; exists && len(models) > 0 {
+				dbm.logger.Info("Performing auto-migration for registered models on default connection",
+					"connection_config_name", defaultConnectionName,
+					"model_count", len(models),
+				)
+				if err := db.AutoMigrate(models...); err != nil {
+					dbm.logger.Error("Failed to auto-migrate registered models on default connection",
+						"connection_config_name", defaultConnectionName,
+						"error", err,
+					)
+				} else {
+					dbm.logger.Info("Successfully auto-migrated registered models on default connection",
+						"connection_config_name", defaultConnectionName,
+						"model_count", len(models),
+					)
+				}
+			} else {
+				dbm.logger.Info("No models registered for auto-migration on default connection",
+					"connection_config_name", defaultConnectionName,
+				)
+			}
 		} else {
 			dbm.logger.Warn("Auto-migration enabled for default connection, but connection failed.",
 				"connection_config_name", defaultConnectionName,
@@ -207,6 +257,35 @@ func (dbm *DatabaseModule) AutoMigrateOnConnection(connectionName string, dst ..
 		return err
 	}
 	return conn.AutoMigrate(dst...)
+}
+
+// RegisterModelsForMigration pre-registers models for automatic migration on the default connection
+func (dbm *DatabaseModule) RegisterModelsForMigration(dst ...interface{}) {
+	dbm.mu.Lock()
+	defer dbm.mu.Unlock()
+
+	defaultConnectionName := dbm.config.GetString("DB_CONNECTION")
+	if defaultConnectionName == "" {
+		defaultConnectionName = "default"
+	}
+
+	dbm.registeredModels[defaultConnectionName] = append(dbm.registeredModels[defaultConnectionName], dst...)
+	dbm.logger.Info("Registered models for auto-migration on default connection",
+		"connection_name", defaultConnectionName,
+		"model_count", len(dst),
+	)
+}
+
+// RegisterModelsForMigrationOnConnection pre-registers models for automatic migration on a specific connection
+func (dbm *DatabaseModule) RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{}) {
+	dbm.mu.Lock()
+	defer dbm.mu.Unlock()
+
+	dbm.registeredModels[connectionName] = append(dbm.registeredModels[connectionName], dst...)
+	dbm.logger.Info("Registered models for auto-migration on specific connection",
+		"connection_name", connectionName,
+		"model_count", len(dst),
+	)
 }
 
 // Provide returns the DB instance for Fx

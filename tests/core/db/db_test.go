@@ -671,3 +671,170 @@ func TestDatabaseModule_QueryBuilding(t *testing.T) {
 	assert.Nil(t, result.Error)
 	assert.Equal(t, int64(2), count)
 }
+
+// TestDatabaseModule_RegisterModelsForMigration tests the new model registration functionality
+func TestDatabaseModule_RegisterModelsForMigration(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	// Enable auto-migration
+	config.On("GetBool", "DB_AUTO_MIGRATE_ANY").Return(false)
+	config.On("GetBool", "DB_AUTO_MIGRATE").Return(true)
+
+	dbModule := db.NewDBModule(config, logger)
+
+	// Register models BEFORE starting the module
+	dbModule.RegisterModelsForMigration(&TestModel{})
+
+	// Start the module - this should automatically migrate registered models
+	err := dbModule.OnStart(context.Background())
+	assert.Nil(t, err)
+
+	// Verify that the table was created automatically
+	instance := dbModule.Instance()
+	assert.NotNil(t, instance)
+
+	// Check if the table exists
+	var count int64
+	result := instance.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='test_models'").Count(&count)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(1), count)
+
+	// Test that we can use the migrated table
+	testModel := &TestModel{Name: "Auto Migrated", Age: 25}
+	result = instance.Create(testModel)
+	assert.Nil(t, result.Error)
+	assert.NotEqual(t, uint(0), testModel.ID)
+}
+
+// TestDatabaseModule_RegisterModelsForMigrationOnConnection tests registration for specific connections
+func TestDatabaseModule_RegisterModelsForMigrationOnConnection(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	// Enable auto-migration for default connection
+	config.On("GetBool", "DB_AUTO_MIGRATE_ANY").Return(false)
+	config.On("GetBool", "DB_AUTO_MIGRATE").Return(true)
+
+	dbModule := db.NewDBModule(config, logger)
+
+	// Register models for specific connection BEFORE starting the module
+	dbModule.RegisterModelsForMigrationOnConnection("default", &TestModel{})
+
+	// Start the module - this should automatically migrate registered models
+	err := dbModule.OnStart(context.Background())
+	assert.Nil(t, err)
+
+	// Verify that the table was created automatically on the specified connection
+	conn, err := dbModule.Connection("default")
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+
+	// Check if the table exists
+	var count int64
+	result := conn.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='test_models'").Count(&count)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(1), count)
+}
+
+// TestDatabaseModule_RegisterModelsWithoutAutoMigration tests that registration works but doesn't migrate when auto-migration is disabled
+func TestDatabaseModule_RegisterModelsWithoutAutoMigration(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	// Override the default auto-migration setting to disable it
+	config.ExpectedCalls = nil // Clear existing expectations
+	config.On("GetString", "DB_CONNECTION").Return("default")
+	config.On("GetString", "DB_DRIVER").Return("sqlite")
+	config.On("GetString", "DB_DATABASE").Return(":memory:")
+	config.On("GetString", "DB_DSN").Return("")
+	config.On("GetString", "DB_HOST").Return("")
+	config.On("GetString", "DB_PORT").Return("")
+	config.On("GetString", "DB_USERNAME").Return("")
+	config.On("GetString", "DB_PASSWORD").Return("")
+	config.On("GetString", "DB_CHARSET").Return("")
+	config.On("GetString", "DB_TIMEZONE").Return("")
+	config.On("GetString", "DB_CONNECTIONS").Return("")
+	config.On("GetInt", "DB_MAX_IDLE_CONNS").Return(10)
+	config.On("GetInt", "DB_MAX_OPEN_CONNS").Return(100)
+	config.On("GetDuration", "DB_CONN_MAX_LIFETIME").Return(time.Duration(0))
+	config.On("GetDuration", "DB_CONN_MAX_IDLE_TIME").Return(time.Duration(0))
+	config.On("GetBool", "DB_LOG_MODE").Return(false)
+	config.On("GetBool", "DB_IGNORE_RECORD_NOT_FOUND_ERROR").Return(false)
+	config.On("GetBool", "DB_DISABLE_FOREIGN_KEY_CONSTRAINT_WHEN_MIGRATING").Return(false)
+	config.On("Has", mock.Anything).Return(false)
+
+	// Disable auto-migration
+	config.On("GetBool", "DB_AUTO_MIGRATE_ANY").Return(false)
+	config.On("GetBool", "DB_AUTO_MIGRATE").Return(false)
+
+	dbModule := db.NewDBModule(config, logger)
+
+	// Register models BEFORE starting the module
+	dbModule.RegisterModelsForMigration(&TestModel{})
+
+	// Start the module - this should NOT automatically migrate registered models
+	err := dbModule.OnStart(context.Background())
+	assert.Nil(t, err)
+
+	// Verify that the table was NOT created automatically
+	instance := dbModule.Instance()
+	assert.NotNil(t, instance)
+
+	// Check if the table exists - it should NOT exist
+	var count int64
+	result := instance.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='test_models'").Count(&count)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(0), count)
+
+	// But we can still manually migrate the registered models
+	err = dbModule.AutoMigrate(&TestModel{})
+	assert.Nil(t, err)
+
+	// Now the table should exist
+	result = instance.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='test_models'").Count(&count)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(1), count)
+}
+
+// TestDatabaseModule_MultipleModelRegistration tests registering multiple models
+func TestDatabaseModule_MultipleModelRegistration(t *testing.T) {
+	// Define a second test model
+	type SecondTestModel struct {
+		gorm.Model
+		Title       string `gorm:"size:100"`
+		Description string `gorm:"size:500"`
+	}
+
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	// Enable auto-migration
+	config.On("GetBool", "DB_AUTO_MIGRATE_ANY").Return(false)
+	config.On("GetBool", "DB_AUTO_MIGRATE").Return(true)
+
+	dbModule := db.NewDBModule(config, logger)
+
+	// Register multiple models BEFORE starting the module
+	dbModule.RegisterModelsForMigration(&TestModel{}, &SecondTestModel{})
+
+	// Start the module - this should automatically migrate all registered models
+	err := dbModule.OnStart(context.Background())
+	assert.Nil(t, err)
+
+	// Verify that both tables were created automatically
+	instance := dbModule.Instance()
+	assert.NotNil(t, instance)
+
+	// Check if the first table exists
+	var count1 int64
+	result := instance.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='test_models'").Count(&count1)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(1), count1)
+
+	// Check if the second table exists
+	var count2 int64
+	result = instance.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='second_test_models'").Count(&count2)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, int64(1), count2)
+}

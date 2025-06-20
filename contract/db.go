@@ -14,8 +14,18 @@ type DB interface {
 	Connection(name string) (*gorm.DB, error)
 
 	// AutoMigrate performs auto migration for the given GORM models on the default connection
+	// Note: This requires database connections to be established first
 	AutoMigrate(dst ...interface{}) error
 
 	// AutoMigrateOnConnection performs auto migration for the given GORM models on a specific connection
+	// Note: This requires database connections to be established first
 	AutoMigrateOnConnection(connectionName string, dst ...interface{}) error
+
+	// RegisterModelsForMigration pre-registers models for automatic migration on the default connection
+	// These models will be migrated automatically during startup if auto-migration is enabled
+	RegisterModelsForMigration(dst ...interface{})
+
+	// RegisterModelsForMigrationOnConnection pre-registers models for automatic migration on a specific connection
+	// These models will be migrated automatically during startup if auto-migration is enabled for that connection
+	RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{})
 }

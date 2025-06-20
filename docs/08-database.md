@@ -230,29 +230,97 @@ db.Delete(&user, user.ID)
 
 ## Auto Migration
 
-GORM can automatically create or update database tables based on your model definitions. Goe's `contract.DB` interface exposes `AutoMigrate` methods.
+GORM can automatically create or update database tables based on your model definitions. Goe's database module provides two approaches for auto-migration:
 
-*   `AutoMigrate(dst ...interface{}) error`: Operates on the **default** connection.
-*   `AutoMigrateOnConnection(connectionName string, dst ...interface{}) error`: Operates on a **named** connection.
+1. **Model Registration System (Recommended)** - Pre-register models for automatic migration during startup
+2. **Manual Migration** - Explicitly call migration methods after startup
 
-**How to use:**
+### Model Registration System (Recommended)
 
-This is typically done once during application startup, often within an Fx invoker.
+The model registration system solves the common timing issue where developers tried to migrate models before database connections were established. With this approach, you register your models during application initialization, and they are automatically migrated when the database connections are ready.
+
+**Available Methods:**
+
+*   `RegisterModelsForMigration(dst ...interface{})`: Pre-registers models for automatic migration on the **default** connection
+*   `RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{})`: Pre-registers models for automatic migration on a **named** connection
+*   `AutoMigrate(dst ...interface{}) error`: Manual migration on the **default** connection
+*   `AutoMigrateOnConnection(connectionName string, dst ...interface{}) error`: Manual migration on a **named** connection
+
+**How to use Model Registration:**
 
 ```go
 package main
 
 import (
-    // ... other imports
+    "log"
+    "go.oease.dev/goe/v2"
     "go.oease.dev/goe/v2/contract"
     "example.com/yourproject/internal/models" // Your models package
 )
 
-// ... main function with goe.New, including WithDB: true ...
-// Add an invoker for migrations:
-// Invokers: []any{RunMigrations},
+func main() {
+    // Create a GOE application with DB enabled and register models via Invokers
+    goe.New(goe.Options{
+        WithDB: true,
+        // SOLUTION: Use Invokers to register models for migration BEFORE starting the application
+        // This is the key improvement - you can now pre-register models
+        // and they will be automatically migrated when the DB connections are established
+        Invokers: []any{
+            func(db contract.DB) {
+                // Register models for automatic migration on the default connection
+                // These will be migrated automatically during startup if auto-migration is enabled
+                db.RegisterModelsForMigration(
+                    &models.User{},
+                    &models.Product{},
+                    &models.Order{},
+                    // ... other models for the default DB
+                )
 
-// RunMigrations is an Fx invoker
+                // You can also register models for specific connections
+                db.RegisterModelsForMigrationOnConnection("analytics", &models.AnalyticsEvent{})
+                db.RegisterModelsForMigrationOnConnection("reporting", &models.ReportSummary{})
+
+                log.Println("Models registered for auto-migration")
+            },
+        },
+    })
+
+    // Start the application - this will:
+    // 1. Establish database connections
+    // 2. Automatically migrate registered models (if auto-migration is enabled in config)
+    // 3. Start other services
+    goe.Run()
+
+    log.Println("Application started successfully with auto-migrated models")
+}
+```
+
+**Configuration for Auto-Migration:**
+
+To enable automatic migration of registered models, set the appropriate configuration:
+
+```bash
+# Enable auto-migration for the default connection
+DB_AUTO_MIGRATE=true
+
+# Or enable auto-migration for all connections
+DB_AUTO_MIGRATE_ANY=true
+
+# Enable auto-migration for specific named connections
+DB_ANALYTICS_AUTO_MIGRATE=true
+DB_REPORTING_AUTO_MIGRATE=true
+
+# Database connection settings
+DB_DRIVER=sqlite
+DB_DATABASE=./app.db
+```
+
+### Manual Migration (Legacy Approach)
+
+If you prefer manual control over when migrations occur, you can still use the traditional approach:
+
+```go
+// RunMigrations is an Fx invoker for manual migration
 func RunMigrations(db contract.DB, logger contract.Logger) error {
     logger.Info("Running database auto-migrations...")
 
@@ -263,31 +331,43 @@ func RunMigrations(db contract.DB, logger contract.Logger) error {
         // ... other models for the default DB
     )
     if err != nil {
-        logger.Error("Failed to auto-migrate default database tables", contract.NewField("error", err))
+        logger.Error("Failed to auto-migrate default database tables", "error", err)
         return err // Returning an error will stop app startup if this is critical
     }
     logger.Info("Default database auto-migration successful.")
 
     // Example: Migrate models on a named connection "reporting_db"
-    // Make sure "reporting_db" is configured and connected via DB_CONNECTIONS
-    /*
     err = db.AutoMigrateOnConnection("reporting_db", &models.ReportSummary{})
     if err != nil {
-        logger.Error("Failed to auto-migrate reporting_db tables", contract.NewField("error", err))
+        logger.Error("Failed to auto-migrate reporting_db tables", "error", err)
         return err
     }
     logger.Info("Reporting_db auto-migration successful.")
-    */
 
     return nil
 }
 ```
 
+**Key Benefits of Model Registration System:**
+
+1. **Timing Issue Solved**: Models are registered before DB connections are established, then automatically migrated during the startup phase when connections are ready.
+
+2. **Clean DI Integration**: Works seamlessly with the GOE framework's dependency injection system without requiring manual timing control.
+
+3. **Backward Compatibility**: Existing `AutoMigrate()` methods still work for manual migration.
+
+4. **Configuration-Driven**: Auto-migration only happens if enabled in configuration.
+
+5. **Multi-Connection Support**: Can register different models for different database connections.
+
+6. **No More Errors**: Eliminates the "database connection 'default' not found" error that occurred when trying to migrate before connections were established.
+
 **Important Notes on Auto Migration:**
 
 *   **Development vs. Production**: GORM's auto-migration is very convenient for development and testing. However, for production environments, it's generally safer and more controllable to use dedicated migration tools (like Goose, Atlas, Flyway, Liquibase, or GORM's own migrator tool). These tools offer versioning, rollbacks, and more fine-grained control over schema changes.
 *   **Limitations**: Auto-migration might not handle all complex schema changes perfectly (e.g., renaming columns, changing column types with data preservation). Always test schema changes thoroughly.
-*   **Configuration Hint**: Setting `DB_AUTO_MIGRATE=true` (or `DB_<NAME>_AUTO_MIGRATE=true`) primarily serves as a configuration hint that logs that this feature is enabled. The actual migration still needs to be triggered via code as shown above.
+*   **Registration Timing**: Model registration must happen during application initialization (in Invokers) before `goe.Run()` is called.
+*   **Configuration Control**: Auto-migration only occurs if explicitly enabled in configuration. Models are registered but not migrated unless the appropriate config flags are set.
 
 ## Transactions
 
@@ -325,15 +405,263 @@ Refer to [GORM Transactions](https://gorm.io/docs/transactions.html) for more de
 
 ## Best Practices
 
+### Model Registration and Migration
+
+*   **Use Model Registration**: Prefer the model registration system over manual migration for better timing control and cleaner code organization.
+*   **Register Early**: Always register models in Invokers during application initialization, before `goe.Run()` is called.
+*   **Configuration-Driven Migration**: Use configuration flags (`DB_AUTO_MIGRATE`, `DB_AUTO_MIGRATE_ANY`) to control when auto-migration occurs, especially useful for different environments.
+*   **Group Related Models**: Register related models together for the same connection to ensure proper foreign key relationships are established.
+
+### Architecture and Design
+
 *   **Use Dependency Injection**: Inject `contract.DB` into your repositories or services rather than relying solely on the global `goe.DB()`.
 *   **Repository Pattern**: Abstract database logic into repositories. Your services should call repository methods, not interact with GORM directly. This improves separation of concerns and testability.
+*   **Separate Model Packages**: Organize your GORM models in dedicated packages (e.g., `internal/models`, `domain/entities`) for better code organization.
+
+### Error Handling and Reliability
+
 *   **Error Handling**: Always check for errors returned by GORM operations, including `gorm.ErrRecordNotFound`.
+*   **Connection Validation**: Check if database instances are `nil` before using them, especially in early application lifecycle.
+*   **Graceful Degradation**: Design your application to handle database connection failures gracefully.
+
+### Performance and Optimization
+
 *   **Connection Management**: Goe's DB module handles connection pooling and graceful shutdown. Ensure your `DB_*` pool settings are appropriate for your application's load.
 *   **Query Optimization**: Use GORM's debugging features (`db.Debug()`) to inspect generated SQL. Write efficient queries and use database indexes.
-*   **Production Migrations**: For production, use dedicated migration tools for schema changes.
-*   **Security**: Be cautious of SQL injection if constructing raw SQL queries. Prefer GORM's query-building methods, which generally handle sanitization.
+*   **Batch Operations**: Use GORM's batch operations for bulk inserts/updates to improve performance.
+*   **Preloading**: Use GORM's `Preload` feature to avoid N+1 query problems when loading related data.
 
-Goe's database module, powered by GORM, offers a powerful yet convenient way to manage data persistence in your applications.
+### Security and Production Considerations
+
+*   **Production Migrations**: For production, use dedicated migration tools for schema changes rather than auto-migration.
+*   **Security**: Be cautious of SQL injection if constructing raw SQL queries. Prefer GORM's query-building methods, which generally handle sanitization.
+*   **Environment-Specific Configuration**: Use different database configurations for development, testing, and production environments.
+*   **Backup Strategy**: Ensure proper backup and recovery procedures are in place before running migrations in production.
+
+### Example Repository Pattern with Model Registration
+
+```go
+// internal/models/user.go
+package models
+
+import "gorm.io/gorm"
+
+type User struct {
+    gorm.Model
+    Name  string `gorm:"size:255;not null"`
+    Email string `gorm:"size:255;uniqueIndex;not null"`
+}
+
+// internal/repository/user_repository.go
+package repository
+
+import (
+    "go.oease.dev/goe/v2/contract"
+    "yourproject/internal/models"
+)
+
+type UserRepository struct {
+    db     contract.DB
+    logger contract.Logger
+}
+
+func NewUserRepository(db contract.DB, logger contract.Logger) *UserRepository {
+    return &UserRepository{db: db, logger: logger}
+}
+
+func (r *UserRepository) Create(user *models.User) error {
+    if err := r.db.Instance().Create(user).Error; err != nil {
+        r.logger.Error("Failed to create user", "error", err)
+        return err
+    }
+    return nil
+}
+
+func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
+    var user models.User
+    err := r.db.Instance().Where("email = ?", email).First(&user).Error
+    if err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return nil, nil // User not found
+        }
+        r.logger.Error("Failed to find user by email", "email", email, "error", err)
+        return nil, err
+    }
+    return &user, nil
+}
+
+// main.go
+func main() {
+    goe.New(goe.Options{
+        WithDB: true,
+        Providers: []any{
+            repository.NewUserRepository,
+        },
+        Invokers: []any{
+            func(db contract.DB) {
+                // Register models for auto-migration
+                db.RegisterModelsForMigration(&models.User{})
+            },
+            func(userRepo *repository.UserRepository) {
+                // Use the repository in your application logic
+            },
+        },
+    })
+    goe.Run()
+}
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### "database connection 'default' not found or not configured"
+
+This error typically occurs when trying to access the database before connections are established. 
+
+**Solution**: Use the model registration system instead of manual migration:
+
+```go
+// ❌ WRONG - This can cause timing issues
+func BadExample(db contract.DB) {
+    // This might run before DB connections are established
+    db.AutoMigrate(&models.User{})
+}
+
+// ✅ CORRECT - Register models for automatic migration
+func GoodExample(db contract.DB) {
+    // Register models - they'll be migrated when connections are ready
+    db.RegisterModelsForMigration(&models.User{})
+}
+```
+
+#### Models Not Being Migrated Automatically
+
+If your registered models aren't being migrated:
+
+1. **Check Configuration**: Ensure auto-migration is enabled:
+   ```bash
+   DB_AUTO_MIGRATE=true
+   # or
+   DB_AUTO_MIGRATE_ANY=true
+   ```
+
+2. **Verify Registration Timing**: Models must be registered in Invokers before `goe.Run()`:
+   ```go
+   goe.New(goe.Options{
+       WithDB: true,
+       Invokers: []any{
+           func(db contract.DB) {
+               db.RegisterModelsForMigration(&models.User{})
+           },
+       },
+   })
+   ```
+
+3. **Check Logs**: Look for migration-related log messages during startup.
+
+#### Connection Pool Issues
+
+If you're experiencing connection pool exhaustion:
+
+1. **Adjust Pool Settings**:
+   ```bash
+   DB_MAX_OPEN_CONNS=50
+   DB_MAX_IDLE_CONNS=10
+   DB_CONN_MAX_LIFETIME=1h
+   DB_CONN_MAX_IDLE_TIME=5m
+   ```
+
+2. **Ensure Proper Connection Cleanup**: Always close transactions and don't hold connections longer than necessary.
+
+#### Foreign Key Constraint Errors During Migration
+
+If you encounter foreign key errors during auto-migration:
+
+1. **Register Related Models Together**:
+   ```go
+   // Register parent models before child models
+   db.RegisterModelsForMigration(
+       &models.User{},      // Parent
+       &models.Profile{},   // Child with foreign key to User
+   )
+   ```
+
+2. **Disable Foreign Key Constraints During Migration** (if needed):
+   ```bash
+   DB_DISABLE_FOREIGN_KEY_CONSTRAINT_WHEN_MIGRATING=true
+   ```
+
+### Performance Tips
+
+#### Optimizing Database Queries
+
+1. **Use Indexes**: Define appropriate indexes in your GORM models:
+   ```go
+   type User struct {
+       gorm.Model
+       Email string `gorm:"uniqueIndex"`
+       Name  string `gorm:"index"`
+   }
+   ```
+
+2. **Use Preloading for Relationships**:
+   ```go
+   // Load users with their profiles in a single query
+   var users []models.User
+   db.Preload("Profile").Find(&users)
+   ```
+
+3. **Use Select for Specific Fields**:
+   ```go
+   // Only load specific fields
+   var users []models.User
+   db.Select("id", "name", "email").Find(&users)
+   ```
+
+#### Batch Operations
+
+For bulk operations, use GORM's batch features:
+
+```go
+// Batch insert
+users := []models.User{
+    {Name: "User1", Email: "user1@example.com"},
+    {Name: "User2", Email: "user2@example.com"},
+}
+db.CreateInBatches(users, 100) // Insert in batches of 100
+```
+
+### Environment-Specific Configurations
+
+#### Development Environment
+```bash
+DB_DRIVER=sqlite
+DB_DATABASE=./dev.db
+DB_AUTO_MIGRATE=true
+DB_LOG_MODE=true  # Enable SQL logging for debugging
+```
+
+#### Testing Environment
+```bash
+DB_DRIVER=sqlite
+DB_DATABASE=:memory:  # In-memory database for fast tests
+DB_AUTO_MIGRATE=true
+```
+
+#### Production Environment
+```bash
+DB_DRIVER=postgres
+DB_HOST=prod-db.example.com
+DB_DATABASE=myapp_prod
+DB_USERNAME=myapp_user
+DB_PASSWORD=secure_password
+DB_AUTO_MIGRATE=false  # Use dedicated migration tools in production
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=5
+DB_CONN_MAX_LIFETIME=1h
+```
+
+Goe's database module, powered by GORM, offers a powerful yet convenient way to manage data persistence in your applications. The new model registration system eliminates common timing issues and provides a clean, configuration-driven approach to database migrations.
 
 Next, let's look at [Caching Strategies](09-caching.md).
-```
