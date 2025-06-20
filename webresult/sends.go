@@ -6,6 +6,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type Map map[string]any
+
+type List []any
+
 type WebResult struct {
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
