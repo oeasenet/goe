@@ -1,20 +1,21 @@
 # 6. Logging with Goe 📝
 
-Effective logging is crucial for understanding application behavior, debugging issues, and monitoring performance. Goe integrates [Uber's Zap logger](https://github.com/uber-go/zap), a blazing fast, structured logging library for Go.
+Effective logging is crucial for understanding application behavior, debugging issues, and monitoring performance. Goe integrates [Uber's Zap logger](https://github.com/uber-go/zap), a blazing fast, structured logging library for Go, providing both high performance and developer-friendly features.
 
-## Introduction to Goe's Logging
+## 🚀 Key Features
 
 Goe's logging module provides:
 
-*   **High-Performance Logging**: Leveraging Zap's speed and efficiency.
-*   **Structured Logging**: Logs are emitted with key-value pairs, making them easy to parse, search, and analyze, especially in log management systems.
-*   **Multiple Log Levels**: Supports standard levels like Debug, Info, Warn, Error, and Fatal.
-*   **Configurable Formatting**:
-    *   **Text (Pretty Console)**: For development, logs are colorized and human-readable.
-    *   **JSON**: For production, logs are typically formatted as JSON for machine readability and compatibility with log aggregators.
-*   **Configurable Output**: Logs can be directed to the console, files, or multiple destinations.
-*   **Caller Information**: Optionally include file and line number where the log message originated.
-*   **Stack Traces**: Optionally include stack traces for error-level logs.
+- **🔥 High-Performance**: Built on Zap's zero-allocation structured logging
+- **📊 Structured Logging**: Key-value pairs for easy parsing and analysis
+- **🎯 Multiple Log Levels**: Debug, Info, Warn, Error, and Fatal levels
+- **🎨 Smart Formatting**: 
+  - Pretty console output for development
+  - JSON output for production and log aggregation
+- **📍 Caller Information**: Optional file and line number tracking
+- **🔍 Context Support**: Request-scoped logging with context propagation
+- **🧪 Testing Friendly**: Easy mocking and testing support
+- **⚡ Multiple Logging Styles**: Printf-style, structured, and key-value logging
 
 ## Configuration
 
@@ -63,33 +64,49 @@ The simplest way to get the logger instance:
 package main
 
 import (
+	"errors"
 	"go.oease.dev/goe/v2"
-	"go.oease.dev/goe/v2/contract" // For contract.Field
 )
 
 func main() {
-	_ = goe.New(goe.Options{}) // Initialize Goe
+	// Initialize Goe (Logger module is automatically initialized)
+	goe.New(goe.Options{})
 
-	goe.Log().Info("Application started successfully!",
-		contract.NewField("user_id", 123),
-		contract.NewField("status", "running"),
+	// Basic logging methods
+	goe.Log().Debug("Debug message for development")
+	goe.Log().Info("Application started successfully")
+	goe.Log().Warn("This is a warning message")
+	goe.Log().Error("An error occurred")
+
+	// Structured logging with key-value pairs
+	goe.Log().Info("User logged in", "user_id", 123, "email", "user@example.com")
+	goe.Log().Warn("High memory usage", "usage_percent", 85, "threshold", 80)
+
+	// Printf-style logging
+	userID := 456
+	goe.Log().Infof("Processing user %d", userID)
+	goe.Log().Errorf("Failed to process user %d: %s", userID, "database connection failed")
+
+	// Structured logging with 'w' methods (key-value pairs)
+	goe.Log().Infow("Request processed",
+		"method", "GET",
+		"path", "/api/users",
+		"status", 200,
+		"duration", "45ms",
 	)
 
-	goe.Log().Debug("This is a debug message. Might not show if LOG_LEVEL=info.")
-	goe.Log().Warn("Something looks a bit off here.", contract.NewField("warning_code", "W001"))
+	// Error logging with error objects
+	err := errors.New("database connection failed")
+	goe.Log().Error("Database error", "error", err, "component", "user_service")
 
-	err := MyAppError{"Something failed"}
-	goe.Log().Error("An error occurred",
-		contract.NewField("error", err.Error()),
-		contract.NewField("component", "payment_processor"),
-	)
+	// Context-aware logging
+	logger := goe.Log().With("request_id", "req-123", "user_id", 789)
+	logger.Info("Processing request")
+	logger.Info("Request completed")
 
-	// Fatal will log and then os.Exit(1)
-	// goe.Log().Fatal("A critical error occurred, shutting down.", contract.NewField("reason", "unrecoverable_state"))
+	// Fatal will log and then os.Exit(1) - use sparingly
+	// goe.Log().Fatal("Critical system failure", "reason", "out_of_memory")
 }
-
-type MyAppError struct{ Message string }
-func (e MyAppError) Error() string { return e.Message }
 ```
 
 ### 2. Dependency Injection (`contract.Logger`)

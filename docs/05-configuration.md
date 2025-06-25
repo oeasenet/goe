@@ -1,24 +1,50 @@
 # 5. Configuration Management ⚙️
 
-Effective configuration management is essential for any application, allowing it to behave differently across various environments (development, testing, production) without code changes. Goe provides a flexible and straightforward configuration system.
+Effective configuration management is essential for any application, allowing it to behave differently across various environments (development, testing, production) without code changes. Goe provides a flexible and straightforward configuration system built on environment variables and `.env` files.
 
-## Configuration Sources & Loading Order
+## 🔧 Configuration Sources & Loading Order
 
-Goe loads configuration from multiple sources, with later sources overriding earlier ones. This provides a clear precedence:
+Goe loads configuration from multiple sources with a clear precedence hierarchy. Later sources override earlier ones:
 
-1.  **`.env` file**: If a file named `.env` exists in the root of your project, it's loaded first. This is suitable for project-wide defaults that are not secret.
-2.  **`.local.env` file**: If a file named `.local.env` exists in the project root, it's loaded next. This file is intended for local overrides (e.g., specific developer settings) and **should be added to your `.gitignore` file** to avoid committing it.
-3.  **Environment-specific `.env` file (e.g., `.dev.env`, `.prod.env`)**:
-    *   Goe checks the `GOE_ENV` environment variable.
-    *   If `GOE_ENV` is set (e.g., to `dev`, `prod`, `staging`), Goe attempts to load a corresponding file like `.dev.env` or `.prod.env`.
-    *   If `GOE_ENV` is not set, it defaults to `dev`, so Goe will attempt to load `.dev.env`.
-    *   This allows you to have environment-specific configuration files.
-4.  **System Environment Variables**: Finally, Goe loads configuration values from the system's environment variables. This is the highest precedence and is the recommended way to provide sensitive credentials or settings in production environments.
+1. **`.env` file**: Base configuration file loaded first
+2. **`.env.local` file**: Local overrides (should be in `.gitignore`)
+3. **Environment-specific files**: Based on `GOE_ENV` variable
+   - `.env.development` (when `GOE_ENV=development`)
+   - `.env.production` (when `GOE_ENV=production`)
+   - `.env.test` (when `GOE_ENV=test`)
+4. **System Environment Variables**: Highest precedence (recommended for production secrets)
 
-**Example Precedence:**
+### Environment Detection
 
-*   If `DB_HOST` is in `.env` as `localhost` and in `.prod.env` (with `GOE_ENV=prod`) as `prod.db.example.com`, and also set as a system environment variable to `override.db.example.com`, the value used will be `override.db.example.com`.
-*   If `API_KEY` is only in `.local.env`, that value will be used (unless overridden by a system environment variable).
+Goe determines the current environment using the `GOE_ENV` environment variable:
+
+```bash
+# Development (default)
+GOE_ENV=development
+
+# Production
+GOE_ENV=production
+
+# Testing
+GOE_ENV=test
+```
+
+If `GOE_ENV` is not set, it defaults to `"dev"`.
+
+### Loading Sequence Example
+
+Given `GOE_ENV=production`, Goe loads files in this order:
+
+1. `.env` (base configuration)
+2. `.env.local` (local overrides)
+3. `.env.production` (production-specific)
+4. System environment variables (final overrides)
+
+**Precedence Example:**
+- `DATABASE_URL` in `.env`: `postgres://localhost:5432/myapp`
+- `DATABASE_URL` in `.env.production`: `postgres://prod-db:5432/myapp`
+- `DATABASE_URL` as environment variable: `postgres://override-db:5432/myapp`
+- **Final value**: `postgres://override-db:5432/myapp` (environment variable wins)
 
 ### `.env` File Format
 

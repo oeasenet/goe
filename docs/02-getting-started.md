@@ -1,10 +1,10 @@
 # 2. Getting Started with Goe 🛠️
 
-This guide will walk you through installing Goe, setting up your first project, and running a basic "Hello, World" HTTP server. We'll also touch upon the recommended project structure and how you can interact with Goe's modules.
+This guide will walk you through installing Goe, setting up your first project, and running a basic "Hello, World" HTTP server. We'll also explore the modular architecture and show you different ways to structure your application.
 
 ## ✅ Prerequisites
 
-*   **Go**: Goe requires Go version 1.24 or newer. You can download it from [golang.org](https://golang.org/dl/).
+*   **Go**: Goe requires Go version 1.21 or newer. You can download it from [golang.org](https://golang.org/dl/).
     *   To check your Go version: `go version`
 
 ## 📦 Installation
@@ -16,6 +16,15 @@ go get go.oease.dev/goe/v2
 ```
 
 This command will fetch the latest stable version of the Goe framework.
+
+## 🎯 Core Concepts
+
+Before diving into code, let's understand Goe's key concepts:
+
+- **Modular Design**: Enable only the components you need (`WithHTTP`, `WithCache`, `WithDB`)
+- **Contracts**: Interface-based design for loose coupling and easy testing
+- **Dual Access**: Use global accessors (`goe.Log()`) or dependency injection
+- **Lifecycle Management**: Automatic startup/shutdown handling for all components
 
 ## 🏗️ Creating Your First Project
 
@@ -66,146 +75,252 @@ For this guide, we'll create a simpler structure for our "Hello, World" example.
 
 ## 👋 Hello, World! - Your First Goe Application
 
-Let's create a simple HTTP server that responds with "Hello, World!".
+Let's create a simple HTTP server that responds with "Hello, World!". We'll show you two approaches: using global accessors (simple) and dependency injection (recommended for larger applications).
 
-Create a file named `main.go` (or `cmd/server/main.go` if you're following a more complex structure) with the following content:
+### Approach 1: Simple Global Accessors
+
+Create a file named `main.go` with the following content:
 
 ```go
 package main
 
 import (
-	"github.com/gofiber/fiber/v3" // Import Fiber
+	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2"
-	"go.oease.dev/goe/v2/contract" // For contract.HTTPKernel if using DI for routes
 )
 
-// main is the entry point of our application.
 func main() {
-	// 1. Initialize a new Goe application instance.
-	//    goe.Options allows you to enable specific modules.
-	//    Here, we enable the HTTP server.
-	appInstance := goe.New(goe.Options{
-		WithHTTP: true, // Enable the HTTP module
-		// We can also register routes directly here using an Fx invoker
-		Invokers: []any{
-			RegisterRoutes,
-		},
+	// Initialize Goe with HTTP module enabled
+	goe.New(goe.Options{
+		WithHTTP: true,
 	})
 
-	// Check if initialization failed (e.g., critical Fx setup error)
-	if appInstance == nil || goe.App().Container().Err() != nil {
-		// A basic logger isn't available yet if goe.New fails badly,
-		// so use standard log.Fatalf or similar.
-		// However, if only goe.Run() fails, the goe.Log() might be available.
-		if goe.App().Container() != nil && goe.App().Container().Err() != nil {
-			goe.Log().Fatal("Failed to initialize Goe application", "error", goe.App().Container().Err())
-		} else {
-			// A more primitive logging for very early failures
-			println("Critical error: Failed to create Goe application instance.")
-		}
-		return
-	}
-
-	// 2. Run the application.
-	//    This starts all registered modules (like the HTTP server)
-	//    and blocks until the application is shut down (e.g., by SIGINT).
-	goe.Run()
-
-	// After goe.Run() completes (application shutdown):
-	goe.Log().Info("Application has shut down gracefully.")
-}
-
-// RegisterRoutes is an Fx invoker function that sets up our HTTP routes.
-// Fx will automatically provide the dependencies (contract.HTTPKernel and contract.Logger).
-func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
-	// Get the underlying Fiber app
-	fiberApp := httpKernel.App()
-
-	// Define a simple route
-	fiberApp.Get("/", func(c fiber.Ctx) error {
-		logger.Info("Received request for /", "remote_ip", c.IP())
+	// Get the HTTP kernel and register routes
+	app := goe.HTTP().App()
+	app.Get("/", func(c fiber.Ctx) error {
+		goe.Log().Info("Received request", "path", c.Path(), "ip", c.IP())
 		return c.SendString("Hello, World from Goe! 👋")
 	})
 
-	logger.Info("Successfully registered HTTP routes.")
+	// Start the application
+	goe.Log().Info("Starting Goe application")
+	goe.Run()
 }
 ```
 
-**Explanation:**
+### Approach 2: Dependency Injection (Recommended)
 
-*   **`goe.New(goe.Options{...})`**: This initializes the Goe application.
-    *   `WithHTTP: true`: This option tells Goe to initialize and start its built-in HTTP server module (which uses GoFiber).
-    *   `Invokers: []any{RegisterRoutes}`: This is a powerful feature of Uber's Fx (which Goe uses internally). An "invoker" is a function that Fx will call during application startup. Fx automatically injects any dependencies this function needs. Here, `RegisterRoutes` needs `contract.HTTPKernel` (to access the Fiber app) and `contract.Logger`.
-*   **`RegisterRoutes(...)`**: This function defines our HTTP routes.
-    *   It takes `contract.HTTPKernel` and `contract.Logger` as parameters. Fx provides these.
-    *   `httpKernel.App()` gives us the underlying `*fiber.App` instance from GoFiber.
-    *   `fiberApp.Get("/", ...)` defines a GET route for the path `/`.
-*   **`goe.Run()`**: This function starts the application. It initializes all modules, runs their `OnStart` hooks, and then blocks, typically keeping the HTTP server listening for requests. It also handles graceful shutdown.
-*   **Logging**: We inject `contract.Logger` into `RegisterRoutes` to log when a request comes in. The HTTP module also has its own request logging.
+For larger applications, use dependency injection for better testability:
+
+```go
+package main
+
+import (
+	"github.com/gofiber/fiber/v3"
+	"go.oease.dev/goe/v2"
+	"go.oease.dev/goe/v2/contract"
+)
+
+func main() {
+	// Initialize Goe with HTTP module and route registration
+	goe.New(goe.Options{
+		WithHTTP:  true,
+		Invokers: []any{RegisterRoutes},
+	})
+
+	// Start the application
+	goe.Run()
+}
+
+// RegisterRoutes is automatically called by Fx with injected dependencies
+func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
+	app := httpKernel.App()
+
+	// Register routes
+	app.Get("/", func(c fiber.Ctx) error {
+		logger.Info("Received request", "path", c.Path(), "ip", c.IP())
+		return c.SendString("Hello, World from Goe! 👋")
+	})
+
+	app.Get("/health", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"status": "healthy",
+			"service": "goe-app",
+		})
+	})
+
+	logger.Info("HTTP routes registered successfully")
+}
+```
+
+**Key Concepts Explained:**
+
+### Approach 1 (Global Accessors)
+- **`goe.New()`**: Initializes the application with specified modules
+- **`WithHTTP: true`**: Enables the HTTP server module (built on GoFiber)
+- **`goe.HTTP().App()`**: Gets the underlying Fiber app instance for route registration
+- **`goe.Log()`**: Accesses the global logger instance
+- **`goe.Run()`**: Starts all modules and blocks until shutdown
+
+### Approach 2 (Dependency Injection)
+- **`Invokers`**: Functions called during startup with automatic dependency injection
+- **`contract.HTTPKernel`**: Interface for HTTP server operations
+- **`contract.Logger`**: Interface for structured logging
+- **Fx Integration**: Uber's Fx handles all dependency wiring automatically
+
+### Benefits of Each Approach
+
+**Global Accessors** (Approach 1):
+- ✅ Simple and quick for small applications
+- ✅ Less boilerplate code
+- ✅ Easy to understand for beginners
+- ❌ Harder to test (global state)
+- ❌ Less explicit dependencies
+
+**Dependency Injection** (Approach 2):
+- ✅ Better for larger applications
+- ✅ Easier to test (mockable dependencies)
+- ✅ Explicit dependency management
+- ✅ Better separation of concerns
+- ❌ More initial setup
+- ❌ Steeper learning curve
 
 ## 🚀 Running the Application
 
-1.  **Open your terminal** and navigate to your project directory (`goe-hello-world`).
-2.  **Run the `main.go` file:**
-    ```bash
-    go run main.go
-    ```
-    (Or `go run cmd/server/main.go` if you used that structure)
+1. **Navigate to your project directory:**
+   ```bash
+   cd goe-hello-world
+   ```
 
-You should see output similar to this (the exact log format might differ based on your environment):
+2. **Run the application:**
+   ```bash
+   go run main.go
+   ```
 
+3. **Expected output:**
+   You should see structured log output similar to this:
+   ```
+   INFO    Starting Goe application
+   INFO    HTTP routes registered successfully
+   INFO    HTTP server starting    {"host": "0.0.0.0", "port": 8080}
+   INFO    Application started successfully
+   ```
+
+4. **Test your application:**
+   Open your browser or use curl to test the endpoints:
+   ```bash
+   # Test the main endpoint
+   curl http://localhost:8080/
+   # Response: Hello, World from Goe! 👋
+
+   # Test the health endpoint (if using Approach 2)
+   curl http://localhost:8080/health
+   # Response: {"status":"healthy","service":"goe-app"}
+   ```
+
+5. **View request logs:**
+   Each request will generate structured logs:
+   ```
+   INFO    Received request    {"path": "/", "ip": "127.0.0.1"}
+   INFO    HTTP Request        {"method": "GET", "path": "/", "status": 200, "duration": "123μs", "request_id": "abc123"}
+   ```
+
+6. **Graceful shutdown:**
+   Press `Ctrl+C` to stop the application. You'll see shutdown logs:
+   ```
+   INFO    Shutting down HTTP server
+   INFO    Application stopped gracefully
+   ```
+
+## 🔧 Configuration and Environment
+
+Goe applications can be configured using environment variables or `.env` files:
+
+```bash
+# .env file
+HTTP_HOST=0.0.0.0
+HTTP_PORT=8080
+LOG_LEVEL=info
+APP_NAME=My Goe App
+APP_VERSION=1.0.0
 ```
-INFO	HTTP server starting	{"address": "0.0.0.0:8080"}
-INFO	Successfully registered HTTP routes.
-INFO	Log module started
-INFO	Application started
+
+Access configuration in your code:
+
+```go
+// Using global accessor
+port := goe.Config().GetInt("HTTP_PORT")
+appName := goe.Config().GetString("APP_NAME")
+
+// Using dependency injection
+func MyService(config contract.Config) *Service {
+    port := config.GetInt("HTTP_PORT")
+    return &Service{port: port}
+}
 ```
 
-3.  **Open your web browser** or use a tool like `curl` to access `http://localhost:8080`.
+## 🧩 Adding More Modules
 
-    ```bash
-    curl http://localhost:8080
-    ```
+Enable additional modules as needed:
 
-You should see the response: `Hello, World from Goe! 👋`
-
-In your terminal, you'll also see the log message from your handler:
+```go
+app := goe.New(goe.Options{
+    WithHTTP:  true,  // Web server
+    WithCache: true,  // Caching system
+    WithDB:    true,  // Database integration
+    Providers: []any{
+        NewUserService,    // Your custom services
+        NewOrderService,
+    },
+    Invokers: []any{
+        RegisterRoutes,    // Route registration
+        SetupMiddleware,   // Middleware setup
+    },
+})
 ```
-INFO	Received request for /	{"remote_ip": "127.0.0.1"}
-INFO	HTTP Request	{"method": "GET", "path": "/", "status": 200, "duration": "...", "request_id": "..."}
+
+## 🧪 Testing Your Application
+
+Goe makes testing easy with dependency injection:
+
+```go
+func TestUserService(t *testing.T) {
+    // Create mocks
+    mockDB := &MockDB{}
+    mockLogger := &MockLogger{}
+
+    // Create service with mocked dependencies
+    service := NewUserService(mockDB, mockLogger)
+
+    // Test your service
+    user, err := service.GetUser("123")
+    assert.NoError(t, err)
+    assert.Equal(t, "John", user.Name)
+}
 ```
-(The second log line is from Goe's built-in HTTP request logger).
 
-4.  **To stop the application**, go back to your terminal and press `Ctrl+C`. You should see shutdown messages.
+## 🚀 Next Steps
 
-## 🧩 Two Ways to Use Modules
+Congratulations! You've successfully created your first Goe application. Here's what to explore next:
 
-Goe provides flexibility in how you access its core components (like the logger, config, HTTP kernel, etc.):
+### Core Concepts
+- [Project Structure](03-project-structure.md) - Organize your Goe projects effectively
+- [Architecture](04-architecture.md) - Understand Goe's design principles
+- [Configuration](05-configuration.md) - Master environment and config management
 
-1.  **Global Accessors (Convenience 🍬):**
-    Goe offers global functions for easy access, e.g., `goe.Log()`, `goe.Config()`, `goe.HTTP()`. These are handy for quick scripting, smaller applications, or in places where dependency injection is cumbersome.
+### Essential Components
+- [Logging](06-logging.md) - Structured logging with Zap
+- [HTTP Server](07-http-server.md) - Build robust web applications
+- [Database](08-database.md) - GORM integration and best practices
+- [Caching](09-caching.md) - Improve performance with caching
 
-    ```go
-    // Example using global logger
-    goe.Log().Info("This is a log message using the global accessor.")
-    ```
+### Advanced Topics
+- [Modules](10-modules.md) - Create custom modules
+- [Dependency Injection](11-dependency-injection.md) - Master Fx patterns
+- [Testing](13-testing.md) - Comprehensive testing strategies
 
-2.  **Dependency Injection (Robustness & Testability 🏗️):**
-    For larger applications, testing, and better separation of concerns, Goe fully supports and encourages constructor/method injection via Uber's Fx. You define your components (services, handlers) as functions or structs that declare their dependencies, and Fx provides them. This was demonstrated in the `RegisterRoutes` function above.
+### Production Ready
+- [Best Practices](15-best-practices.md) - Production-ready development
+- [Deployment](16-deployment.md) - Deploy your Goe applications
 
-    ```go
-    // From our main example:
-    // func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) { ... }
-    // Fx automatically provides httpKernel and logger.
-    ```
-
-You'll see both patterns used in the documentation and examples. Choosing which to use depends on the specific context and your project's needs. Dependency injection is generally preferred for application logic that requires testing and maintainability.
-
-## Next Steps
-
-You've successfully set up and run your first Goe application! Now you're ready to explore more advanced topics:
-
-*   [Project Structure](03-project-structure.md): Dive deeper into organizing your Goe projects.
-*   [Architecture Deep Dive](04-architecture.md): Understand the core design of Goe.
-*   [Configuration](05-configuration.md): Learn how to manage application settings.
-```
+Ready to dive deeper? Start with [Project Structure](03-project-structure.md) to learn how to organize larger applications!

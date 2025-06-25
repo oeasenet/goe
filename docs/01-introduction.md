@@ -6,86 +6,183 @@ Welcome to the Goe Framework! Goe is a modern, opinionated application framework
 
 Goe (Go Ease) aims to provide a delightful developer experience by integrating best practices and powerful libraries from the Go ecosystem. It's built with the philosophy that a framework should handle the boilerplate and provide sensible defaults, allowing developers to focus on business logic.
 
-**Key Goals:**
+**Key Design Principles:**
 
-*   **Developer Experience**: Offer an intuitive API, clear documentation, and tools that make development faster and more enjoyable.
-*   **Modularity & Extensibility**: Provide a core set of features that can be easily extended or replaced through a flexible module system.
-*   **Performance**: Leverage high-performance libraries and practices to ensure applications are fast and efficient.
-*   **Type Safety**: Utilize Go's strong type system, complemented by Uber's Fx for type-safe dependency injection.
-*   **Concurrency Safety**: Ensure that core framework components are designed to be safe for concurrent use.
-*   **Best Practices Baked In**: Incorporate common patterns and best practices for configuration, logging, HTTP handling, and more.
+*   **Developer Experience**: Intuitive API with both global accessors and dependency injection patterns
+*   **Modularity & Extensibility**: Optional modules (HTTP, Cache, Database) that can be enabled as needed
+*   **Performance**: Built on high-performance libraries like Fiber (HTTP), Zap (logging), and GORM (database)
+*   **Type Safety**: Contract-driven design with interfaces and Uber's Fx for type-safe dependency injection
+*   **Concurrency Safety**: Thread-safe core components designed for concurrent environments
+*   **Best Practices**: Incorporates proven patterns for configuration, logging, HTTP handling, and lifecycle management
 
 ## ✨ Core Features
 
-Goe comes packed with features to get you productive right away:
+Goe provides a comprehensive set of features designed for modern Go applications:
 
-*   **🔌 Powerful Dependency Injection**: At its heart, Goe utilizes [Uber's Fx](https://uber-go.github.io/fx/) framework. This provides:
-    *   Type-safe management of application components.
-    *   A clear lifecycle for application startup and shutdown.
-    *   Easy testability through mockable dependencies.
-*   **🌐 High-Performance HTTP Server**: Integrated with [GoFiber v3](https://gofiber.io/), a web framework built on Fasthttp, offering:
-    *   Extremely fast routing and request processing.
-    *   A rich set of middleware, including request logging, recovery, and request ID generation.
-    *   Easy handling of requests and responses (JSON, HTML, etc.).
-*   **📝 Structured & Flexible Logging**: Built on [Uber's Zap logger](https://github.com/uber-go/zap) for:
-    *   High-performance, structured logging.
-    *   Development-friendly pretty console output and production-ready JSON output.
-    *   Configurable log levels, outputs (console, file), and context enrichment.
-*   **⚙️ Environment-Aware Configuration**:
-    *   Load configuration from environment variables and `.env` files (e.g., `.env`, `.env.local`, `.env.development`).
-    *   Type-safe access to configuration values.
-    *   Support for hot-reloading configuration (depending on the source).
-*   **💾 Versatile Cache Support**:
-    *   A unified caching interface built upon [Fiber's storage package](https://docs.gofiber.io/storage).
-    *   Support for multiple cache drivers (In-Memory, Redis, SQLite, etc.).
-    *   Easy-to-use API for common cache operations (`Get`, `Set`, `Remember`, `Forget`).
-*   **🧩 Extensible Module System**:
-    *   Organize your application into logical, reusable modules.
-    *   Modules have lifecycle hooks (`OnStart`, `OnStop`) integrated with the Fx application lifecycle.
-    *   Promotes separation of concerns and better code organization.
-*   **🛡️ Contract-Driven Design**:
-    *   Core components are defined by interfaces (contracts), allowing for loose coupling and easier customization or replacement of implementations.
-*   **🎯 Intuitive Global Accessors & DI**:
-    *   Offers convenient global helper functions (e.g., `goe.Log()`, `goe.Config()`) for quick access to core services.
-    *   Simultaneously encourages and fully supports explicit dependency injection for better testability and clarity in larger applications.
-*   **🔄 Concurrency Safety**:
-    *   Core components are designed with thread safety in mind, ensuring reliable operation in concurrent environments.
-*   **🗄️ Database Integration (GORM)**:
-    *   Seamless integration with [GORM](https://gorm.io/), a popular ORM for Go.
-    *   Configuration-driven setup for multiple database drivers (PostgreSQL, MySQL, SQLite, SQL Server).
-    *   Connection pooling and lifecycle management.
+### 🔌 Dependency Injection & Lifecycle Management
+Built on [Uber's Fx](https://uber-go.github.io/fx/) framework, providing:
+- Type-safe dependency injection with automatic component wiring
+- Structured application lifecycle with startup/shutdown hooks
+- Easy testing through mockable interfaces and dependency substitution
+- Graceful shutdown handling for all components
 
-## 🏗️ High-Level Architecture
+### 🌐 High-Performance HTTP Server (Optional)
+Powered by [GoFiber v3](https://gofiber.io/) when enabled with `WithHTTP: true`:
+- Lightning-fast HTTP routing built on Fasthttp
+- Built-in middleware: request logging, recovery, request ID generation
+- JSON serialization using Sonic for optimal performance
+- Request validation and error handling
+- Support for middleware, route groups, and parameter binding
 
-Goe is structured in layers to promote separation of concerns and clarity:
+### 📝 Structured Logging
+Advanced logging built on [Zap](https://github.com/uber-go/zap):
+- High-performance structured logging with zero allocations
+- Development-friendly console output and production JSON format
+- Configurable log levels, outputs, and custom encoders
+- Context-aware logging with request tracing
+- Integration with Fx for component lifecycle logging
+
+### ⚙️ Configuration Management
+Flexible configuration system:
+- Environment variable loading with type-safe getters
+- Support for `.env`, `.env.local`, `.env.development` files
+- Hot-reloading capabilities for configuration changes
+- Custom configuration sources through the `ConfigSource` interface
+- Built-in validation and default value handling
+
+### 💾 Caching System (Optional)
+Unified caching interface when enabled with `WithCache: true`:
+- Multiple cache backends: Memory, Redis, and custom drivers
+- Rich API: `Get`, `Set`, `Remember`, `Forget`, `Increment`, `Decrement`
+- TTL support and cache key prefixing
+- JSON serialization for complex data types
+- Cache manager for multiple named stores
+
+### 🗄️ Database Integration (Optional)
+GORM-based database support when enabled with `WithDB: true`:
+- Multiple database drivers: PostgreSQL, MySQL, SQLite, SQL Server
+- Connection pooling and lifecycle management
+- Auto-migration support for development
+- Multiple database connections with named instances
+- Model registration for automatic migrations
+
+### 🧩 Modular Architecture
+Extensible module system:
+- Optional core modules that can be enabled/disabled
+- Custom module creation with lifecycle hooks (`OnStart`, `OnStop`)
+- Clean separation of concerns
+- Module-specific configuration and dependencies
+
+### 🛡️ Contract-Driven Design
+Interface-based architecture:
+- All core components defined by contracts (interfaces)
+- Loose coupling enabling easy testing and customization
+- Consistent API patterns across all modules
+- Support for custom implementations of any component
+
+### 🎯 Dual Access Patterns
+Flexible component access:
+- **Global Accessors**: `goe.Log()`, `goe.Config()`, `goe.HTTP()` for convenience
+- **Dependency Injection**: Explicit injection for better testability and structure
+- Choose the pattern that fits your use case and team preferences
+
+## 🏗️ Architecture Overview
+
+Goe follows a modular, contract-driven architecture built on dependency injection:
 
 ```mermaid
-graph TD
-    A[Your Application Code] --> B{Goe Framework Facades};
-    B --> C[Core Modules];
-    C --> D[Uber's Fx];
-    C --> E[Go Libraries e.g., Fiber, Zap, GORM];
-
-    subgraph Goe Framework
-        B
-        C
+graph TB
+    subgraph "Application Layer"
+        A[Your Business Logic]
+        B[HTTP Handlers]
+        C[Services & Repositories]
     end
 
-    style A fill:#lightgrey,stroke:#333,stroke-width:2px
-    style B fill:#lightblue,stroke:#333,stroke-width:2px
-    style C fill:#cyan,stroke:#333,stroke-width:2px
-    style D fill:#orange,stroke:#333,stroke-width:2px
-    style E fill:#lightgreen,stroke:#333,stroke-width:2px
+    subgraph "Goe Framework"
+        D[Global Accessors<br/>goe.Log(), goe.Config(), etc.]
+        E[Contract Interfaces<br/>HTTPKernel, Logger, Cache, DB]
+        F[Core Modules<br/>HTTP, Config, Log, Cache, DB]
+    end
+
+    subgraph "Foundation"
+        G[Uber Fx<br/>Dependency Injection]
+        H[Third-party Libraries<br/>Fiber, Zap, GORM]
+    end
+
+    A --> D
+    A --> E
+    B --> E
+    C --> E
+    D --> F
+    E --> F
+    F --> G
+    F --> H
+
+    style A fill:#e1f5fe
+    style D fill:#f3e5f5
+    style E fill:#e8f5e8
+    style F fill:#fff3e0
+    style G fill:#fce4ec
+    style H fill:#f1f8e9
 ```
 
-*   **Your Application Code**: This is where your business logic, handlers, services, and domain models reside.
-*   **Goe Framework Facades**: These are the entry points to Goe's functionality, including global accessors (`goe.Log()`, `goe.DB()`, etc.) and interfaces provided for dependency injection.
-*   **Core Modules**: These are the built-in components of Goe (HTTP, Config, Logger, Cache, DB, etc.). Each module manages a specific concern and integrates with the Fx lifecycle.
-*   **Uber's Fx**: The underlying dependency injection framework that manages the lifecycle and dependencies of all components.
-*   **Go Libraries**: Goe builds upon excellent third-party Go libraries like Fiber (HTTP), Zap (Logging), GORM (Database), and Fiber's storage (Cache).
+### Key Architectural Components
 
-This layered approach, combined with contract-driven design and dependency injection, makes Goe a flexible and robust foundation for your Go projects.
+**Application Layer**
+- Your business logic, HTTP handlers, and services
+- Interacts with Goe through contracts or global accessors
+- Completely decoupled from implementation details
 
-For a more in-depth look at the architecture, please refer to the [Architecture Deep Dive](04-architecture.md) section.
+**Goe Framework Layer**
+- **Global Accessors**: Convenient functions for quick access (`goe.Log()`, `goe.HTTP()`)
+- **Contracts**: Interface definitions that ensure loose coupling
+- **Core Modules**: Implementation of HTTP, logging, caching, database functionality
 
-Next, let's get you started with [Installation and Your First Application](02-getting-started.md).
+**Foundation Layer**
+- **Uber Fx**: Manages dependency injection and component lifecycle
+- **Third-party Libraries**: High-performance Go libraries (Fiber, Zap, GORM)
+
+### Module Lifecycle
+
+Each Goe module follows a consistent lifecycle:
+
+1. **Registration**: Modules are registered with the Fx container
+2. **Dependency Resolution**: Fx resolves all dependencies automatically
+3. **OnStart**: Module initialization and resource setup
+4. **Runtime**: Module serves requests and handles operations
+5. **OnStop**: Graceful shutdown and resource cleanup
+
+### Benefits of This Architecture
+
+- **Modularity**: Enable only the components you need
+- **Testability**: Easy mocking through interface contracts
+- **Extensibility**: Add custom modules with the same lifecycle
+- **Performance**: Built on proven, high-performance libraries
+- **Maintainability**: Clear separation of concerns and dependencies
+
+## 🚀 Quick Example
+
+Here's how these concepts work together in practice:
+
+```go
+// Using global accessors (simple)
+goe.Log().Info("Application starting")
+config := goe.Config().GetString("DATABASE_URL")
+
+// Using dependency injection (recommended for larger apps)
+func NewUserService(db contract.DB, logger contract.Logger) *UserService {
+    return &UserService{db: db, logger: logger}
+}
+
+// Module registration
+app := goe.New(goe.Options{
+    WithHTTP:  true,  // Enable HTTP module
+    WithDB:    true,  // Enable database module
+    WithCache: true,  // Enable cache module
+    Providers: []any{NewUserService}, // Register your services
+})
+```
+
+For a deeper dive into the architecture and design patterns, see the [Architecture Deep Dive](04-architecture.md) section.
+
+Ready to build your first application? Let's continue with [Getting Started](02-getting-started.md)!
