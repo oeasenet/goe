@@ -276,4 +276,3 @@ For custom application modules, providing the module's constructor (which return
 By understanding and utilizing Goe's module system, you can build complex applications in a more structured, maintainable, and extensible way.
 
 Next, we'll dive deeper into [Dependency Injection with Fx](11-dependency-injection.md).
-```

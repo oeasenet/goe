@@ -334,5 +334,3 @@ Goe's cache module provides a flexible and powerful way to integrate caching int
 boosting performance when used effectively.
 
 Next, we'll explore Goe's [Module System](10-modules.md) in more detail.
-
-```

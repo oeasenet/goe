@@ -190,4 +190,3 @@ This glossary defines common terms used throughout the Goe framework documentati
 ---
 
 This glossary should help clarify the terminology used in the Goe framework. If you encounter terms not listed here, standard Go or software engineering glossaries might provide further information.
-```

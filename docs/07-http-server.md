@@ -375,4 +375,3 @@ func someUtilityFunction() {
 This covers the core aspects of using Goe's HTTP module. For more advanced Fiber features, always refer to the official [GoFiber Documentation](https://docs.gofiber.io/).
 
 Next, we'll explore how Goe handles [Database Interactions](08-database.md).
-```

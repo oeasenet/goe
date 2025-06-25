@@ -181,4 +181,3 @@ Fx's error messages are generally helpful in pinpointing these issues. Visualizi
 By mastering these Fx concepts, you can build highly modular, testable, and maintainable applications with the Goe framework.
 
 Next, we'll discuss [Error Handling Strategies](12-error-handling.md).
-```

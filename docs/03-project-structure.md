@@ -142,4 +142,3 @@ Goe is designed to be flexible and doesn't impose this structure. However, its f
 Start with a simpler version of this structure and add directories as your project's needs evolve. The key is consistency and ensuring your team understands the layout.
 
 Next, let's dive into [Goe's Architecture](04-architecture.md).
-```

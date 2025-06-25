@@ -276,5 +276,3 @@ This architectural overview should provide a solid foundation for understanding 
 delve into the specifics of each core module.
 
 Next, let's explore [Configuration](05-configuration.md).
-
-```
