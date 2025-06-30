@@ -164,6 +164,123 @@ func main() {
 *   **`goe.Options.Providers`**: This is the most common and flexible way. You provide the constructor (`greetingmodule.NewGreetingModule`). Fx resolves its dependencies (`contract.Logger`, `contract.Config`). If the result of the constructor implements `contract.Module`, Goe's core application setup (`core/app/app.go`) will automatically wrap it in an `fx.Module` structure, ensuring its `Name()`, `OnStart()`, and `OnStop()` methods are correctly wired into Fx's lifecycle management.
 *   **`fx.Invoke`**: The invoker function demonstrates how other components can depend on your `*greetingmodule.GreetingModule` if it's provided to the Fx graph as a concrete type.
 
+## Easy Module Registration with AddModule
+
+For simpler use cases where you just want to register a module without complex dependency injection, Goe provides a convenient `AddModule` method on the Application interface:
+
+```go
+// main.go
+package main
+
+import (
+	"context"
+	"go.oease.dev/goe/v2/core/app"
+	"go.oease.dev/goe/v2/core/log"
+	"go.oease.dev/goe/v2/core/config"
+	"example.com/yourproject/internal/modules/greetingmodule"
+)
+
+func main() {
+	// Create a new application
+	application := app.New("MyApp", "1.0.0", "development")
+
+	// Create and register core modules first
+	logger := log.New()
+	cfg := config.New()
+
+	// Create your custom module with dependencies
+	greetingModule := greetingmodule.NewGreetingModule(logger, cfg)
+
+	// Register the module using the convenient AddModule method
+	err := application.AddModule(greetingModule)
+	if err != nil {
+		panic(err)
+	}
+
+	// Option 1: Use Run() for simple applications (blocking call)
+	application.Run()
+
+	// Option 2: Use Start()/Stop() for programmatic control
+	// ctx := context.Background()
+	// if err := application.Start(ctx); err != nil {
+	//     panic(err)
+	// }
+	// defer application.Stop(context.Background())
+	// 
+	// // Your application logic here...
+	// // The application is running but not blocking
+}
+```
+
+**Benefits of AddModule:**
+
+*   **Simplicity**: Direct module registration without needing to understand Fx options
+*   **Type Safety**: Accepts any `contract.Module` implementation
+*   **Automatic Lifecycle Management**: Handles `OnStart` and `OnStop` hooks automatically
+*   **Error Handling**: Returns errors if module registration fails
+
+**When to use AddModule vs Providers:**
+
+*   Use `AddModule` when you have a simple module that doesn't need complex dependency injection
+*   Use `goe.Options.Providers` when your module needs to be constructed by Fx with injected dependencies
+*   Use `goe.Options.Providers` when your module provides services that other components depend on
+
+## Application Lifecycle: Run() vs Start()/Stop()
+
+When working with modules, you have two approaches for managing the application lifecycle:
+
+### Option 1: Simple Blocking Execution with Run()
+
+Use `Run()` for simple applications where you want the application to start and block until shutdown:
+
+```go
+func main() {
+    app := goe.New(goe.Options{WithHTTP: true})
+    // Register modules...
+    app.Run() // Blocks until Ctrl+C or shutdown signal
+}
+```
+
+**When to use Run():**
+- Simple applications that just need to start and run
+- You don't need programmatic control over startup/shutdown
+- You want automatic signal handling (Ctrl+C, etc.)
+
+### Option 2: Programmatic Control with Start()/Stop()
+
+Use `Start()` and `Stop()` when you need control over the application lifecycle:
+
+```go
+func main() {
+    app := goe.New(goe.Options{WithHTTP: true})
+    // Register modules...
+
+    // Start with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    if err := app.Start(ctx); err != nil {
+        log.Fatal("Failed to start application:", err)
+    }
+    defer app.Stop(context.Background())
+
+    // Your application logic here...
+    // The application is running but not blocking
+
+    // You can do other work, wait for conditions, etc.
+    time.Sleep(10 * time.Second)
+
+    // Application will stop when function exits (due to defer)
+}
+```
+
+**When to use Start()/Stop():**
+- You need to perform other operations after the application starts
+- You want custom error handling during startup
+- You need to integrate with other systems or frameworks
+- You want to control shutdown timing programmatically
+- You're writing tests that need to start/stop the application
+
 ## Module Lifecycle and Fx Interaction
 
 When you register a `contract.Module` with Goe (typically by providing its constructor to Fx):

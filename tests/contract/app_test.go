@@ -50,6 +50,35 @@ func (m *MockApplication) Register(options ...fx.Option) error {
 	return args.Error(0)
 }
 
+func (m *MockApplication) AddModule(module contract.Module) error {
+	args := m.Called(module)
+	return args.Error(0)
+}
+
+func (m *MockApplication) AddProvider(provider contract.Provider) error {
+	args := m.Called(provider)
+	return args.Error(0)
+}
+
+func (m *MockApplication) AddInvoker(invoker contract.Invoker) error {
+	args := m.Called(invoker)
+	return args.Error(0)
+}
+
+func (m *MockApplication) Start(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockApplication) Stop(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockApplication) Run() {
+	m.Called()
+}
+
 func TestApplicationInterface(t *testing.T) {
 	// This test verifies that MockApplication implements the Application interface
 	var _ contract.Application = (*MockApplication)(nil)

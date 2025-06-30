@@ -332,3 +332,42 @@ func DB() contract.DB {
 
 	return instance.db
 }
+
+// AddModule adds a module to the global application instance
+func AddModule(module contract.Module) error {
+	instance.mu.RLock()
+	app := instance.app
+	instance.mu.RUnlock()
+
+	if app == nil {
+		panic("Application not initialized. Call goe.New() first")
+	}
+
+	return app.AddModule(module)
+}
+
+// AddProvider adds a provider to the global application instance
+func AddProvider(provider contract.Provider) error {
+	instance.mu.RLock()
+	app := instance.app
+	instance.mu.RUnlock()
+
+	if app == nil {
+		panic("Application not initialized. Call goe.New() first")
+	}
+
+	return app.AddProvider(provider)
+}
+
+// AddInvoker adds an invoker to the global application instance
+func AddInvoker(invoker contract.Invoker) error {
+	instance.mu.RLock()
+	app := instance.app
+	instance.mu.RUnlock()
+
+	if app == nil {
+		panic("Application not initialized. Call goe.New() first")
+	}
+
+	return app.AddInvoker(invoker)
+}
