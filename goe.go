@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"go.oease.dev/goe/v2/core/mongodb"
 	"os"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ var (
 		http          contract.HTTPKernel
 		cacheManager  contract.CacheManager
 		db            contract.DB // Database instance
+		mongoDB      contract.MongoDB // Database instance
 		eventManager  contract.EventManager
 		observability contract.Observability
 		mu            sync.RWMutex
@@ -42,7 +44,8 @@ type Options struct {
 	Invokers          []any
 	WithHTTP          bool // Enable HTTP module
 	WithCache         bool // Enable Cache module
-	WithDB            bool // + Enable DB module
+	WithDB            bool // Enable DB module
+	WithMongoDB bool // Enable Mongo DB module
 	WithEvent         bool // Enable Event module
 	WithObservability bool // Enable Observability module
 }
@@ -134,6 +137,7 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
 	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithObservability flag", "enabled", opt.WithObservability)
+	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
@@ -223,6 +227,29 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: observabilityModule.OnStart,
 						OnStop:  observabilityModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add MongoDB module if enabled
+	var mongodbModule *mongodb.DatabaseModule
+	if opt.WithDB {
+		mongodbModule = mongodb.NewDBModule(instance.config) // Pass config and logger
+		instance.mongoDB = mongodbModule.Provide()           // Store the contract.DB instance
+
+		instance.logger.Info("Registering DB module")
+
+		fxOptions = append(fxOptions,
+			// Provide contract.DB for dependency injection
+			fx.Provide(func() contract.MongoDB { return instance.mongoDB }),
+			// Register DB module with its lifecycle hooks
+			fx.Module(mongodbModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: mongodbModule.OnStart,
+						OnStop:  mongodbModule.OnStop,
 					})
 				}),
 			),
@@ -458,6 +485,18 @@ func Metrics() contract.MetricsManager {
 // Tracing returns the global tracing manager instance
 func Tracing() contract.TracingManager {
 	return Observability().Tracing()
+}
+
+// MongoDB returns the global MongoDB instance
+func MongoDB() contract.MongoDB {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.db == nil {
+		panic("DB module not initialized. Set WithDB: true in goe.New() options, and ensure DB connection is configured.")
+	}
+
+	return instance.mongoDB
 }
 
 // AddModule adds a module to the global application instance
