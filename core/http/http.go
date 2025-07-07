@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"html/template"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -27,6 +28,15 @@ type kernel struct {
 func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	// Create validator
 	validator := NewValidator()
+
+	// Init error page template
+	var err error
+	tpl, err = template.ParseFS(templateFS, "error_page.gohtml")
+	if err != nil {
+		logger.Fatal(err.Error())
+		panic(err)
+		return nil
+	}
 
 	// Create fiber config with all supported options
 	fiberConfig := fiber.Config{
@@ -230,8 +240,8 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 
 		if ctx.Accepts(fiber.MIMETextHTML) == fiber.MIMETextHTML {
 			// default response, html error page
-			ctx.Response().Header.SetContentType(fiber.MIMETextHTML)
-			return ctx.SendString(ErrorPage(fmt.Sprintf("ERROR %d", respCode), fmt.Sprintf("%d", respCode), message, "/"))
+			ctx.Response().Header.SetContentType(fiber.MIMETextHTMLCharsetUTF8)
+			return ErrorPage(ctx, fmt.Sprintf("ERROR %d", respCode), fmt.Sprintf("%d", respCode), message, "/")
 		}
 
 		// If the format is not forced, then check the accept header
@@ -247,8 +257,8 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 		}
 
 		// default response, html error page
-		ctx.Response().Header.SetContentType(fiber.MIMETextHTML)
-		return ctx.SendString(ErrorPage(fmt.Sprintf("ERROR %d", respCode), fmt.Sprintf("%d", respCode), message, "/"))
+		ctx.Response().Header.SetContentType(fiber.MIMETextHTMLCharsetUTF8)
+		return ErrorPage(ctx, fmt.Sprintf("ERROR %d", respCode), fmt.Sprintf("%d", respCode), message, "/")
 	}
 }
 
