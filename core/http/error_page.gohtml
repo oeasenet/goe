@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Title }}</title>
+    <style>
+        /*
+         * Goe Framework - Default Error Page
+         * Copyright (c) 2024 OeaseNet
+         * Licensed under the MIT license: https://github.com/oeasenet/goe/blob/main/LICENSE
+         *
+         * A modern, self-contained error page with light/dark themes.
+         */
+
+        /*
+         * ROOT & THEME SETUP
+         * Using CSS variables for easy theme management.
+         * The theme automatically adapts to user's system preference.
+         */
+        :root {
+            --bg-color: #f8fafc; /* slate-50 */
+            --text-color: #0f172a; /* slate-900 */
+            --card-bg-color: #ffffff;
+            --card-border-color: #e2e8f0; /* slate-200 */
+            --primary-color: #4f46e5; /* indigo-600 */
+            --primary-hover-color: #4338ca; /* indigo-700 */
+            --secondary-text-color: #64748b; /* slate-500 */
+            --secondary-border-color: #cbd5e1; /* slate-300 */
+            --secondary-hover-bg: #f1f5f9; /* slate-100 */
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0f172a; /* slate-900 */
+                --text-color: #f8fafc; /* slate-50 */
+                --card-bg-color: #1e293b; /* slate-800 */
+                --card-border-color: #334155; /* slate-700 */
+                --primary-color: #6366f1; /* indigo-500 */
+                --primary-hover-color: #4f46e5; /* indigo-600 */
+                --secondary-text-color: #94a3b8; /* slate-400 */
+                --secondary-border-color: #475569; /* slate-600 */
+                --secondary-hover-bg: #334155; /* slate-700 */
+            }
+        }
+
+        /*
+         * BASE & LAYOUT
+         * A modern reset and basic layout styles.
+         */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overflow: hidden; /* Hide overflow from animated shapes */
+        }
+
+        /*
+         * ANIMATED BACKGROUND
+         * Abstract shapes that slowly drift and rotate.
+         */
+        .background-shapes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .background-shapes div {
+            position: absolute;
+            border-radius: 50% 30% 40% 60% / 60% 40% 50% 30%;
+            background: linear-gradient(45deg, var(--primary-color), #a855f7 /* purple-500 */);
+            opacity: 0.1;
+            animation: drift 20s infinite linear alternate;
+        }
+
+        .background-shapes div:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            top: -50px;
+            left: -50px;
+            animation-duration: 25s;
+        }
+
+        .background-shapes div:nth-child(2) {
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            right: -100px;
+            animation-duration: 30s;
+            animation-direction: alternate-reverse;
+        }
+
+        .background-shapes div:nth-child(3) {
+            width: 250px;
+            height: 250px;
+            top: 50%;
+            left: 20%;
+            transform: translateY(-50%);
+            animation-duration: 35s;
+        }
+
+        @keyframes drift {
+            0% {
+                transform: translateY(20px) translateX(0) rotate(0deg);
+            }
+            100% {
+                transform: translateY(-20px) translateX(20px) rotate(360deg);
+            }
+        }
+
+        /*
+         * MAIN CONTENT CARD
+         * The central container for the error message.
+         */
+        .container {
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+            padding: 3rem 2rem;
+            background-color: var(--card-bg-color);
+            border: 1px solid var(--card-border-color);
+            border-radius: 1rem; /* 16px */
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            position: relative;
+            z-index: 1;
+            animation: fade-in-up 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes fade-in-up {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /*
+         * TYPOGRAPHY
+         */
+        .error-code {
+            font-size: 6rem; /* 96px */
+            font-weight: 800; /* extra-bold */
+            line-height: 1;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem; /* 8px */
+        }
+
+        .error-title {
+            font-size: 1.5rem; /* 24px */
+            font-weight: 600; /* semi-bold */
+            margin-bottom: 1rem; /* 16px */
+        }
+
+        .error-message {
+            color: var(--secondary-text-color);
+            font-size: 1rem; /* 16px */
+            line-height: 1.6;
+            margin-bottom: 2.5rem; /* 40px */
+        }
+
+        /*
+         * BUTTONS
+         */
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 1rem; /* 16px */
+            flex-wrap: wrap;
+        }
+
+        .button {
+            display: inline-block;
+            text-decoration: none;
+            font-size: 0.875rem; /* 14px */
+            font-weight: 600;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 0.5rem; /* 8px */
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .button-primary {
+            background-color: var(--primary-color);
+            color: #ffffff;
+        }
+
+        .button-primary:hover {
+            background-color: var(--primary-hover-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        .button-secondary {
+            background-color: transparent;
+            color: var(--text-color);
+            border-color: var(--secondary-border-color);
+        }
+
+        .button-secondary:hover {
+            background-color: var(--secondary-hover-bg);
+            border-color: var(--secondary-border-color);
+            transform: translateY(-2px);
+        }
+
+        /*
+         * FOOTER
+         */
+        .page-footer {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.875rem; /* 14px */
+            color: var(--secondary-text-color);
+            z-index: 1;
+        }
+
+        .page-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .page-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /*
+         * RESPONSIVE DESIGN
+         */
+        @media (max-width: 640px) {
+            .error-code {
+                font-size: 4.5rem; /* 72px */
+            }
+
+            .error-title {
+                font-size: 1.25rem; /* 20px */
+            }
+
+            .container {
+                padding: 2rem 1.5rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Animated background shapes -->
+<div class="background-shapes">
+    <div></div>
+    <div></div>
+    <div></div>
+</div>
+
+<!-- Main error content container -->
+<main class="container">
+    <h1 class="error-code">{{ .Code }}</h1>
+    <h2 class="error-title">{{ .Title }}</h2>
+    <p class="error-message">{{ .Message }}</p>
+    <div class="button-group">
+        <a class="button button-secondary" onclick="history.back()">Go Back</a>
+        <a class="button button-primary" href="{{ .HomeLink }}">Go to Homepage</a>
+    </div>
+</main>
+
+<!-- Page Footer -->
+<footer class="page-footer">
+    Powered by <a href="https://github.com/oeasenet/goe" target="_blank" rel="noopener noreferrer">Goe Framework</a>
+</footer>
+
+</body>
+</html>
