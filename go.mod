@@ -6,7 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/bytedance/sonic v1.13.3
-	github.com/go-playground/validator/v10 v10.26.0
+	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
 	github.com/gofiber/storage/memory/v2 v2.0.1
 	github.com/gofiber/storage/rueidis v1.2.5
