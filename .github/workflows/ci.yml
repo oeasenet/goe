@@ -35,7 +35,7 @@ jobs:
                 run: go mod verify
 
             -   name: Run tests
-                run: go test -v -race -coverprofile=coverage.txt -coverpkg=$(go list ./... | grep -v '/tests' | paste -sd,) ./...
+                run: make test_coverage
 
             -   name: Upload coverage to Codecov
                 if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.24'
