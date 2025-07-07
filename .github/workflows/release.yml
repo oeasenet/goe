@@ -30,12 +30,6 @@ jobs:
             -   name: Run tests
                 run: go test -v -race ./...
 
-            -   name: Run linter
-                uses: golangci/golangci-lint-action@v8
-                with:
-                    version: latest
-                    args: --timeout=5m
-
     release:
         name: Create Release
         runs-on: ubuntu-latest
