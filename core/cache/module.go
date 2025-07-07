@@ -61,3 +61,13 @@ func (m *Module) Provide() contract.CacheManager {
 func (m *Module) ProvideCache() contract.Cache {
 	return m.manager.Store()
 }
+
+// ProvideCacheWithMetrics returns the default cache instance wrapped with metrics if observability is available
+func ProvideCacheWithMetrics(
+	manager contract.CacheManager,
+	metrics contract.MetricsManager,
+	tracing contract.TracingManager,
+) contract.Cache {
+	cache := manager.Store()
+	return NewMetricsWrapper(cache, metrics, tracing)
+}

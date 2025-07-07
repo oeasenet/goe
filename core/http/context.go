@@ -24,7 +24,10 @@ type Services struct {
 	Logger    contract.Logger
 	Validator *CustomValidator
 	// Add more services as needed
-	Cache contract.Cache
+	Cache         contract.Cache
+	Observability contract.Observability
+	Metrics       contract.MetricsManager
+	Tracing       contract.TracingManager
 }
 
 // InjectServices creates a middleware that injects services into the context
@@ -71,6 +74,26 @@ func GetValidator(c fiber.Ctx) *CustomValidator {
 	return GetServices(c).Validator
 }
 
+// GetCache retrieves cache from the context
+func GetCache(c fiber.Ctx) contract.Cache {
+	return GetServices(c).Cache
+}
+
+// GetObservability retrieves observability from the context
+func GetObservability(c fiber.Ctx) contract.Observability {
+	return GetServices(c).Observability
+}
+
+// GetMetrics retrieves metrics manager from the context
+func GetMetrics(c fiber.Ctx) contract.MetricsManager {
+	return GetServices(c).Metrics
+}
+
+// GetTracing retrieves tracing manager from the context
+func GetTracing(c fiber.Ctx) contract.TracingManager {
+	return GetServices(c).Tracing
+}
+
 // Handler creates a handler with dependency injection
 // This is a more convenient way to create handlers with DI
 type Handler[T any] func(c fiber.Ctx, deps T) error
@@ -86,21 +109,47 @@ func AsHandler[T any](h Handler[T], deps T) fiber.Handler {
 type ServiceProvider struct {
 	fx.In
 
-	App    contract.Application
-	Config contract.Config
-	Logger contract.Logger
-	Cache  contract.Cache
+	App           contract.Application
+	Config        contract.Config
+	Logger        contract.Logger
+	Cache         contract.Cache          `optional:"true"`
+	Observability contract.Observability  `optional:"true"`
+	Metrics       contract.MetricsManager `optional:"true"`
+	Tracing       contract.TracingManager `optional:"true"`
 }
 
-// CreateServiceMiddleware creates a middleware that injects services
+// CreateServiceMiddleware creates a middleware that injects services and optionally adds metrics
 func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 	services := Services{
-		App:    provider.App,
-		Config: provider.Config,
-		Logger: provider.Logger,
-		Cache:  provider.Cache,
+		App:           provider.App,
+		Config:        provider.Config,
+		Logger:        provider.Logger,
+		Cache:         provider.Cache,
+		Observability: provider.Observability,
+		Metrics:       provider.Metrics,
+		Tracing:       provider.Tracing,
 	}
-	return InjectServices(services)
+
+	// Create service injection middleware
+	serviceMiddleware := InjectServices(services)
+
+	// If observability is available, create a composite middleware with metrics
+	if provider.Metrics != nil && provider.Tracing != nil {
+		metricsMiddleware := CreateMetricsMiddleware(services)
+
+		// Return composite middleware that applies both service injection and metrics
+		return func(c fiber.Ctx) error {
+			// First inject services
+			if err := serviceMiddleware(c); err != nil {
+				return err
+			}
+			// Then apply metrics middleware
+			return metricsMiddleware(c)
+		}
+	}
+
+	// Return just service injection if observability is not available
+	return serviceMiddleware
 }
 
 // Group represents a route group with DI support
