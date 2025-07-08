@@ -1,10 +1,9 @@
-# Goe - Modern Go Application Framework 🚀
+# Goe - Modern Go Application Framework 🐹
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
+  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Status-Dev-yellow?style=for-the-badge" alt="Status">
-  <!-- Consider adding other relevant badges like build status, code coverage, etc. -->
   <img src="https://img.shields.io/codecov/c/gh/oeasenet/goe/v2?token=9SWCFFQ38U&style=for-the-badge" alt="Coverage">
 </div>
 
@@ -25,8 +24,7 @@ It aims to provide a solid foundation for building robust and scalable Go applic
   production-ready JSON formatting.
 - **⚙️ Environment-Aware Configuration**: Load configuration from environment variables and `.env` files, with type-safe
   accessors.
-- **💾 Versatile Cache Support**: Unified caching interface via Fiber's storage, supporting drivers like Memory, Redis,
-  SQLite, etc.
+- **💾 Versatile Cache Support**: Unified caching interface via Fiber's storage, supporting Memory and Redis drivers.
 - **🧩 Extensible Module System**: Organize your application into logical modules with managed lifecycles (`OnStart`,
   `OnStop`).
 - **🛡️ Contract-Driven Design**: Core components are defined by interfaces, promoting loose coupling and testability.
@@ -76,24 +74,29 @@ func main() {
 }
 ```
 
-For a detailed step-by-step guide, please see our full [Getting Started documentation](docs/02-getting-started.md).
+For a detailed step-by-step guide, please see our full [Getting Started documentation](https://oeasenet.github.io/goe/guide/getting-started).
 
 ## 📖 Comprehensive Documentation
 
-Our **new and comprehensive developer documentation** is available in the [`docs/`](docs/README.md) directory.
+Our **comprehensive developer documentation** is now available as a beautiful VitePress site:
 
-It covers everything from getting started, architecture, configuration, core modules (HTTP, DB, Cache, Logging),
-advanced topics like custom modules and dependency injection, to best practices and deployment.
+🌐 **[https://oeasenet.github.io/goe/](https://oeasenet.github.io/goe/)**
 
-➡️ **[Start exploring the documentation here!](docs/README.md)** ⬅️
+The documentation covers:
+- **Guide**: Step-by-step tutorials from installation to deployment
+- **Examples**: Practical, runnable code examples
+- **Reference**: API documentation and module references
+
+You can also browse the documentation locally by running:
+```bash
+bun run docs:dev
+```
 
 ## 🤝 Contributing
 
-Contributions are welcome and greatly appreciated! Please see the [Contributing Guide](docs/17-contributing.md) for
-details on how to get started, including setting up your environment, running tests (`go test ./...`), and submitting
+Contributions are welcome and greatly appreciated! Please see the [Contributing Guide](https://oeasenet.github.io/goe/guide/contributing) for
+details on how to get started, including setting up your environment, running tests (`make test`), and submitting
 pull requests.
-
-We adhere to a [Code of Conduct](../CODE_OF_CONDUCT.md) to ensure a welcoming community.
 
 ## 📝 License
 

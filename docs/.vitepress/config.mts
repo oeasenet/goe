@@ -8,14 +8,14 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   head: [
-    ['link', { rel: 'icon', href: '/favicon.ico' }],
+    ['link', { rel: 'icon', href: '/goe/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#00ADD8' }],
     ['meta', { name: 'og:type', content: 'website' }],
     ['meta', { name: 'og:locale', content: 'en' }],
     ['meta', { name: 'og:site_name', content: 'GOE Framework' }],
   ],
   themeConfig: {
-    logo: { src: '/logo.svg', width: 24, height: 24 },
+    logo: { src: '/goe/logo.svg', width: 24, height: 24 },
     siteTitle: 'GOE Framework',
     
     nav: [
