@@ -4,7 +4,7 @@ We welcome contributions to the Goe framework! Whether you're fixing a bug, impr
 
 ## Code of Conduct
 
-Before contributing, please read our [Code of Conduct](../CODE_OF_CONDUCT.md). We expect all contributors to adhere to it to ensure a welcoming and inclusive environment for everyone.
+Before contributing, please read our Code of Conduct. We expect all contributors to adhere to it to ensure a welcoming and inclusive environment for everyone.
 
 ## Ways to Contribute
 
@@ -143,11 +143,11 @@ Before contributing, please read our [Code of Conduct](../CODE_OF_CONDUCT.md). W
 
 ## Licensing
 
-By contributing to Goe, you agree that your contributions will be licensed under its [Apache 2.0 License](../LICENSE).
+By contributing to Goe, you agree that your contributions will be licensed under its MIT License.
 
 Thank you for considering contributing to the Goe framework! Your efforts help make it better for everyone.
 
 ---
 
-Next, we'll provide a handy [Appendix: Glossary](18-appendix-glossary.md) of terms.
+Please refer to the documentation for comprehensive guides on using the framework.
 ```

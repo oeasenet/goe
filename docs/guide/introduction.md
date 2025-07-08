@@ -1,13 +1,10 @@
-# 1. Introduction to Goe Framework 🚀
+# Introduction to GOE Framework
 
-Welcome to the Goe Framework! Goe is a modern, opinionated application framework for the Go programming language,
-designed to accelerate the development of robust, scalable, and maintainable applications.
+Welcome to the GOE Framework! GOE is a modern, opinionated application framework for the Go programming language, designed to accelerate the development of robust, scalable, and maintainable applications.
 
-## 🤔 What is Goe?
+## What is GOE?
 
-Goe (Go Ease) aims to provide a delightful developer experience by integrating best practices and powerful libraries
-from the Go ecosystem. It's built with the philosophy that a framework should handle the boilerplate and provide
-sensible defaults, allowing developers to focus on business logic.
+GOE (Go Ease) aims to provide a delightful developer experience by integrating best practices and powerful libraries from the Go ecosystem. It's built with the philosophy that a framework should handle the boilerplate and provide sensible defaults, allowing developers to focus on business logic.
 
 **Key Design Principles:**
 
@@ -18,9 +15,9 @@ sensible defaults, allowing developers to focus on business logic.
 * **Concurrency Safety**: Thread-safe core components designed for concurrent environments
 * **Best Practices**: Incorporates proven patterns for configuration, logging, HTTP handling, and lifecycle management
 
-## ✨ Core Features
+## Core Features
 
-Goe provides a comprehensive set of features designed for modern Go applications:
+GOE provides a comprehensive set of features designed for modern Go applications:
 
 ### 🔌 Dependency Injection & Lifecycle Management
 
@@ -65,7 +62,7 @@ Flexible configuration system:
 
 Unified caching interface when enabled with `WithCache: true`:
 
-- Multiple cache backends: Memory, Redis, and custom drivers
+- Multiple cache backends: Memory, Redis
 - Rich API: `Get`, `Set`, `Remember`, `Forget`, `Increment`, `Decrement`
 - TTL support and cache key prefixing
 - JSON serialization for complex data types
@@ -107,9 +104,9 @@ Flexible component access:
 - **Dependency Injection**: Explicit injection for better testability and structure
 - Choose the pattern that fits your use case and team preferences
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
-Goe follows a modular, contract-driven architecture built on dependency injection:
+GOE follows a modular, contract-driven architecture built on dependency injection:
 
 ```mermaid
 graph TB
@@ -118,7 +115,7 @@ graph TB
         B[HTTP Handlers]
         C[Services & Repositories]
     end
-    subgraph "Goe Framework"
+    subgraph "GOE Framework"
         D["Global Accessors<br/>goe.Log(), goe.Config(), etc."]
         E["Contract Interfaces<br/>HTTPKernel, Logger, Cache, DB"]
         F["Core Modules<br/>HTTP, Config, Log, Cache, DB"]
@@ -140,25 +137,22 @@ graph TB
 ### Key Architectural Components
 
 **Application Layer**
-
 - Your business logic, HTTP handlers, and services
-- Interacts with Goe through contracts or global accessors
+- Interacts with GOE through contracts or global accessors
 - Completely decoupled from implementation details
 
-**Goe Framework Layer**
-
+**GOE Framework Layer**
 - **Global Accessors**: Convenient functions for quick access (`goe.Log()`, `goe.HTTP()`)
 - **Contracts**: Interface definitions that ensure loose coupling
 - **Core Modules**: Implementation of HTTP, logging, caching, database functionality
 
 **Foundation Layer**
-
 - **Uber Fx**: Manages dependency injection and component lifecycle
 - **Third-party Libraries**: High-performance Go libraries (Fiber, Zap, GORM)
 
 ### Module Lifecycle
 
-Each Goe module follows a consistent lifecycle:
+Each GOE module follows a consistent lifecycle:
 
 1. **Registration**: Modules are registered with the Fx container
 2. **Dependency Resolution**: Fx resolves all dependencies automatically
@@ -174,7 +168,7 @@ Each Goe module follows a consistent lifecycle:
 - **Performance**: Built on proven, high-performance libraries
 - **Maintainability**: Clear separation of concerns and dependencies
 
-## 🚀 Quick Example
+## Quick Example
 
 Here's how these concepts work together in practice:
 
@@ -185,19 +179,22 @@ config := goe.Config().GetString("DATABASE_URL")
 
 // Using dependency injection (recommended for larger apps)
 func NewUserService(db contract.DB, logger contract.Logger) *UserService {
-return &UserService{db: db, logger: logger}
+    return &UserService{db: db, logger: logger}
 }
 
 // Module registration
 app := goe.New(goe.Options{
-WithHTTP:  true, // Enable HTTP module
-WithDB:    true, // Enable database module
-WithCache: true, // Enable cache module
-Providers: []any{NewUserService}, // Register your services
+    WithHTTP:  true, // Enable HTTP module
+    WithDB:    true, // Enable database module
+    WithCache: true, // Enable cache module
+    Providers: []any{NewUserService}, // Register your services
 })
 ```
 
-For a deeper dive into the architecture and design patterns, see the [Architecture Deep Dive](04-architecture.md)
-section.
+## Next Steps
 
-Ready to build your first application? Let's continue with [Getting Started](02-getting-started.md)!
+Ready to build your first application? 
+
+- [**Quick Start**](./getting-started.md) - Build your first GOE application
+- [**Architecture**](./architecture.md) - Deep dive into framework architecture
+- [**Examples**](../examples/basic-app.md) - See practical examples
