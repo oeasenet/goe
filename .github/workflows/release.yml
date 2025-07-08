@@ -28,7 +28,7 @@ jobs:
                     cache: true
 
             -   name: Run tests
-                run: go test -v -race ./...
+                run: make test
 
     release:
         name: Create Release
@@ -89,23 +89,23 @@ jobs:
             -   name: Checkout code
                 uses: actions/checkout@v4
 
-            -   name: Set up Go
-                uses: actions/setup-go@v5
+            -   name: Setup Bun
+                uses: oven-sh/setup-bun@v1
                 with:
-                    go-version: ${{ env.GO_VERSION }}
-                    cache: true
+                    bun-version: latest
 
-            -   name: Generate Go docs
-                run: |
-                    mkdir -p docs/api
-                    go doc -all . > docs/api/goe.md || echo "Documentation generation skipped"
+            -   name: Install dependencies
+                run: bun install
+
+            -   name: Build documentation
+                run: bun run docs:build
 
             -   name: Deploy to GitHub Pages
                 if: github.repository_owner == 'oeasenet'
                 uses: peaceiris/actions-gh-pages@v4
                 with:
                     github_token: ${{ secrets.GITHUB_TOKEN }}
-                    publish_dir: ./docs
+                    publish_dir: ./docs/.vitepress/dist
                     destination_dir: ${{ github.ref_name }}
 
     notify:
