@@ -13,7 +13,7 @@ import (
 )
 
 type TestModel struct {
-	Name string `gorm:"size:255"`
+	Name string
 	Age  int
 }
 
