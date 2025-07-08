@@ -14,7 +14,7 @@ import (
 // The configuration keys are expected to be like:
 // MONGO_DB_URI, MONGO_DB_DB
 // For a named connection "foo", the keys would be:
-// MONGO_DB_FOO_URI, MONGO_DB_FOO_DB
+// MONGO_DB_FOO_URI, MONGO_DB_FOO_DB_NAME
 func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 	configPrefix := "MONGO_DB_"
 	if name != "default" && name != "" {

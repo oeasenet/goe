@@ -2,10 +2,13 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.oease.dev/goe/v2/contract"
+	"strings"
 	"sync"
+	"time"
 )
 
 // DatabaseModule implements the contract.DB and contract.Module interfaces
@@ -17,8 +20,9 @@ type DatabaseModule struct {
 }
 
 // NewDBModule creates a new DatabaseModule instance
-func NewDBModule(config contract.Config) *DatabaseModule {
+func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule {
 	return &DatabaseModule{
+		logger:      logger,
 		config:      config,
 		connections: make(map[string]*mongo.Database),
 	}
@@ -53,6 +57,19 @@ func (dbm *DatabaseModule) Connection(name string) (*mongo.Database, error) {
 	return conn, nil
 }
 
+func (dbm *DatabaseModule) IsNoDocumentsError(err error) bool {
+	return errors.Is(err, mongo.ErrNoDocuments)
+}
+
+func (dbm *DatabaseModule) Ctx() context.Context {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	go func() {
+		<-ctx.Done() // Wait until timeout or manual cancellation
+		cancel()     // Release resources
+	}()
+	return ctx
+}
+
 // --- contract.Module interface implementation ---
 
 // Name returns the unique name of the module
@@ -83,6 +100,37 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
 		dbm.logger.Infof("Successfully connected to default mongo database, connection_config_name: %s", defaultConnectionName)
+	}
+
+	// Connect to additional databases if configured
+	connectionsList := dbm.config.GetString("MONGO_DB_CONNECTIONS")
+	if connectionsList != "" {
+		// Split the comma-separated list of connection names
+		connectionNames := strings.Split(connectionsList, ",")
+		for _, connName := range connectionNames {
+			connName = strings.TrimSpace(connName)
+
+			// Skip if it's the default connection (already connected)
+			if connName == defaultConnectionName {
+				continue
+			}
+
+			// Skip if empty
+			if connName == "" {
+				continue
+			}
+
+			dbm.logger.Infof("Attempting to connect to additional database, connection_name: %s", connName)
+			conn, err := dbm.connect(connName)
+			if err != nil {
+				dbm.logger.Errorf("Failed to connect to additional database, connection_name: %s,  error: %s", connName, err.Error())
+				// Continue with other connections
+			} else {
+				dbm.connections[connName] = conn
+				dbm.logger.Infof("Successfully connected to additional database", "connection_name", connName)
+
+			}
+		}
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"context"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -12,6 +13,11 @@ type MongoDB interface {
 	// Connection returns a specific MONGO DB instance by name
 	// This allows for multiple database connections if needed in the future
 	Connection(name string) (*mongo.Database, error)
+
+	// IsNoDocumentsError checks if the given error is mongo.ErrNoDocuments.
+	IsNoDocumentsError(err error) bool
+
+	Ctx() context.Context
 
 	// AutoMigrate performs auto migration for the given GORM models on the default connection
 	//AutoMigrate(dst ...interface{}) error
