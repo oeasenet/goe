@@ -1,4 +1,4 @@
-package config_test
+package tests
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"go.oease.dev/goe/v2/core/config"
 )
 
-func TestNew(t *testing.T) {
+func TestConfigNew(t *testing.T) {
 	// Test creating a new config
 	cfg := config.New()
 
@@ -17,7 +17,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, cfg)
 }
 
-func TestGetMethods(t *testing.T) {
+func TestConfigGetMethods(t *testing.T) {
 	// Set environment variables for testing
 	os.Setenv("TEST_STRING", "test_value")
 	os.Setenv("TEST_INT", "42")
@@ -78,7 +78,7 @@ func TestGetMethods(t *testing.T) {
 	assert.Equal(t, map[string]any{"KEY1": "value1", "KEY2": "value2"}, cfg.GetStringMap("TEST_MAP"))
 }
 
-func TestSetAndHas(t *testing.T) {
+func TestConfigSetAndHas(t *testing.T) {
 	// Create a new config
 	cfg := config.New()
 
@@ -89,7 +89,7 @@ func TestSetAndHas(t *testing.T) {
 	assert.Equal(t, "test_value", cfg.GetString("TEST_KEY"))
 }
 
-func TestAll(t *testing.T) {
+func TestConfigAll(t *testing.T) {
 	// Create a new config
 	cfg := config.New()
 
@@ -106,7 +106,7 @@ func TestAll(t *testing.T) {
 	assert.Equal(t, "value2", all["TEST_KEY2"])
 }
 
-func TestReload(t *testing.T) {
+func TestConfigReload(t *testing.T) {
 	// Create a new config
 	cfg := config.New()
 
@@ -126,7 +126,7 @@ func TestReload(t *testing.T) {
 	assert.Equal(t, "new_value", cfg.GetString("TEST_KEY"))
 }
 
-func TestModule(t *testing.T) {
+func TestConfigModule(t *testing.T) {
 	// Create a new config module
 	module := config.NewModule()
 
@@ -142,7 +142,7 @@ func TestModule(t *testing.T) {
 	assert.Nil(t, module.OnStop(nil))
 }
 
-func TestEnvFileLoading(t *testing.T) {
+func TestConfigEnvFileLoading(t *testing.T) {
 	// Create temporary .env file
 	envContent := `
 TEST_ENV_KEY=test_env_value

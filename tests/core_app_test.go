@@ -1,4 +1,4 @@
-package app_test
+package tests
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 )
 
-func TestNew(t *testing.T) {
+func TestAppNew(t *testing.T) {
 	// Test creating a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -24,7 +24,7 @@ func TestNew(t *testing.T) {
 	assert.False(t, application.IsRunning())
 }
 
-func TestRegister(t *testing.T) {
+func TestAppRegister(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -36,7 +36,7 @@ func TestRegister(t *testing.T) {
 	assert.NotNil(t, application.Container())
 }
 
-func TestRegisterMultiple(t *testing.T) {
+func TestAppRegisterMultiple(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -60,7 +60,7 @@ func TestRegisterMultiple(t *testing.T) {
 	assert.NotEqual(t, initialContainer, newContainer)
 }
 
-func TestRegisterError(t *testing.T) {
+func TestAppRegisterError(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -73,7 +73,7 @@ func TestRegisterError(t *testing.T) {
 	assert.Equal(t, assert.AnError, err)
 }
 
-func TestApplicationProperties(t *testing.T) {
+func TestAppProperties(t *testing.T) {
 	// Test different application properties
 	tests := []struct {
 		name        string
@@ -97,31 +97,7 @@ func TestApplicationProperties(t *testing.T) {
 	}
 }
 
-// MockModule is a mock implementation of the Module interface for testing
-type MockModule struct {
-	mock.Mock
-	startCalled bool
-	stopCalled  bool
-}
-
-func (m *MockModule) Name() string {
-	args := m.Called()
-	return args.String(0)
-}
-
-func (m *MockModule) OnStart(ctx context.Context) error {
-	m.startCalled = true
-	args := m.Called(ctx)
-	return args.Error(0)
-}
-
-func (m *MockModule) OnStop(ctx context.Context) error {
-	m.stopCalled = true
-	args := m.Called(ctx)
-	return args.Error(0)
-}
-
-func TestAddModule(t *testing.T) {
+func TestAppAddModule(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -140,7 +116,7 @@ func TestAddModule(t *testing.T) {
 	module.AssertExpectations(t)
 }
 
-func TestAddMultipleModules(t *testing.T) {
+func TestAppAddMultipleModules(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -166,7 +142,7 @@ func TestAddMultipleModules(t *testing.T) {
 	module2.AssertExpectations(t)
 }
 
-func TestModuleLifecycle(t *testing.T) {
+func TestAppModuleLifecycle(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -188,22 +164,16 @@ func TestModuleLifecycle(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, application.IsRunning())
 
-	// Verify module OnStart was called
-	assert.True(t, module.startCalled)
-
 	// Stop the application
 	err = application.Stop(ctx)
 	assert.Nil(t, err)
 	assert.False(t, application.IsRunning())
 
-	// Verify module OnStop was called
-	assert.True(t, module.stopCalled)
-
 	// Verify expectations
 	module.AssertExpectations(t)
 }
 
-func TestModuleStartError(t *testing.T) {
+func TestAppModuleStartError(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -227,7 +197,7 @@ func TestModuleStartError(t *testing.T) {
 	module.AssertExpectations(t)
 }
 
-func TestApplicationStartStop(t *testing.T) {
+func TestAppStartStop(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -249,7 +219,7 @@ func TestApplicationStartStop(t *testing.T) {
 	assert.False(t, application.IsRunning())
 }
 
-func TestApplicationStartStopWithoutContainer(t *testing.T) {
+func TestAppStartStopWithoutContainer(t *testing.T) {
 	// Create a new application without registering anything
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -267,7 +237,7 @@ func TestApplicationStartStopWithoutContainer(t *testing.T) {
 	assert.False(t, application.IsRunning())
 }
 
-func TestAddProvider(t *testing.T) {
+func TestAppAddProvider(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -284,7 +254,7 @@ func TestAddProvider(t *testing.T) {
 	assert.NotNil(t, application.Container())
 }
 
-func TestAddInvoker(t *testing.T) {
+func TestAppAddInvoker(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -301,7 +271,7 @@ func TestAddInvoker(t *testing.T) {
 	assert.NotNil(t, application.Container())
 }
 
-func TestAddMultipleProvidersAndInvokers(t *testing.T) {
+func TestAppAddMultipleProvidersAndInvokers(t *testing.T) {
 	// Test adding providers and invokers separately to avoid rebuild conflicts
 	t.Run("AddProviders", func(t *testing.T) {
 		application := app.New("Test App", "1.0.0", "test")

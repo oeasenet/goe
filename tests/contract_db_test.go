@@ -1,4 +1,4 @@
-package contract_test
+package tests
 
 import (
 	"testing"
@@ -42,12 +42,6 @@ func (m *MockDB) RegisterModelsForMigrationOnConnection(connectionName string, d
 	m.Called(connectionName, dst)
 }
 
-// TestModel is a simple model for testing auto migration
-type TestModel struct {
-	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"size:255"`
-}
-
 func TestDBInterface(t *testing.T) {
 	// This test verifies that MockDB implements the DB interface
 	var _ contract.DB = (*MockDB)(nil)
@@ -55,34 +49,30 @@ func TestDBInterface(t *testing.T) {
 	// Create a mock DB
 	db := new(MockDB)
 
-	// Create a mock GORM DB
-	mockGormDB := &gorm.DB{}
-
 	// Set up expectations
-	db.On("Instance").Return(mockGormDB)
-	db.On("Connection", "test_connection").Return(mockGormDB, nil)
+	gormDB := &gorm.DB{}
+	db.On("Instance").Return(gormDB)
+	db.On("Connection", "default").Return(gormDB, nil)
 	db.On("AutoMigrate", mock.Anything).Return(nil)
-	db.On("AutoMigrateOnConnection", "test_connection", mock.Anything).Return(nil)
+	db.On("AutoMigrateOnConnection", "default", mock.Anything).Return(nil)
 	db.On("RegisterModelsForMigration", mock.Anything).Return()
-	db.On("RegisterModelsForMigrationOnConnection", "test_connection", mock.Anything).Return()
+	db.On("RegisterModelsForMigrationOnConnection", "default", mock.Anything).Return()
 
 	// Test the methods
-	assert.Equal(t, mockGormDB, db.Instance())
+	assert.Equal(t, gormDB, db.Instance())
 
-	conn, err := db.Connection("test_connection")
-	assert.Nil(t, err)
-	assert.Equal(t, mockGormDB, conn)
+	conn, err := db.Connection("default")
+	assert.NoError(t, err)
+	assert.Equal(t, gormDB, conn)
 
-	// Test auto migration with a model
-	model := &TestModel{}
-	assert.Nil(t, db.AutoMigrate(model))
+	err = db.AutoMigrate(&struct{}{})
+	assert.NoError(t, err)
 
-	// Test auto migration on a specific connection
-	assert.Nil(t, db.AutoMigrateOnConnection("test_connection", model))
+	err = db.AutoMigrateOnConnection("default", &struct{}{})
+	assert.NoError(t, err)
 
-	// Test model registration methods
-	db.RegisterModelsForMigration(model)
-	db.RegisterModelsForMigrationOnConnection("test_connection", model)
+	db.RegisterModelsForMigration(&struct{}{})
+	db.RegisterModelsForMigrationOnConnection("default", &struct{}{})
 
 	// Verify expectations
 	db.AssertExpectations(t)

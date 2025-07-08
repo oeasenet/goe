@@ -1,8 +1,7 @@
-package contract_test
+package tests
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,6 +95,67 @@ func (m *MockLogger) GetLogger() *zap.SugaredLogger {
 	return args.Get(0).(*zap.SugaredLogger)
 }
 
+func TestLoggerInterface(t *testing.T) {
+	// This test verifies that MockLogger implements the Logger interface
+	var _ contract.Logger = (*MockLogger)(nil)
+
+	// Create a mock logger
+	logger := new(MockLogger)
+
+	// Set up expectations
+	logger.On("Debug", "debug message", mock.Anything).Return()
+	logger.On("Info", "info message", mock.Anything).Return()
+	logger.On("Warn", "warn message", mock.Anything).Return()
+	logger.On("Error", "error message", mock.Anything).Return()
+	logger.On("Fatal", "fatal message", mock.Anything).Return()
+	logger.On("Debugf", "debug %s", mock.Anything).Return()
+	logger.On("Infof", "info %s", mock.Anything).Return()
+	logger.On("Warnf", "warn %s", mock.Anything).Return()
+	logger.On("Errorf", "error %s", mock.Anything).Return()
+	logger.On("Fatalf", "fatal %s", mock.Anything).Return()
+	logger.On("Debugw", "debug message", mock.Anything).Return()
+	logger.On("Infow", "info message", mock.Anything).Return()
+	logger.On("Warnw", "warn message", mock.Anything).Return()
+	logger.On("Errorw", "error message", mock.Anything).Return()
+	logger.On("Fatalw", "fatal message", mock.Anything).Return()
+	logger.On("With", mock.Anything).Return(logger)
+	logger.On("WithContext", mock.Anything).Return(logger)
+	logger.On("WithError", mock.Anything).Return(logger)
+	logger.On("GetLogger").Return(&zap.SugaredLogger{})
+
+	// Test the methods
+	logger.Debug("debug message")
+	logger.Info("info message")
+	logger.Warn("warn message")
+	logger.Error("error message")
+	logger.Fatal("fatal message")
+	logger.Debugf("debug %s", "test")
+	logger.Infof("info %s", "test")
+	logger.Warnf("warn %s", "test")
+	logger.Errorf("error %s", "test")
+	logger.Fatalf("fatal %s", "test")
+	logger.Debugw("debug message", "key", "value")
+	logger.Infow("info message", "key", "value")
+	logger.Warnw("warn message", "key", "value")
+	logger.Errorw("error message", "key", "value")
+	logger.Fatalw("fatal message", "key", "value")
+
+	withLogger := logger.With("key", "value")
+	assert.Equal(t, logger, withLogger)
+
+	withContextLogger := logger.WithContext(context.Background())
+	assert.Equal(t, logger, withContextLogger)
+
+	withErrorLogger := logger.WithError(assert.AnError)
+	assert.Equal(t, logger, withErrorLogger)
+
+	sugaredLogger := logger.GetLogger()
+	assert.NotNil(t, sugaredLogger)
+
+	// Verify expectations
+	logger.AssertExpectations(t)
+}
+
 // MockField is a mock implementation of the Field interface
 type MockField struct {
 	mock.Mock
@@ -106,9 +166,35 @@ func (m *MockField) Key() string {
 	return args.String(0)
 }
 
-func (m *MockField) Value() any {
+func (m *MockField) Value() interface{} {
 	args := m.Called()
 	return args.Get(0)
+}
+
+func (m *MockField) Type() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func TestFieldInterface(t *testing.T) {
+	// This test verifies that MockField implements the Field interface
+	var _ contract.Field = (*MockField)(nil)
+
+	// Create a mock field
+	field := new(MockField)
+
+	// Set up expectations
+	field.On("Key").Return("test_key")
+	field.On("Value").Return("test_value")
+	field.On("Type").Return("string")
+
+	// Test the methods
+	assert.Equal(t, "test_key", field.Key())
+	assert.Equal(t, "test_value", field.Value())
+	assert.Equal(t, "string", field.Type())
+
+	// Verify expectations
+	field.AssertExpectations(t)
 }
 
 // MockLoggerConfig is a mock implementation of the LoggerConfig interface
@@ -141,59 +227,6 @@ func (m *MockLoggerConfig) EnableStacktrace() bool {
 	return args.Bool(0)
 }
 
-func TestLoggerInterface(t *testing.T) {
-	// This test verifies that MockLogger implements the Logger interface
-	var _ contract.Logger = (*MockLogger)(nil)
-
-	// Create a mock logger
-	logger := new(MockLogger)
-
-	// Set up expectations
-	logger.On("Debug", "debug message", mock.Anything).Return()
-	logger.On("Info", "info message", mock.Anything).Return()
-	logger.On("Warn", "warn message", mock.Anything).Return()
-	logger.On("Error", "error message", mock.Anything).Return()
-	logger.On("Fatal", "fatal message", mock.Anything).Return()
-	logger.On("With", mock.Anything).Return(logger)
-	logger.On("WithContext", mock.Anything).Return(logger)
-	logger.On("WithError", mock.Anything).Return(logger)
-	logger.On("GetLogger").Return(&zap.SugaredLogger{})
-
-	// Test the methods with key-value pairs
-	logger.Debug("debug message", "key", "value")
-	logger.Info("info message", "key", "value")
-	logger.Warn("warn message", "key", "value")
-	logger.Error("error message", "key", "value")
-	logger.Fatal("fatal message", "key", "value")
-
-	assert.Equal(t, logger, logger.With("key", "value"))
-	assert.Equal(t, logger, logger.WithContext(context.Background()))
-	assert.Equal(t, logger, logger.WithError(errors.New("test error")))
-	assert.NotNil(t, logger.GetLogger())
-
-	// Verify expectations
-	logger.AssertExpectations(t)
-}
-
-func TestFieldInterface(t *testing.T) {
-	// This test verifies that MockField implements the Field interface
-	var _ contract.Field = (*MockField)(nil)
-
-	// Create a mock field
-	field := new(MockField)
-
-	// Set up expectations
-	field.On("Key").Return("test_key")
-	field.On("Value").Return("test_value")
-
-	// Test the methods
-	assert.Equal(t, "test_key", field.Key())
-	assert.Equal(t, "test_value", field.Value())
-
-	// Verify expectations
-	field.AssertExpectations(t)
-}
-
 func TestLoggerConfigInterface(t *testing.T) {
 	// This test verifies that MockLoggerConfig implements the LoggerConfig interface
 	var _ contract.LoggerConfig = (*MockLoggerConfig)(nil)
@@ -202,16 +235,16 @@ func TestLoggerConfigInterface(t *testing.T) {
 	config := new(MockLoggerConfig)
 
 	// Set up expectations
-	config.On("Level").Return("debug")
+	config.On("Level").Return("info")
 	config.On("Format").Return("json")
-	config.On("Output").Return([]string{"console", "file"})
+	config.On("Output").Return([]string{"stdout", "stderr"})
 	config.On("EnableCaller").Return(true)
 	config.On("EnableStacktrace").Return(true)
 
 	// Test the methods
-	assert.Equal(t, "debug", config.Level())
+	assert.Equal(t, "info", config.Level())
 	assert.Equal(t, "json", config.Format())
-	assert.Equal(t, []string{"console", "file"}, config.Output())
+	assert.Equal(t, []string{"stdout", "stderr"}, config.Output())
 	assert.True(t, config.EnableCaller())
 	assert.True(t, config.EnableStacktrace())
 

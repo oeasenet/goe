@@ -1,4 +1,4 @@
-package integration_test
+package tests
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func (m *TestModule) OnStop(ctx context.Context) error {
 	return nil
 }
 
-func TestModuleIntegration(t *testing.T) {
+func TestIntegrationModuleLifecycle(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 
@@ -74,7 +74,7 @@ func TestModuleIntegration(t *testing.T) {
 }
 
 // TestProviderInvokerIntegration tests that providers and invokers work correctly with DI
-func TestProviderInvokerIntegration(t *testing.T) {
+func TestIntegrationProviderInvoker(t *testing.T) {
 	// Create a new application
 	application := app.New("Test App", "1.0.0", "test")
 

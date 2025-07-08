@@ -7,20 +7,25 @@ clean:
 	rm -f coverage.txt
 
 # Run all tests
-test: test_contract test_core test_integration
+test:
+	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/...
 
 # Run all tests with coverage report
 test_coverage:
-	go test -v -race -coverprofile=coverage.txt -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./...
+	go test -v -race -coverprofile=coverage.txt -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/...
 
-# Run test in the contact folder
+# Run contract tests
 test_contract:
-	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/contract/...
+	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/ -run "^Test.*Contract|^Test.*Config|^Test.*Cache|^Test.*DB|^Test.*HTTP|^Test.*Log|^Test.*Module|^Test.*Observability"
 
-# Run test in the core folder
+# Run core tests
 test_core:
-	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/core/...
+	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/ -run "^Test.*Core|^Test.*App"
 
-# Run test in the integration folder
+# Run integration tests
 test_integration:
-	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/integration/...
+	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/ -run "^Test.*Integration"
+
+# Run utility tests
+test_utils:
+	go test -v -race -coverpkg=$$(go list ./... | grep -v '/tests' | tr '\n' ',' | sed 's/,$$//') ./tests/ -run "^Test.*HumanReadable|^Test.*Convert|^Test.*Arr"

@@ -1,4 +1,4 @@
-package contract_test
+package tests
 
 import (
 	"context"
@@ -43,60 +43,62 @@ func TestModuleInterface(t *testing.T) {
 
 	// Test the methods
 	assert.Equal(t, "test_module", module.Name())
-	assert.Nil(t, module.OnStart(context.Background()))
-	assert.Nil(t, module.OnStop(context.Background()))
+
+	ctx := context.Background()
+	assert.NoError(t, module.OnStart(ctx))
+	assert.NoError(t, module.OnStop(ctx))
 
 	// Verify expectations
 	module.AssertExpectations(t)
 }
 
-// TestModuleLifecycle tests the lifecycle of a module
 func TestModuleLifecycle(t *testing.T) {
-	// Create a mock module
+	// Test module lifecycle
 	module := new(MockModule)
 
-	// Set up expectations with a specific order
-	module.On("Name").Return("test_module")
+	// Set up expectations for lifecycle
+	module.On("Name").Return("lifecycle_module")
 	module.On("OnStart", mock.Anything).Return(nil)
 	module.On("OnStop", mock.Anything).Return(nil)
 
-	// Simulate module lifecycle
 	ctx := context.Background()
 
-	// 1. Get module name
-	name := module.Name()
-	assert.Equal(t, "test_module", name)
+	// Test name
+	assert.Equal(t, "lifecycle_module", module.Name())
 
-	// 2. Start the module
+	// Test start
 	err := module.OnStart(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
-	// 3. Stop the module
+	// Test stop
 	err = module.OnStop(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
-	// Verify expectations and their order
+	// Verify expectations
 	module.AssertExpectations(t)
 }
 
-// TestModuleWithError tests error handling in module lifecycle
 func TestModuleWithError(t *testing.T) {
-	// Create a mock module
+	// Test module with error
 	module := new(MockModule)
 
-	// Set up expectations with errors
-	module.On("Name").Return("test_module")
+	// Set up expectations for error scenarios
+	module.On("Name").Return("error_module")
 	module.On("OnStart", mock.Anything).Return(assert.AnError)
+	module.On("OnStop", mock.Anything).Return(assert.AnError)
 
-	// Simulate module lifecycle with error
 	ctx := context.Background()
 
-	// 1. Get module name
-	name := module.Name()
-	assert.Equal(t, "test_module", name)
+	// Test name
+	assert.Equal(t, "error_module", module.Name())
 
-	// 2. Start the module (should return error)
+	// Test start error
 	err := module.OnStart(ctx)
+	assert.Error(t, err)
+	assert.Equal(t, assert.AnError, err)
+
+	// Test stop error
+	err = module.OnStop(ctx)
 	assert.Error(t, err)
 	assert.Equal(t, assert.AnError, err)
 
