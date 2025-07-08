@@ -157,3 +157,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 /web/tsconfig.tsbuildinfo
+
+
+# Vitepress
+docs/.vitepress/dist
+docs/.vitepress/cache
+node_modules/
