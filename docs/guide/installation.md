@@ -4,10 +4,8 @@ This guide covers how to install and set up the GOE framework in your Go project
 
 ## Prerequisites
 
-- **Go**: Version 1.21 or newer (recommended: 1.23+)
+- **Go**: Version 1.24 or newer
 - **Git**: For dependency management
-
-> **Note**: The project currently specifies Go 1.24 in go.mod, but this version doesn't exist yet. The framework should work with Go 1.21+ and has been tested with Go 1.23.
 
 ## Installing GOE
 
@@ -27,7 +25,7 @@ module your-project
 go 1.21
 
 require (
-    go.oease.dev/goe/v2 latest
+go.oease.dev/goe/v2 latest
 )
 ```
 
@@ -61,17 +59,17 @@ Create `main.go`:
 package main
 
 import (
-    "go.oease.dev/goe/v2"
+	"go.oease.dev/goe/v2"
 )
 
 func main() {
-    // Initialize GOE with desired modules
-    goe.New(goe.Options{
-        WithHTTP: true,
-    })
+	// Initialize GOE with desired modules
+	goe.New(goe.Options{
+		WithHTTP: true,
+	})
 
-    // Start the application
-    goe.Run()
+	// Start the application
+	goe.Run()
 }
 ```
 
@@ -121,12 +119,19 @@ Install the Go extension and add these settings to your `.vscode/settings.json`:
 
 ```json
 {
-    "go.useLanguageServer": true,
-    "go.lintTool": "golangci-lint",
-    "go.formatTool": "goimports",
-    "go.testFlags": ["-v", "-race"],
-    "go.buildFlags": ["-v"],
-    "go.vetFlags": ["-all"]
+  "go.useLanguageServer": true,
+  "go.lintTool": "golangci-lint",
+  "go.formatTool": "goimports",
+  "go.testFlags": [
+    "-v",
+    "-race"
+  ],
+  "go.buildFlags": [
+    "-v"
+  ],
+  "go.vetFlags": [
+    "-all"
+  ]
 }
 ```
 
@@ -163,28 +168,28 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/main ."
-  bin = "tmp/main"
-  full_bin = "./tmp/main"
-  include_ext = ["go", "tpl", "tmpl", "html"]
-  exclude_dir = ["assets", "tmp", "vendor"]
-  include_dir = []
-  exclude_file = []
-  log = "build-errors.log"
-  delay = 1000
-  stop_on_error = true
+cmd = "go build -o ./tmp/main ."
+bin = "tmp/main"
+full_bin = "./tmp/main"
+include_ext = ["go", "tpl", "tmpl", "html"]
+exclude_dir = ["assets", "tmp", "vendor"]
+include_dir = []
+exclude_file = []
+log = "build-errors.log"
+delay = 1000
+stop_on_error = true
 
 [log]
-  time = false
+time = false
 
 [color]
-  main = "magenta"
-  watcher = "cyan"
-  build = "yellow"
-  runner = "green"
+main = "magenta"
+watcher = "cyan"
+build = "yellow"
+runner = "green"
 
 [misc]
-  clean_on_exit = false
+clean_on_exit = false
 ```
 
 Run with:
@@ -224,33 +229,33 @@ Create `docker-compose.yml`:
 version: '3.8'
 
 services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - APP_ENV=production
-      - DB_HOST=db
-    depends_on:
-      - db
-      - redis
+    app:
+        build: .
+        ports:
+            - "8080:8080"
+        environment:
+            - APP_ENV=production
+            - DB_HOST=db
+        depends_on:
+            - db
+            - redis
 
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: myapp
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    db:
+        image: postgres:15
+        environment:
+            POSTGRES_DB: myapp
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: secret
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "6379:6379"
 
 volumes:
-  postgres_data:
+    postgres_data:
 ```
 
 ## Troubleshooting
@@ -258,6 +263,7 @@ volumes:
 ### Common Issues
 
 #### Module Not Found
+
 ```bash
 # Clear module cache
 go clean -modcache
@@ -267,6 +273,7 @@ go mod download
 ```
 
 #### Import Issues
+
 ```bash
 # Update imports
 go mod tidy
@@ -276,6 +283,7 @@ go list -m all
 ```
 
 #### Build Issues
+
 ```bash
 # Check Go version
 go version
