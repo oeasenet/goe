@@ -92,6 +92,7 @@ func New(opts ...Options) contract.Application {
 
 	// Build Fx options
 	fxOptions := []fx.Option{
+		fx.StartTimeout(1 * time.Minute),
 		// Configure Fx to use our custom logger that logs at debug level
 		fx.WithLogger(func() fxevent.Logger {
 			zapLogger := logModule.ProvideZap()
