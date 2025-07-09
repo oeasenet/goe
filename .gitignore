@@ -162,4 +162,17 @@ Temporary Items
 # Vitepress
 docs/.vitepress/dist
 docs/.vitepress/cache
+node_modules/!/coverage.txt
+
+# frontend
 node_modules/
+dist/
+.next/
+.out/
+.cache/
+.temp/
+.pnp.cjs
+.pnp.*.cjs
+.yarn/
+.pnp
+.DS_Store
