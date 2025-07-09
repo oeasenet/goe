@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
 	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
 	"go.oease.dev/goe/v2/core/db" // + Import the new db package
+	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/log"
 	"go.oease.dev/goe/v2/core/observability"
@@ -27,6 +29,7 @@ var (
 		http          contract.HTTPKernel
 		cacheManager  contract.CacheManager
 		db            contract.DB // Database instance
+		eventManager  contract.EventManager
 		observability contract.Observability
 		mu            sync.RWMutex
 	}
@@ -40,6 +43,7 @@ type Options struct {
 	WithHTTP          bool // Enable HTTP module
 	WithCache         bool // Enable Cache module
 	WithDB            bool // + Enable DB module
+	WithEvent         bool // Enable Event module
 	WithObservability bool // Enable Observability module
 }
 
@@ -59,6 +63,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithHTTP = o.WithHTTP
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB // + Assign WithDB
+		opt.WithEvent = o.WithEvent
 		opt.WithObservability = o.WithObservability
 	}
 
@@ -127,6 +132,7 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithHTTP flag", "enabled", opt.WithHTTP)
 	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
+	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithObservability flag", "enabled", opt.WithObservability)
 
 	// Add Cache module if enabled
@@ -166,6 +172,34 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: dbModule.OnStart,
 						OnStop:  dbModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add Event module if enabled
+	var eventModule *event.Module
+	if opt.WithEvent {
+		var err error
+		eventModule, err = event.NewModule(instance.config, instance.logger)
+		if err != nil {
+			instance.logger.Fatal("Failed to create event module", "error", err)
+		}
+		instance.eventManager = eventModule.Provide()
+
+		instance.logger.Info("Registering Event module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.EventManager { return instance.eventManager }),
+			fx.Provide(func() contract.EventPublisher { return eventModule.ProvideEventPublisher() }),
+			fx.Provide(func() contract.EventConsumer { return eventModule.ProvideEventConsumer() }),
+			fx.Provide(func() contract.DeadLetterQueueManager { return eventModule.ProvideDeadLetterQueue() }),
+			fx.Module(eventModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: eventModule.OnStart,
+						OnStop:  eventModule.OnStop,
 					})
 				}),
 			),
@@ -375,6 +409,33 @@ func DB() contract.DB {
 	}
 
 	return instance.db
+}
+
+// EventManager returns the global event manager instance
+func EventManager() contract.EventManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.eventManager == nil {
+		panic("Event module not initialized. Set WithEvent: true in goe.New() options")
+	}
+
+	return instance.eventManager
+}
+
+// EventPublisher returns the global event publisher instance
+func EventPublisher() contract.EventPublisher {
+	return EventManager()
+}
+
+// EventConsumer returns the global event consumer instance
+func EventConsumer() contract.EventConsumer {
+	return EventManager()
+}
+
+// DeadLetterQueue returns the global dead letter queue manager instance
+func DeadLetterQueue() contract.DeadLetterQueueManager {
+	return EventManager().GetDeadLetterQueue()
 }
 
 // Observability returns the global observability instance
