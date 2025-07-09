@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// connect initializes a Mongo DB connection based on the provided configuration prefix.
+// Connect initializes a Mongo DB connection based on the provided configuration prefix.
 // The configuration keys are expected to be like:
 // MONGO_DB_URI, MONGO_DB_DB
 // For a named connection "foo", the keys would be:
@@ -34,7 +34,11 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 
 	opt := options.Client()
 	opt.ApplyURI(uri)
-	opt.SetMonitor(customLogger(dbm.logger))
+	if dbm.customMonitor != nil {
+		opt.SetMonitor(dbm.customMonitor)
+	} else {
+		opt.SetMonitor(defaultMonitor(dbm.logger))
+	}
 
 	// Configure connection
 	if dbm.config.Has(configPrefix + "MIN_POOL_SIZE") {
@@ -68,7 +72,13 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 	return client.Database(dbName), nil
 }
 
-func customLogger(logger contract.Logger) *event.CommandMonitor {
+// defaultMonitor returns a default CommandMonitor that logs MongoDB command events.
+//
+// This monitor logs all MongoDB operations with different log levels:
+//   - Info: when a command starts
+//   - Debug: when a command succeeds, including duration
+//   - Error: when a command fails, including the error message
+func defaultMonitor(logger contract.Logger) *event.CommandMonitor {
 	return &event.CommandMonitor{
 		Started: func(ctx context.Context, evt *event.CommandStartedEvent) {
 			logger.Infof("[MONGO START] %s %s\n", evt.CommandName, evt.Command.String())

@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -14,9 +15,13 @@ type MongoDB interface {
 	// This allows for multiple database connections if needed in the future
 	Connection(name string) (*mongo.Database, error)
 
+	// SetMonitor sets a custom CommandMonitor for the DatabaseModule.
+	SetMonitor(monitor *event.CommandMonitor)
+
 	// IsNoDocumentsError checks if the given error is mongo.ErrNoDocuments.
 	IsNoDocumentsError(err error) bool
 
+	// Ctx creates and returns a new context with a 10-second timeout.
 	Ctx() context.Context
 
 	// AutoMigrate performs auto migration for the given GORM models on the default connection

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.oease.dev/goe/v2/contract"
 	"strings"
@@ -13,10 +14,11 @@ import (
 
 // DatabaseModule implements the contract.DB and contract.Module interfaces
 type DatabaseModule struct {
-	logger      contract.Logger
-	config      contract.Config
-	mu          sync.RWMutex
-	connections map[string]*mongo.Database
+	logger        contract.Logger
+	config        contract.Config
+	customMonitor *event.CommandMonitor
+	mu            sync.RWMutex
+	connections   map[string]*mongo.Database
 }
 
 // NewDBModule creates a new DatabaseModule instance
@@ -26,6 +28,18 @@ func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule
 		config:      config,
 		connections: make(map[string]*mongo.Database),
 	}
+}
+
+// SetMonitor sets a custom CommandMonitor for the DatabaseModule.
+//
+// The CommandMonitor allows you to track MongoDB command events such as
+// command started, succeeded, and failed. This can be used for logging,
+// tracing, or performance monitoring.
+//
+// If this method is not called, the DatabaseModule will use the defaultMonitor().
+// Passing nil disables the custom monitor and also falls back to defaultMonitor
+func (dbm *DatabaseModule) SetMonitor(monitor *event.CommandMonitor) {
+	dbm.customMonitor = monitor
 }
 
 // Instance returns the underlying MONGO DB instance for the default connection

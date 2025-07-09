@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"go.uber.org/zap"
@@ -276,6 +277,53 @@ func TestDatabaseModule_Instance(t *testing.T) {
 
 	err = instance.Client().Ping(ctx, nil)
 	assert.Nil(t, err)
+}
+
+// TestDatabaseModule_SetMonitor tests the SetMonitor method
+func TestDatabaseModule_SetMonitor(t *testing.T) {
+	var startedCalled, succeededCalled, failedCalled bool
+	// Mock monitor
+	monitor := &event.CommandMonitor{
+		Started: func(ctx context.Context, evt *event.CommandStartedEvent) {
+			startedCalled = true
+		},
+		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
+			succeededCalled = true
+		},
+		Failed: func(ctx context.Context, evt *event.CommandFailedEvent) {
+			failedCalled = true
+		},
+	}
+
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule.SetMonitor(monitor)
+
+	// Create a test model
+	testModel := &TestModel{
+		Name: "Test User",
+		Age:  30,
+	}
+
+	// Start the module first
+	err := dbModule.OnStart(dbModule.Ctx())
+	assert.Nil(t, err)
+
+	Conn := dbModule.Instance()
+
+	// drop collection
+	defer Conn.Collection(testModel.colName()).Drop(dbModule.Ctx())
+
+	// Insert
+	_, err = Conn.Collection(testModel.colName()).InsertOne(dbModule.Ctx(), testModel)
+	assert.Nil(t, err)
+
+	// Assertions
+	assert.True(t, startedCalled)
+	assert.True(t, succeededCalled)
+	assert.False(t, failedCalled)
 }
 
 // TestDatabaseModule_CRUD tests basic CRUD operations with the database
