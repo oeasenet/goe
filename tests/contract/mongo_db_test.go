@@ -1,8 +1,9 @@
-package contract_test
+package tests
 
 import (
 	"context"
 	"errors"
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"testing"
 
@@ -14,6 +15,9 @@ import (
 // MockMongoDB is a mock implementation of the MongoDB interface
 type MockMongoDB struct {
 	mock.Mock
+}
+
+func (m *MockMongoDB) SetMonitor(monitor *event.CommandMonitor) {
 }
 
 func (m *MockMongoDB) Instance() *mongo.Database {
