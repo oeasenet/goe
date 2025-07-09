@@ -1,33 +1,34 @@
 # Testing
 
-GOE Framework provides comprehensive testing capabilities that leverage Go's built-in testing framework along with dependency injection to make testing easier and more maintainable.
+GOE Framework provides comprehensive testing capabilities that leverage Go's built-in testing framework along with Uber Fx dependency injection to make testing easier and more maintainable.
 
 ## Testing Philosophy
 
 GOE promotes testable code through:
 
-- **Dependency Injection**: Easy mocking of dependencies
-- **Interface-based Design**: Clean separation of concerns
+- **Uber Fx Dependency Injection**: Easy mocking of dependencies
+- **Contract-based Design**: Clean separation of concerns using interfaces
 - **Modular Architecture**: Isolated testing of components
-- **Contract-based Testing**: Consistent testing patterns
+- **Module-based Testing**: Test individual modules in isolation
 
 ## Unit Testing
 
 ### Testing Services
 
-GOE makes testing services straightforward with dependency injection:
+GOE makes testing services straightforward with contract-based dependency injection:
 
 ```go
 func TestUserService(t *testing.T) {
-    // Create mocks
-    mockRepo := &mocks.UserRepository{}
+    // Create mocks for GOE contracts
+    mockDB := &mocks.DB{}
     mockLogger := &mocks.Logger{}
     
     // Setup expectations
-    mockRepo.On("FindByID", "123").Return(&User{ID: "123", Name: "John"}, nil)
+    mockDB.On("First", mock.Anything, "123").Return(nil)
+    mockLogger.On("Info", mock.Anything, mock.Anything).Return()
     
     // Create service with mocks
-    service := NewUserService(mockRepo, mockLogger)
+    service := NewUserService(mockDB, mockLogger)
     
     // Test
     user, err := service.GetUser("123")
@@ -35,13 +36,13 @@ func TestUserService(t *testing.T) {
     // Assertions
     assert.NoError(t, err)
     assert.Equal(t, "John", user.Name)
-    mockRepo.AssertExpectations(t)
+    mockDB.AssertExpectations(t)
 }
 ```
 
 ### Testing HTTP Handlers
 
-Test your HTTP handlers using Fiber's testing utilities:
+Test your HTTP handlers using GoFiber v3's testing utilities:
 
 ```go
 func TestUserHandler(t *testing.T) {
@@ -68,11 +69,12 @@ func TestUserHandler(t *testing.T) {
     assert.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
     
-    // Parse response
-    var user User
+    // Parse response using webresult format
+    var result webresult.Response
     body, _ := io.ReadAll(resp.Body)
-    json.Unmarshal(body, &user)
-    assert.Equal(t, "John", user.Name)
+    json.Unmarshal(body, &result)
+    assert.True(t, result.Success)
+    assert.Equal(t, "John", result.Data.(map[string]interface{})["name"])
 }
 ```
 
@@ -106,29 +108,32 @@ func TestUserRepository_Integration(t *testing.T) {
 
 ### Testing Modules
 
-Test entire modules in isolation:
+Test entire modules in isolation using Uber Fx:
 
 ```go
 func TestUserModule(t *testing.T) {
-    // Create test container
-    container := dig.New()
+    // Create test app with required dependencies
+    app := fx.New(
+        fx.Provide(func() contract.Config { return &TestConfig{} }),
+        fx.Provide(func() contract.Logger { return &TestLogger{} }),
+        fx.Provide(func() contract.DB { return &TestDB{} }),
+        
+        // Register the module under test
+        fx.Invoke(userModule.Register),
+        
+        // Test that services can be resolved
+        fx.Invoke(func(service *UserService) {
+            assert.NotNil(t, service)
+        }),
+    )
     
-    // Register test dependencies
-    container.Provide(func() Database { return &TestDB{} })
-    container.Provide(func() Logger { return &TestLogger{} })
-    
-    // Register module
-    module := NewUserModule()
-    err := module.Register(container)
+    // Start and stop the app
+    ctx := context.Background()
+    err := app.Start(ctx)
     assert.NoError(t, err)
     
-    // Test service resolution
-    var service UserService
-    err = container.Invoke(func(s UserService) {
-        service = s
-    })
+    err = app.Stop(ctx)
     assert.NoError(t, err)
-    assert.NotNil(t, service)
 }
 ```
 

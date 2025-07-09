@@ -21,7 +21,6 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'Examples', link: '/examples/basic-app', activeMatch: '/examples/' },
-      { text: 'API Reference', link: '/reference/modules', activeMatch: '/reference/' },
       { text: 'FAQ', link: '/faq' },
       {
         text: 'v2.0',
@@ -93,18 +92,6 @@ export default defineConfig({
           ]
         }
       ],
-      '/reference/': [
-        {
-          text: 'API Reference',
-          items: [
-            { text: 'Core Modules', link: '/reference/modules' },
-            { text: 'Contracts', link: '/reference/contracts' },
-            { text: 'Configuration Options', link: '/reference/configuration' },
-            { text: 'Middleware', link: '/reference/middleware' },
-            { text: 'Utilities', link: '/reference/utilities' }
-          ]
-        }
-      ]
     },
 
     socialLinks: [
