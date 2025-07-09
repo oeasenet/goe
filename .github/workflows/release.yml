@@ -28,7 +28,7 @@ jobs:
                     cache: true
 
             -   name: Run tests
-                run: make test
+                run: go test -race ./...
 
     release:
         name: Create Release
