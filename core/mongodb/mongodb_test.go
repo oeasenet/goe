@@ -7,7 +7,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/mongodb"
 	"go.uber.org/zap"
 	"testing"
 	"time"
@@ -218,7 +217,7 @@ func TestDatabaseModule_New(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	assert.NotNil(t, dbModule)
 	assert.Equal(t, "mongo_db", dbModule.Name())
@@ -230,7 +229,7 @@ func TestDatabaseModule_OnStart(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	err := dbModule.OnStart(dbModule.Ctx())
 	assert.Nil(t, err)
@@ -245,7 +244,7 @@ func TestDatabaseModule_OnStop(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	// Start the module first
 	err := dbModule.OnStart(dbModule.Ctx())
@@ -261,7 +260,7 @@ func TestDatabaseModule_Instance(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	// Start the module first
 	err := dbModule.OnStart(dbModule.Ctx())
@@ -298,7 +297,7 @@ func TestDatabaseModule_SetMonitor(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 	dbModule.SetMonitor(monitor)
 
 	// Create a test model
@@ -331,7 +330,7 @@ func TestDatabaseModule_CRUD(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	// Start the module first
 	err := dbModule.OnStart(dbModule.Ctx())
@@ -412,7 +411,7 @@ func TestDatabaseModule_MultipleConnections(t *testing.T) {
 
 	logger := setupTestLogger()
 
-	dbModule := mongodb.NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger)
 
 	// Start the module
 	err := dbModule.OnStart(context.Background())
@@ -442,13 +441,13 @@ func TestDatabaseModule_MultipleConnections(t *testing.T) {
 		Age:  18,
 	}
 
+	defer defaultConn.Collection(testModel.colName()).Drop(dbModule.Ctx())
+	defer secondConn.Collection(secondModelColName).Drop(dbModule.Ctx())
+
 	_, err = defaultConn.Collection(testModel.colName()).InsertOne(dbModule.Ctx(), testModel)
 	assert.Nil(t, err)
 	_, err = secondConn.Collection(secondModelColName).InsertOne(dbModule.Ctx(), secondModel)
 	assert.Nil(t, err)
-
-	defer defaultConn.Collection(testModel.colName()).Drop(dbModule.Ctx())
-	defer secondConn.Collection(secondModelColName).Drop(dbModule.Ctx())
 
 	// Verify that TestModel exists only on default connection
 	var count int64
