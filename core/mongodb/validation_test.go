@@ -14,8 +14,6 @@ func TestDatabaseModule_ValidateConfig_ValidDefaultConfiguration(t *testing.T) {
 
 	// Setup valid default configuration
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("")
-	mockConfig.On("GetString", "MONGO_DB_URI").Return("mongodb://localhost:27017")
-	mockConfig.On("GetString", "MONGO_DB_DB_NAME").Return("testdb")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
 
 	// Mock Has method to return true for required keys
@@ -36,8 +34,6 @@ func TestDatabaseModule_ValidateConfig_MissingRequiredFields(t *testing.T) {
 
 	// Setup missing required fields
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("")
-	mockConfig.On("GetString", "MONGO_DB_URI").Return("")
-	mockConfig.On("GetString", "MONGO_DB_DB_NAME").Return("")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
 
 	// Mock Has method to return false for all keys (simulating missing configuration)
@@ -58,8 +54,6 @@ func TestDatabaseModule_ValidateConfig_WithNamedConnection(t *testing.T) {
 
 	// Setup named connection configuration
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("primary")
-	mockConfig.On("GetString", "MONGO_DB_primary_URI").Return("mongodb://localhost:27017")
-	mockConfig.On("GetString", "MONGO_DB_primary_DB_NAME").Return("testdb")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
 
 	// Mock Has method to return true for required named connection keys
@@ -80,13 +74,7 @@ func TestDatabaseModule_ValidateConfig_WithMultipleConnections(t *testing.T) {
 
 	// Setup multiple connections
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("primary")
-	mockConfig.On("GetString", "MONGO_DB_primary_URI").Return("mongodb://localhost:27017")
-	mockConfig.On("GetString", "MONGO_DB_primary_DB_NAME").Return("testdb")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("secondary, readonly")
-	mockConfig.On("GetString", "MONGO_DB_SECONDARY_URI").Return("mongodb://localhost:27018")
-	mockConfig.On("GetString", "MONGO_DB_SECONDARY_DB_NAME").Return("testdb2")
-	mockConfig.On("GetString", "MONGO_DB_READONLY_URI").Return("mongodb://localhost:27019")
-	mockConfig.On("GetString", "MONGO_DB_READONLY_DB_NAME").Return("testdb3")
 
 	// Mock Has method to return true for all required connection keys
 	mockConfig.On("Has", "MONGO_DB_primary_URI").Return(true)
@@ -110,8 +98,6 @@ func TestDatabaseModule_ValidateConfig_WithOptionalPoolSettings(t *testing.T) {
 
 	// Setup configuration with optional pool settings
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("")
-	mockConfig.On("GetString", "MONGO_DB_URI").Return("mongodb://localhost:27017")
-	mockConfig.On("GetString", "MONGO_DB_DB_NAME").Return("testdb")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
 
 	// Mock Has method - required keys exist, optional pool settings exist
@@ -141,8 +127,6 @@ func TestDatabaseModule_ValidateConfig_InvalidPoolSettings(t *testing.T) {
 
 	// Setup configuration with invalid pool settings
 	mockConfig.On("GetString", "MONGO_DB_CONNECTION").Return("")
-	mockConfig.On("GetString", "MONGO_DB_URI").Return("mongodb://localhost:27017")
-	mockConfig.On("GetString", "MONGO_DB_DB_NAME").Return("testdb")
 	mockConfig.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
 
 	// Mock Has method - required keys exist, invalid pool settings exist
