@@ -144,23 +144,23 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 					// Perform auto-migration for registered models
 					if models, exists := dbm.registeredModels[connName]; exists && len(models) > 0 {
-						dbm.logger.Info("Performing auto-migration for registered models",
+						dbm.logger.Info("Performing database migration...",
 							"connection_name", connName,
 							"model_count", len(models),
 						)
 						if err := conn.AutoMigrate(models...); err != nil {
-							dbm.logger.Error("Failed to auto-migrate registered models",
+							dbm.logger.Error("Database migration failed",
 								"connection_name", connName,
 								"error", err,
 							)
 						} else {
-							dbm.logger.Info("Successfully auto-migrated registered models",
+							dbm.logger.Info("Database migration completed successfully",
 								"connection_name", connName,
 								"model_count", len(models),
 							)
 						}
 					} else {
-						dbm.logger.Info("No models registered for auto-migration on this connection",
+						dbm.logger.Debug("No models registered for auto-migration on this connection",
 							"connection_name", connName,
 						)
 					}
@@ -184,24 +184,24 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 			// Perform auto-migration for registered models on default connection
 			if models, exists := dbm.registeredModels[defaultConnectionName]; exists && len(models) > 0 {
-				dbm.logger.Info("Performing auto-migration for registered models on default connection",
-					"connection_config_name", defaultConnectionName,
+				dbm.logger.Info("Performing database migration...",
+					"connection_name", defaultConnectionName,
 					"model_count", len(models),
 				)
 				if err := db.AutoMigrate(models...); err != nil {
-					dbm.logger.Error("Failed to auto-migrate registered models on default connection",
-						"connection_config_name", defaultConnectionName,
+					dbm.logger.Error("Database migration failed",
+						"connection_name", defaultConnectionName,
 						"error", err,
 					)
 				} else {
-					dbm.logger.Info("Successfully auto-migrated registered models on default connection",
-						"connection_config_name", defaultConnectionName,
+					dbm.logger.Info("Database migration completed successfully",
+						"connection_name", defaultConnectionName,
 						"model_count", len(models),
 					)
 				}
 			} else {
-				dbm.logger.Info("No models registered for auto-migration on default connection",
-					"connection_config_name", defaultConnectionName,
+				dbm.logger.Debug("No models registered for auto-migration on default connection",
+					"connection_name", defaultConnectionName,
 				)
 			}
 		} else {

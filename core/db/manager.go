@@ -40,10 +40,11 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// GORM logger configuration
+	// GORM logger configuration - use Warn level to reduce verbosity
+	// Detailed SQL logs will still appear at debug level through Trace method
 	gormLogLevel := gormlogger.Silent
 	if dbm.config.GetBool(configPrefix+"LOG_MODE") || dbm.config.GetBool("DB_LOG_MODE") { // Allow global and per-connection log mode
-		gormLogLevel = gormlogger.Info
+		gormLogLevel = gormlogger.Warn
 	}
 
 	newLogger := gormlogger.New(
