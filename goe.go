@@ -322,17 +322,16 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, fx.Provide(provider))
 	}
 
-	// Add HTTP service injection BEFORE custom invokers to ensure middleware is applied first
+	// Add HTTP service injection BEFORE the HTTP server starts
 	if opt.WithHTTP {
-		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle, provider http.ServiceProvider) {
-			lc.Append(fx.Hook{
-				OnStart: func(ctx context.Context) error {
-					// Set up service middleware with all available services (including observability if enabled)
-					// This happens after all modules are initialized
-					httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
-					return nil
-				},
-			})
+		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
+			// Set up service middleware immediately when all dependencies are available
+			// This ensures the middleware is registered before the HTTP server starts listening
+			httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
+			instance.logger.Debug("HTTP middleware registered",
+				"metrics_available", provider.Metrics != nil,
+				"tracing_available", provider.Tracing != nil,
+			)
 		}))
 	}
 

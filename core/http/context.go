@@ -137,6 +137,20 @@ func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 		"observability_available", provider.Observability != nil,
 	)
 
+	// More detailed logging
+	if provider.Metrics != nil {
+		provider.Logger.Info("Metrics manager is available for HTTP middleware")
+	} else {
+		provider.Logger.Warn("Metrics manager is NOT available for HTTP middleware")
+	}
+
+	if provider.Observability != nil {
+		provider.Logger.Info("Observability manager is available",
+			"metrics_from_obs", provider.Observability.Metrics() != nil,
+			"tracing_from_obs", provider.Observability.Tracing() != nil,
+		)
+	}
+
 	// Create service injection middleware
 	serviceMiddleware := InjectServices(services)
 
