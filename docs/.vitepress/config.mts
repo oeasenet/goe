@@ -58,6 +58,7 @@ export default defineConfig({
           items: [
             { text: 'HTTP Server', link: '/guide/http-server' },
             { text: 'Database', link: '/guide/database' },
+            { text: 'MongoDB', link: '/guide/mongodb' },
             { text: 'Caching', link: '/guide/caching' },
             { text: 'Event System', link: '/guide/event-system' },
             { text: 'Observability', link: '/guide/observability' }
@@ -80,6 +81,7 @@ export default defineConfig({
             { text: 'Hello World', link: '/examples/basic-app' },
             { text: 'REST API', link: '/examples/rest-api' },
             { text: 'Database CRUD', link: '/examples/database-crud' },
+            { text: 'MongoDB CRUD', link: '/examples/mongodb-crud' },
             { text: 'Custom Module', link: '/examples/custom-module' }
           ]
         },
