@@ -757,5 +757,4 @@ Remember to:
 ## Next Steps
 
 - [**Deployment**](./deployment.md) - Learn how to deploy your application
-- [**Observability**](./observability.md) - Monitor your application in production
 - [**Examples**](../examples/basic-app.md) - See practical examples of these practices

@@ -684,6 +684,4 @@ jobs:
 
 ## Next Steps
 
-- [**Observability**](./observability.md) - Set up comprehensive monitoring
 - [**Best Practices**](./best-practices.md) - Follow production best practices
-- [**Observability**](./observability.md) - Set up monitoring and metrics

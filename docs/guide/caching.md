@@ -416,4 +416,3 @@ This will show cache hit/miss operations in the logs.
 
 - [**Database Integration**](./database.md) - Learn about database operations
 - [**HTTP Server**](./http-server.md) - Understand HTTP request handling
-- [**Observability**](./observability.md) - Monitor cache performance

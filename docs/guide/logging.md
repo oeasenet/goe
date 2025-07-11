@@ -364,4 +364,3 @@ Consider using log rotation tools:
 
 - [**HTTP Server**](./http-server.md) - Learn about HTTP request handling
 - [**Database**](./database.md) - Database operations and logging
-- [**Observability**](./observability.md) - Monitoring and tracing
