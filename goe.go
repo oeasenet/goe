@@ -432,8 +432,8 @@ func MongoDB() contract.MongoDB {
 	instance.mu.RLock()
 	defer instance.mu.RUnlock()
 
-	if instance.db == nil {
-		panic("DB module not initialized. Set WithDB: true in goe.New() options, and ensure DB connection is configured.")
+	if instance.mongoDB == nil {
+		panic("MongoDB module not initialized. Set WithMongoDB: true in goe.New() options, and ensure MongoDB connection is configured.")
 	}
 
 	return instance.mongoDB
