@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/validator"
 )
 
 // Module represents the observability module for Fx
@@ -81,4 +82,55 @@ func (m *Module) ProvideMetrics() contract.MetricsManager {
 // ProvideTracing returns the tracing manager for Fx
 func (m *Module) ProvideTracing() contract.TracingManager {
 	return m.observability.Tracing()
+}
+
+// ValidateConfig validates the observability module configuration
+func (m *Module) ValidateConfig() error {
+	v := validator.NewConfigValidator(m.config, "observability")
+
+	// Only validate if observability is enabled
+	if m.config.GetBool("OTEL_ENABLED") {
+		// Service name is required when enabled
+		serviceName := m.config.GetString("OTEL_SERVICE_NAME")
+		if serviceName == "" {
+			serviceName = m.config.GetString("APP_NAME")
+		}
+		if serviceName == "" {
+			v.Require("OTEL_SERVICE_NAME", "Service name for observability (or set APP_NAME)")
+		}
+
+		// If metrics are enabled, validate metrics-specific config
+		if m.config.GetBool("OTEL_METRICS_ENABLED") {
+			if m.config.Has("OTEL_METRICS_PORT") {
+				v.Optional("OTEL_METRICS_PORT", "Metrics server port", validator.ValidatePort)
+			}
+		}
+
+		// If tracing is enabled, validate tracing-specific config
+		if m.config.GetBool("OTEL_TRACING_ENABLED") {
+			// Endpoint is required for tracing
+			endpoint := m.config.GetString("OTEL_TRACING_ENDPOINT")
+			if endpoint == "" {
+				endpoint = m.config.GetString("OTEL_EXPORTER_OTLP_ENDPOINT")
+			}
+			if endpoint == "" {
+				v.Require("OTEL_TRACING_ENDPOINT", "Tracing endpoint (or set OTEL_EXPORTER_OTLP_ENDPOINT)")
+			} else {
+				v.Optional("OTEL_TRACING_ENDPOINT", "Tracing endpoint", validator.ValidateHostPort)
+			}
+
+			// Validate sampling ratio if set
+			if m.config.Has("OTEL_TRACING_SAMPLING_RATIO") {
+				v.Optional("OTEL_TRACING_SAMPLING_RATIO", "Sampling ratio (0.0-1.0)", func(value any) error {
+					ratio := m.config.GetFloat64("OTEL_TRACING_SAMPLING_RATIO")
+					if ratio < 0 || ratio > 1 {
+						return validator.ValidateOneOf("value between 0.0 and 1.0")(value)
+					}
+					return nil
+				})
+			}
+		}
+	}
+
+	return v.Validate()
 }

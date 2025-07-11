@@ -351,3 +351,10 @@ func (m *Module) watchEnvFiles() {
 func (m *Module) Provide() contract.Config {
 	return m.config
 }
+
+// ValidateConfig validates the config module configuration
+func (m *Module) ValidateConfig() error {
+	// Config module has no required configuration
+	// It loads from environment files and variables
+	return nil
+}

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/validator"
 	"go.uber.org/fx"
 )
 
@@ -21,6 +22,8 @@ type app struct {
 	providers   []contract.Provider
 	invokers    []contract.Invoker
 	mu          sync.RWMutex
+	config      contract.Config
+	logger      contract.Logger
 }
 
 func (a *app) AddProvider(provider contract.Provider) error {
@@ -159,10 +162,51 @@ func (a *app) AddModule(module contract.Module) error {
 	return a.container.Err()
 }
 
+// SetConfig sets the configuration
+func (a *app) SetConfig(config contract.Config) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.config = config
+}
+
+// SetLogger sets the logger
+func (a *app) SetLogger(logger contract.Logger) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.logger = logger
+}
+
+// validateModules validates all module configurations
+func (a *app) validateModules() error {
+	// Skip validation if config or logger is not set
+	if a.config == nil || a.logger == nil {
+		return nil
+	}
+
+	// Create startup validator
+	startupValidator := validator.NewStartupValidator(a.config, a.logger)
+
+	// Register all modules that support validation
+	for _, module := range a.modules {
+		if validatableModule, ok := module.(contract.ModuleWithValidator); ok {
+			startupValidator.RegisterModule(validatableModule)
+		}
+	}
+
+	// Validate all modules
+	return startupValidator.ValidateAll()
+}
+
 // Start starts the application
 func (a *app) Start(ctx context.Context) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
+
+	// Validate module configurations before starting
+	if err := a.validateModules(); err != nil {
+		a.isRunning.Store(false)
+		return err
+	}
 
 	if a.container == nil {
 		a.isRunning.Store(true)

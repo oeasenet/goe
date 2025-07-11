@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/validator"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -317,6 +318,7 @@ func convertArgsToFields(keysAndValues []any) []zap.Field {
 type Module struct {
 	logger contract.Logger
 	zap    *zap.Logger
+	config contract.Config
 }
 
 // NewModule creates a new log module
@@ -349,6 +351,7 @@ func NewModule(config contract.Config) *Module {
 	return &Module{
 		logger: logger,
 		zap:    zapLogger,
+		config: config,
 	}
 }
 
@@ -379,6 +382,36 @@ func (m *Module) Provide() contract.Logger {
 // ProvideZap returns the zap logger for Fx to use
 func (m *Module) ProvideZap() *zap.Logger {
 	return m.zap
+}
+
+// ValidateConfig validates the log module configuration
+func (m *Module) ValidateConfig() error {
+	v := validator.NewConfigValidator(m.config, "log")
+
+	// Log level validation
+	if m.config.Has("LOG_LEVEL") {
+		validLevels := []string{"debug", "info", "warn", "error", "panic", "fatal"}
+		v.Optional("LOG_LEVEL", "Log level", validator.ValidateOneOf(validLevels...))
+	}
+
+	// Log format validation
+	if m.config.Has("LOG_FORMAT") {
+		validFormats := []string{"json", "console"}
+		v.Optional("LOG_FORMAT", "Log format", validator.ValidateOneOf(validFormats...))
+	}
+
+	// Log output validation
+	if m.config.Has("LOG_OUTPUT") {
+		outputs := m.config.GetStringSlice("LOG_OUTPUT")
+		for _, output := range outputs {
+			if output != "console" && output != "stdout" && output != "stderr" {
+				// It's a file path, no specific validation needed
+				// File will be created if it doesn't exist
+			}
+		}
+	}
+
+	return v.Validate()
 }
 
 // defaultLoggerConfig implements LoggerConfig

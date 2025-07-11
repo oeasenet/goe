@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/validator"
 	"go.uber.org/fx"
 )
 
@@ -333,6 +334,44 @@ func (m *Module) SetupServiceMiddleware(app contract.Application, config contrac
 		Validator: m.validator,
 	}
 	m.kernel.App().Use(InjectServices(services))
+}
+
+// ValidateConfig validates the HTTP module configuration
+func (m *Module) ValidateConfig() error {
+	// Get the kernel's config
+	k := m.kernel.(*kernel)
+	v := validator.NewConfigValidator(k.config, "http")
+
+	// HTTP port is optional but should be valid if set
+	if k.config.Has("HTTP_PORT") {
+		v.Optional("HTTP_PORT", "HTTP server port", validator.ValidatePort)
+	}
+
+	// Validate Fiber-specific configurations if set
+	if k.config.Has("FIBER_BODY_LIMIT") {
+		v.Optional("FIBER_BODY_LIMIT", "Request body size limit", validator.ValidatePositiveInt)
+	}
+
+	if k.config.Has("FIBER_CONCURRENCY") {
+		v.Optional("FIBER_CONCURRENCY", "Maximum concurrent connections", validator.ValidatePositiveInt)
+	}
+
+	// Validate trust proxy configuration
+	if k.config.GetBool("FIBER_TRUST_PROXY") && k.config.Has("FIBER_TRUST_PROXIES") {
+		// Validate each proxy in the list
+		proxies := k.config.GetStringSlice("FIBER_TRUST_PROXIES")
+		for _, proxy := range proxies {
+			// Simple validation - could be IP or CIDR
+			if proxy == "" {
+				return &contract.ConfigValidationError{
+					Module:      "http",
+					InvalidKeys: map[string]string{"FIBER_TRUST_PROXIES": "proxy address cannot be empty"},
+				}
+			}
+		}
+	}
+
+	return v.Validate()
 }
 
 // field implementation for HTTP module

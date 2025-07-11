@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/validator"
 )
 
 // Module represents the event module for Fx
@@ -93,4 +94,32 @@ func ProvideEventManagerWithMetrics(
 ) contract.EventManager {
 	// TODO: Implement metrics wrapper when observability API is stable
 	return manager
+}
+
+// ValidateConfig validates the event module configuration
+func (m *Module) ValidateConfig() error {
+	v := validator.NewConfigValidator(m.config, "event")
+
+	// Event system requires Redis connection
+	v.RequireWithValidator("EVENT_REDIS_ADDR", "Redis server address for event system", validator.ValidateHostPort)
+
+	// Optional Redis configurations
+	if m.config.Has("EVENT_REDIS_DB") {
+		v.Optional("EVENT_REDIS_DB", "Redis database number", validator.ValidatePositiveInt)
+	}
+
+	// Optional but validated if present
+	if m.config.Has("EVENT_MAX_RETRIES") {
+		v.Optional("EVENT_MAX_RETRIES", "Maximum retry attempts", validator.ValidatePositiveInt)
+	}
+
+	if m.config.Has("EVENT_BATCH_SIZE") {
+		v.Optional("EVENT_BATCH_SIZE", "Event batch size", validator.ValidatePositiveInt)
+	}
+
+	if m.config.Has("EVENT_MAX_PENDING_MESSAGES") {
+		v.Optional("EVENT_MAX_PENDING_MESSAGES", "Maximum pending messages", validator.ValidatePositiveInt)
+	}
+
+	return v.Validate()
 }
