@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,12 +75,15 @@ func TestDependencyInjection_Integration(t *testing.T) {
 		resetGlobalInstance()
 
 		var initOrder []string
+		var initOrderMutex sync.Mutex
 
 		// Custom module to track initialization order
 		testModule := &testModule{
 			name: "test-module",
 			onStart: func() {
+				initOrderMutex.Lock()
 				initOrder = append(initOrder, "test-module")
+				initOrderMutex.Unlock()
 			},
 		}
 
@@ -89,7 +93,9 @@ func TestDependencyInjection_Integration(t *testing.T) {
 			Modules:   []contract.Module{testModule},
 			Invokers: []any{
 				func(logger contract.Logger) {
+					initOrderMutex.Lock()
 					initOrder = append(initOrder, "user-invoker")
+					initOrderMutex.Unlock()
 				},
 			},
 		})
@@ -107,8 +113,10 @@ func TestDependencyInjection_Integration(t *testing.T) {
 		<-ctx.Done()
 
 		// Verify modules were registered
+		initOrderMutex.Lock()
 		assert.Contains(t, initOrder, "test-module")
 		assert.Contains(t, initOrder, "user-invoker")
+		initOrderMutex.Unlock()
 	})
 
 	t.Run("error scenarios", func(t *testing.T) {
