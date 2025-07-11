@@ -108,6 +108,10 @@ func (m *MockLogger) Fatal(msg string, args ...any) {
 	m.Called(msg, args)
 }
 
+func (m *MockLogger) Panic(msg string, args ...any) {
+	m.Called(msg, args)
+}
+
 func (m *MockLogger) Debugf(template string, args ...any) {
 	m.Called(template, args)
 }
@@ -125,6 +129,10 @@ func (m *MockLogger) Errorf(template string, args ...any) {
 }
 
 func (m *MockLogger) Fatalf(template string, args ...any) {
+	m.Called(template, args)
+}
+
+func (m *MockLogger) Panicf(template string, args ...any) {
 	m.Called(template, args)
 }
 
@@ -193,7 +201,7 @@ func TestDatabaseModule_Instance(t *testing.T) {
 
 	t.Run("default connection not configured", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("")
-		logger.On("Error", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		instance := dbModule.Instance()
 		assert.Nil(t, instance)
@@ -204,7 +212,7 @@ func TestDatabaseModule_Instance(t *testing.T) {
 
 	t.Run("custom connection name", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("custom")
-		logger.On("Error", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		instance := dbModule.Instance()
 		assert.Nil(t, instance)
@@ -236,7 +244,7 @@ func TestDatabaseModule_AutoMigrate(t *testing.T) {
 
 	t.Run("no default connection", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("")
-		logger.On("Error", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		err := dbModule.AutoMigrate(&TestModel{})
 		assert.Error(t, err)
