@@ -2,17 +2,16 @@ package mongodb
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strings"
+	"sync"
+
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.oease.dev/goe/v2/contract"
-	"strings"
-	"sync"
-	"time"
 )
 
-// DatabaseModule implements the contract.DB and contract.Module interfaces
+// DatabaseModule implements the contract.MongoDB and contract.Module interfaces
 type DatabaseModule struct {
 	logger        contract.Logger
 	config        contract.Config
@@ -30,15 +29,9 @@ func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule
 	}
 }
 
-// SetMonitor sets a custom CommandMonitor for the DatabaseModule.
-//
-// The CommandMonitor allows you to track MongoDB command events such as
-// command started, succeeded, and failed. This can be used for logging,
-// tracing, or performance monitoring.
-//
-// If this method is not called, the DatabaseModule will use the defaultMonitor().
-// Passing nil disables the custom monitor and also falls back to defaultMonitor
-func (dbm *DatabaseModule) SetMonitor(monitor *event.CommandMonitor) {
+// setMonitor sets a custom CommandMonitor for the DatabaseModule.
+// This is now a private method used during module initialization.
+func (dbm *DatabaseModule) setMonitor(monitor *event.CommandMonitor) {
 	dbm.customMonitor = monitor
 }
 
@@ -51,7 +44,10 @@ func (dbm *DatabaseModule) Instance() *mongo.Database {
 
 	conn, err := dbm.Connection(defaultConnectionName)
 	if err != nil {
-		dbm.logger.Errorf("Failed to get default database instance, connection_name: %s, error: %s", defaultConnectionName, err)
+		dbm.logger.Error("Failed to get default database instance",
+			"connection_name", defaultConnectionName,
+			"error", err.Error(),
+		)
 		return nil
 	}
 	return conn
@@ -69,19 +65,6 @@ func (dbm *DatabaseModule) Connection(name string) (*mongo.Database, error) {
 		return nil, fmt.Errorf("database connection '%s' not found or not configured", name)
 	}
 	return conn, nil
-}
-
-func (dbm *DatabaseModule) IsNoDocumentsError(err error) bool {
-	return errors.Is(err, mongo.ErrNoDocuments)
-}
-
-func (dbm *DatabaseModule) Ctx() context.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	go func() {
-		<-ctx.Done() // Wait until timeout or manual cancellation
-		cancel()     // Release resources
-	}()
-	return ctx
 }
 
 // --- contract.Module interface implementation ---
@@ -105,15 +88,22 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	}
 
 	// Connect to default database
-	dbm.logger.Infof("Attempting to connect to default mongo database, connection_config_name: %s", defaultConnectionName)
+	dbm.logger.Info("Attempting to connect to default mongo database",
+		"connection_config_name", defaultConnectionName,
+	)
 	db, err := dbm.connect(defaultConnectionName)
 	if err != nil {
-		dbm.logger.Errorf("Failed to connect to default mongo database, connection_config_name: %s, error: %s", defaultConnectionName, err.Error())
+		dbm.logger.Error("Failed to connect to default mongo database",
+			"connection_config_name", defaultConnectionName,
+			"error", err.Error(),
+		)
 		// Allow app to start, Instance() will return nil.
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
-		dbm.logger.Infof("Successfully connected to default mongo database, connection_config_name: %s", defaultConnectionName)
+		dbm.logger.Info("Successfully connected to default mongo database",
+			"connection_config_name", defaultConnectionName,
+		)
 	}
 
 	// Connect to additional databases if configured
@@ -134,14 +124,21 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 				continue
 			}
 
-			dbm.logger.Infof("Attempting to connect to additional database, connection_name: %s", connName)
+			dbm.logger.Info("Attempting to connect to additional database",
+				"connection_name", connName,
+			)
 			conn, err := dbm.connect(connName)
 			if err != nil {
-				dbm.logger.Errorf("Failed to connect to additional database, connection_name: %s,  error: %s", connName, err.Error())
+				dbm.logger.Error("Failed to connect to additional database",
+					"connection_name", connName,
+					"error", err.Error(),
+				)
 				// Continue with other connections
 			} else {
 				dbm.connections[connName] = conn
-				dbm.logger.Infof("Successfully connected to additional database", "connection_name", connName)
+				dbm.logger.Info("Successfully connected to additional database",
+					"connection_name", connName,
+				)
 
 			}
 		}
@@ -161,7 +158,10 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 	for name, conn := range dbm.connections {
 		dbm.logger.Info("Closing mongo database connection", "connection", name)
 		if err := conn.Client().Disconnect(ctx); err != nil {
-			dbm.logger.Errorf("Failed to close database connection, connection: %s, error: %s", name, err.Error())
+			dbm.logger.Error("Failed to close database connection",
+				"connection", name,
+				"error", err.Error(),
+			)
 			lastErr = err
 		}
 		delete(dbm.connections, name)

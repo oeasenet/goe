@@ -61,14 +61,18 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 		}
 	}
 
-	dbm.logger.Infof("MONGO Database connection established successfully, name: %s", name)
+	dbm.logger.Info("MONGO Database connection established successfully",
+		"name", name,
+	)
 
 	client, err := mongo.Connect(opt)
 	if err != nil {
 		return nil, err
 	}
 
-	dbm.logger.Info("MONGO Database connection established successfully", name)
+	dbm.logger.Info("MONGO Database connection established successfully",
+		"name", name,
+	)
 	return client.Database(dbName), nil
 }
 
@@ -81,13 +85,22 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 func defaultMonitor(logger contract.Logger) *event.CommandMonitor {
 	return &event.CommandMonitor{
 		Started: func(ctx context.Context, evt *event.CommandStartedEvent) {
-			logger.Infof("[MONGO START] %s %s\n", evt.CommandName, evt.Command.String())
+			logger.Info("[MONGO START]",
+				"command", evt.CommandName,
+				"details", evt.Command.String(),
+			)
 		},
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
-			logger.Debugf("[MONGO SUCCEED] %s in %s\n", evt.CommandName, evt.Duration.String())
+			logger.Debug("[MONGO SUCCEED]",
+				"command", evt.CommandName,
+				"duration", evt.Duration.String(),
+			)
 		},
 		Failed: func(ctx context.Context, evt *event.CommandFailedEvent) {
-			logger.Errorf("[MONGO FAILED] %s: %s\n", evt.CommandName, evt.Failure.Error())
+			logger.Error("[MONGO FAILED]",
+				"command", evt.CommandName,
+				"error", evt.Failure.Error(),
+			)
 		},
 	}
 }

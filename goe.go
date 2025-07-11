@@ -29,8 +29,8 @@ var (
 		logger        contract.Logger
 		http          contract.HTTPKernel
 		cacheManager  contract.CacheManager
-		db            contract.DB // Database instance
-		mongoDB      contract.MongoDB // Database instance
+		db            contract.DB      // Database instance
+		mongoDB       contract.MongoDB // Database instance
 		eventManager  contract.EventManager
 		observability contract.Observability
 		mu            sync.RWMutex
@@ -45,7 +45,7 @@ type Options struct {
 	WithHTTP          bool // Enable HTTP module
 	WithCache         bool // Enable Cache module
 	WithDB            bool // Enable DB module
-	WithMongoDB bool // Enable Mongo DB module
+	WithMongoDB       bool // Enable Mongo DB module
 	WithEvent         bool // Enable Event module
 	WithObservability bool // Enable Observability module
 }
@@ -235,16 +235,16 @@ func New(opts ...Options) contract.Application {
 
 	// Add MongoDB module if enabled
 	var mongodbModule *mongodb.DatabaseModule
-	if opt.WithDB {
-		mongodbModule = mongodb.NewDBModule(instance.config) // Pass config and logger
-		instance.mongoDB = mongodbModule.Provide()           // Store the contract.DB instance
+	if opt.WithMongoDB {
+		mongodbModule = mongodb.NewDBModule(instance.config, instance.logger)
+		instance.mongoDB = mongodbModule.Provide()
 
-		instance.logger.Info("Registering DB module")
+		instance.logger.Info("Registering MongoDB module")
 
 		fxOptions = append(fxOptions,
-			// Provide contract.DB for dependency injection
+			// Provide contract.MongoDB for dependency injection
 			fx.Provide(func() contract.MongoDB { return instance.mongoDB }),
-			// Register DB module with its lifecycle hooks
+			// Register MongoDB module with its lifecycle hooks
 			fx.Module(mongodbModule.Name(),
 				fx.Invoke(func(lc fx.Lifecycle) {
 					lc.Append(fx.Hook{
@@ -305,6 +305,11 @@ func New(opts ...Options) contract.Application {
 	if opt.WithDB && opt.WithObservability {
 		// Replace the plain DB provider with metrics-wrapped version when both DB and observability are enabled
 		fxOptions = append(fxOptions, fx.Decorate(db.ProvideDBWithMetrics))
+	}
+
+	if opt.WithMongoDB && opt.WithObservability {
+		// Replace the plain MongoDB provider with metrics-wrapped version when both MongoDB and observability are enabled
+		fxOptions = append(fxOptions, fx.Decorate(mongodb.ProvideMongoDBWithMetrics))
 	}
 
 	// Add custom providers
