@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"gorm.io/gorm"
 	"strings" // Added for strings.ToUpper
 	"sync"
 
