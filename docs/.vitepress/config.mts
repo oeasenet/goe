@@ -59,6 +59,7 @@ export default defineConfig({
             { text: 'HTTP Server', link: '/guide/http-server' },
             { text: 'Database', link: '/guide/database' },
             { text: 'Caching', link: '/guide/caching' },
+            { text: 'Event System', link: '/guide/event-system' },
             { text: 'Observability', link: '/guide/observability' }
           ]
         },
