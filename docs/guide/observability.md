@@ -1,18 +1,19 @@
 # Observability
 
-GOE provides built-in observability features including metrics, tracing, and logging. This guide covers setting up comprehensive monitoring for your application.
+GOE provides comprehensive built-in observability features including automatic metrics collection, distributed tracing, and structured logging across all modules. This guide covers the complete observability implementation.
 
 ## Overview
 
 GOE's observability features include:
-- **Metrics**: Prometheus metrics for monitoring application performance
-- **Tracing**: OpenTelemetry distributed tracing
-- **Logging**: Structured logging with Zap
-- **Health Checks**: Application health monitoring
+- **Automatic Metrics**: Built-in metrics collection for all modules (HTTP, Database, Cache, Events, MongoDB)
+- **Distributed Tracing**: OpenTelemetry-based tracing across all operations
+- **Structured Logging**: Zap-based logging with correlation
+- **Prometheus Export**: Standard Prometheus metrics exposition
+- **Zero Configuration**: Works out-of-the-box with sensible defaults
 
-## Enabling Observability
+## Quick Start
 
-Enable the observability module in your GOE application:
+Enable observability in your GOE application:
 
 ```go
 package main
@@ -20,429 +21,278 @@ package main
 import "go.oease.dev/goe/v2"
 
 func main() {
-    goe.New(goe.Options{
+    app := goe.New(goe.Options{
         WithHTTP:          true,
-        WithObservability: true,
+        WithDB:            true,
+        WithCache:         true,
+        WithEvent:         true,
+        WithObservability: true, // 🎯 This enables comprehensive metrics!
     })
     
     goe.Run()
 }
 ```
 
+With observability enabled, metrics are automatically available at `http://localhost:9090/metrics`.
+
 ## Configuration
 
 Configure observability through environment variables:
 
 ```bash
-# .env
-# Observability
+# Core Observability
 OTEL_ENABLED=true
 OTEL_SERVICE_NAME=my-goe-app
 OTEL_SERVICE_VERSION=1.0.0
 OTEL_ENVIRONMENT=production
 
-# Metrics
-METRICS_ENABLED=true
-METRICS_PORT=9090
-METRICS_PATH=/metrics
+# Metrics Configuration
+OTEL_METRICS_ENABLED=true
+OTEL_METRICS_PORT=9090
+OTEL_METRICS_PATH=/metrics
+OTEL_METRICS_EXPORTERS=prometheus
 
-# Tracing
-TRACING_ENABLED=true
-TRACING_ENDPOINT=http://jaeger:14268/api/traces
-TRACING_SAMPLE_RATE=0.1
+# Tracing Configuration
+OTEL_TRACING_ENABLED=true
+OTEL_TRACING_ENDPOINT=http://localhost:4318
+OTEL_TRACING_SAMPLING_RATIO=1.0
 
 # Logging
 LOG_LEVEL=info
 LOG_FORMAT=json
 ```
 
-## Metrics
+## Automatic Module Metrics
 
-### Built-in Metrics
+GOE automatically collects comprehensive metrics for all enabled modules:
 
-GOE automatically collects several metrics:
+### HTTP Module Metrics
 
-- **HTTP Request Metrics**:
-  - `http_requests_total` - Total number of HTTP requests
-  - `http_request_duration_seconds` - Request duration histogram
-  - `http_requests_in_flight` - Current number of requests being processed
+Automatically collected for all HTTP requests:
 
-- **Database Metrics** (when DB module is enabled):
-  - `db_connections_open` - Number of open database connections
-  - `db_connections_idle` - Number of idle database connections
-  - `db_query_duration_seconds` - Database query duration
+```prometheus
+# Request tracking
+http_requests_total{method="GET",route="/",status="200",status_class="2xx"} 42
+http_request_duration_seconds_bucket{method="GET",route="/",le="0.1"} 40
+http_request_size_bytes_bucket{method="GET",route="/",le="1024"} 35
+http_response_size_bytes_bucket{method="GET",route="/",le="1024"} 40
 
-- **Cache Metrics** (when cache module is enabled):
-  - `cache_operations_total` - Total cache operations
-  - `cache_hits_total` - Total cache hits
-  - `cache_misses_total` - Total cache misses
-
-### Custom Metrics
-
-Create custom metrics for your application:
-
-```go
-package metrics
-
-import (
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-    UserRegistrations = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "user_registrations_total",
-            Help: "Total number of user registrations",
-        },
-        []string{"method", "success"},
-    )
-    
-    OrderValue = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name:    "order_value_dollars",
-            Help:    "Value of orders in dollars",
-            Buckets: []float64{10, 50, 100, 500, 1000, 5000},
-        },
-        []string{"currency", "payment_method"},
-    )
-    
-    ActiveSessions = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "active_sessions",
-            Help: "Number of active user sessions",
-        },
-    )
-)
-
-// Record metrics in your application
-func RecordUserRegistration(method string, success bool) {
-    UserRegistrations.WithLabelValues(method, fmt.Sprintf("%t", success)).Inc()
-}
-
-func RecordOrderValue(value float64, currency, paymentMethod string) {
-    OrderValue.WithLabelValues(currency, paymentMethod).Observe(value)
-}
-
-func UpdateActiveSessions(count int) {
-    ActiveSessions.Set(float64(count))
-}
+# Connection tracking
+http_active_connections{server="http"} 5
 ```
 
-### Using Metrics in Services
+### Database Module Metrics
 
-```go
-package service
+Automatically collected via GORM plugin:
 
-import (
-    "go.oease.dev/goe/v2/contract"
-    "your-app/internal/metrics"
-)
+```prometheus
+# Query performance
+db_queries_total{operation="query",table="users"} 150
+db_query_duration_seconds_bucket{operation="query",table="users",le="0.01"} 145
+db_errors_total{operation="query",table="users"} 2
 
-type UserService struct {
-    repository UserRepository
-    logger     contract.Logger
-}
+# Connection monitoring
+db_connections_active 10
 
-func NewUserService(repository UserRepository, logger contract.Logger) *UserService {
-    return &UserService{
-        repository: repository,
-        logger:     logger,
-    }
-}
-
-func (s *UserService) RegisterUser(email, password string) (*User, error) {
-    s.logger.Info("Starting user registration", "email", email)
-    
-    user := &User{
-        Email:    email,
-        Password: hashPassword(password),
-    }
-    
-    err := s.repository.Create(user)
-    if err != nil {
-        s.logger.Error("User registration failed", "email", email, "error", err)
-        metrics.RecordUserRegistration("email", false)
-        return nil, err
-    }
-    
-    s.logger.Info("User registered successfully", "user_id", user.ID, "email", email)
-    metrics.RecordUserRegistration("email", true)
-    
-    return user, nil
-}
+# Migration tracking
+db_migrations_total{operation="auto_migrate",models_count="5"} 1
+db_migration_duration_seconds_bucket{operation="auto_migrate",le="1.0"} 1
 ```
 
-## Tracing
+### Cache Module Metrics
 
-### Distributed Tracing
+Automatically collected for all cache operations:
 
-GOE integrates with OpenTelemetry for distributed tracing:
+```prometheus
+# Operation tracking
+cache_operations_total{operation="get",store="redis"} 1000
+cache_operation_duration_seconds_bucket{operation="get",store="redis",le="0.001"} 950
+
+# Hit/miss tracking
+cache_hits_total{operation="get",store="redis"} 850
+cache_misses_total{operation="get",store="redis"} 150
+
+# Size monitoring
+cache_size_bytes{store="redis"} 1048576
+```
+
+### Event Module Metrics
+
+Automatically collected for event publishing and consumption:
+
+```prometheus
+# Publishing metrics
+event_publish_total{operation="publish",event_type="user.created"} 25
+event_publish_duration_seconds_bucket{operation="publish",event_type="user.created",le="0.01"} 24
+
+# Consumption metrics
+event_consume_total{operation="consume",event_type="user.created"} 25
+event_consume_duration_seconds_bucket{operation="consume",event_type="user.created",le="0.01"} 23
+
+# Error tracking
+event_errors_total{operation="publish",event_type="user.created"} 0
+
+# Queue monitoring
+event_queue_size 5
+event_health_check_duration_seconds_bucket{operation="health",le="0.1"} 10
+```
+
+### MongoDB Module Metrics
+
+Automatically collected for MongoDB operations:
+
+```prometheus
+# Operation tracking
+mongodb_operations_total{operation="find",collection="users"} 75
+mongodb_operation_duration_seconds_bucket{operation="find",collection="users",le="0.01"} 70
+
+# Connection monitoring
+mongodb_connections_active 8
+
+# Error tracking
+mongodb_errors_total{operation="find",collection="users"} 1
+```
+
+## Distributed Tracing
+
+All modules include automatic OpenTelemetry tracing:
+
+### Automatic Trace Attributes
+
+- **HTTP**: `http.method`, `http.route`, `http.status_code`, `http.duration`
+- **Database**: `db.operation`, `db.table`, `db.duration`, `db.rows_affected`
+- **Cache**: `cache.key`, `cache.operation`, `cache.hit`, `cache.store`
+- **Events**: `event.type`, `event.operation`
+- **MongoDB**: `db.operation`, `db.collection`, `db.duration`
+
+### Trace Propagation
+
+Traces automatically propagate across module boundaries:
+
+```
+HTTP Request → Database Query → Cache Operation → Event Publish
+     │              │               │                │
+     └── Span ──→ Child Span ──→ Child Span ──→ Child Span
+```
+
+## Custom Metrics and Tracing
+
+### Using the Metrics Manager
+
+In your HTTP handlers, you can access the metrics manager:
 
 ```go
-package service
-
 import (
-    "context"
-    "go.opentelemetry.io/otel"
+    "go.oease.dev/goe/v2/core/http"
     "go.opentelemetry.io/otel/attribute"
-    "go.opentelemetry.io/otel/trace"
-    "go.oease.dev/goe/v2/contract"
 )
 
-type UserService struct {
-    repository UserRepository
-    logger     contract.Logger
-    tracer     trace.Tracer
-}
-
-func NewUserService(repository UserRepository, logger contract.Logger) *UserService {
-    return &UserService{
-        repository: repository,
-        logger:     logger,
-        tracer:     otel.Tracer("user-service"),
-    }
-}
-
-func (s *UserService) GetUser(ctx context.Context, id int) (*User, error) {
-    ctx, span := s.tracer.Start(ctx, "UserService.GetUser")
-    defer span.End()
-    
-    span.SetAttributes(
-        attribute.Int("user.id", id),
-        attribute.String("service", "user-service"),
-    )
-    
-    user, err := s.repository.FindByID(ctx, id)
-    if err != nil {
-        span.RecordError(err)
-        span.SetStatus(trace.StatusError, err.Error())
-        return nil, err
-    }
-    
-    span.SetAttributes(
-        attribute.String("user.email", user.Email),
-        attribute.Bool("user.active", user.Active),
-    )
-    
-    return user, nil
-}
-```
-
-### HTTP Tracing
-
-HTTP requests are automatically traced when observability is enabled:
-
-```go
-import (
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/propagation"
-)
-
-func RegisterRoutes(httpKernel contract.HTTPKernel, userService *UserService) {
-    app := httpKernel.App()
-    
-    // OpenTelemetry middleware is automatically added
-    app.Get("/users/:id", func(c fiber.Ctx) error {
-        // Extract tracing context from headers
-        ctx := otel.GetTextMapPropagator().Extract(c.Context(), propagation.HeaderCarrier(c.GetReqHeaders()))
-        
-        id, err := c.ParamsInt("id")
-        if err != nil {
-            return c.Status(400).JSON(fiber.Map{"error": "Invalid ID"})
-        }
-        
-        user, err := userService.GetUser(ctx, id)
-        if err != nil {
-            return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
-        }
-        
-        return c.JSON(user)
-    })
-}
-```
-
-## Logging
-
-### Structured Logging
-
-Use structured logging for better observability:
-
-```go
-package service
-
-import (
-    "go.oease.dev/goe/v2/contract"
-)
-
-type OrderService struct {
-    repository OrderRepository
-    logger     contract.Logger
-}
-
-func (s *OrderService) CreateOrder(userID int, items []OrderItem) (*Order, error) {
-    s.logger.Info("Creating order",
-        "user_id", userID,
-        "item_count", len(items),
-        "operation", "create_order",
-    )
-    
-    order := &Order{
-        UserID: userID,
-        Items:  items,
-        Status: "pending",
-    }
-    
-    total := s.calculateTotal(items)
-    order.Total = total
-    
-    s.logger.Info("Order total calculated",
-        "order_id", order.ID,
-        "user_id", userID,
-        "total", total,
-        "currency", "USD",
-    )
-    
-    if err := s.repository.Create(order); err != nil {
-        s.logger.Error("Failed to create order",
-            "user_id", userID,
-            "error", err,
-            "operation", "create_order",
+func MyHandler(c fiber.Ctx) error {
+    // Get metrics manager from context
+    metrics := http.GetMetrics(c)
+    if metrics != nil {
+        // Create custom metrics
+        customCounter := metrics.Counter("custom_operations_total",
+            contract.WithDescription("Custom operation counter"),
+            contract.WithUnit("operations"),
         )
-        return nil, err
+        
+        // Record metrics
+        customCounter.Inc(c.Context(),
+            attribute.String("operation", "custom"),
+            attribute.String("status", "success"),
+        )
     }
     
-    s.logger.Info("Order created successfully",
-        "order_id", order.ID,
-        "user_id", userID,
-        "total", total,
-        "status", order.Status,
-    )
-    
-    return order, nil
+    return c.JSON(fiber.Map{"message": "success"})
 }
 ```
 
-### Log Correlation
-
-Correlate logs with traces using request IDs:
+### Custom Tracing
 
 ```go
-import (
-    "go.opentelemetry.io/otel/trace"
-)
-
-func (s *UserService) ProcessUser(ctx context.Context, id int) error {
-    span := trace.SpanFromContext(ctx)
-    traceID := span.SpanContext().TraceID().String()
+func MyHandler(c fiber.Ctx) error {
+    // Get tracing manager from context
+    tracing := http.GetTracing(c)
+    if tracing != nil {
+        // Create custom spans
+        ctx, span := tracing.StartSpan(c.Context(), "custom.operation",
+            contract.WithSpanKind(trace.SpanKindInternal),
+            contract.WithSpanAttributes(
+                attribute.String("custom.param", "value"),
+            ),
+        )
+        defer span.End()
+        
+        // Use the traced context for downstream operations
+        // ... your business logic ...
+        
+        span.SetAttributes(attribute.String("result", "success"))
+    }
     
-    s.logger.Info("Processing user",
-        "user_id", id,
-        "trace_id", traceID,
-        "operation", "process_user",
-    )
-    
-    // Processing logic...
-    
-    return nil
+    return c.JSON(fiber.Map{"message": "success"})
 }
 ```
 
-## Health Checks
+## Performance Considerations
 
-### Application Health
+### Overhead Measurements
 
-```go
-package handler
+| Module | Overhead per Operation | Impact |
+|--------|----------------------|---------|
+| HTTP | ~0.1-0.5ms | Minimal |
+| Database | ~0.01-0.1ms | Negligible |
+| Cache | ~0.01ms | Negligible |
+| Events | ~0.1ms | Minimal |
 
-import (
-    "context"
-    "time"
-    "github.com/gofiber/fiber/v3"
-    "go.oease.dev/goe/v2/contract"
-)
+### Optimization Tips
 
-type HealthHandler struct {
-    db       contract.DB
-    cache    contract.Cache
-    logger   contract.Logger
-}
+1. **Sampling**: Use `OTEL_TRACING_SAMPLING_RATIO` for high-traffic services
+2. **Label Cardinality**: Avoid high-cardinality labels (user IDs, timestamps)
+3. **Batch Operations**: Metrics are exported asynchronously
+4. **Resource Limits**: Monitor memory usage in production
 
-func NewHealthHandler(db contract.DB, cache contract.Cache, logger contract.Logger) *HealthHandler {
-    return &HealthHandler{
-        db:     db,
-        cache:  cache,
-        logger: logger,
-    }
-}
+## Production Setup
 
-func (h *HealthHandler) LivenessCheck(c fiber.Ctx) error {
-    // Simple liveness check
-    return c.JSON(fiber.Map{
-        "status": "alive",
-        "timestamp": time.Now().Unix(),
-    })
-}
+### Docker Compose Example
 
-func (h *HealthHandler) ReadinessCheck(c fiber.Ctx) error {
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    
-    checks := map[string]interface{}{
-        "database": h.checkDatabase(ctx),
-        "cache":    h.checkCache(ctx),
-    }
-    
-    allHealthy := true
-    for _, check := range checks {
-        if status, ok := check.(map[string]interface{})["status"]; ok && status != "healthy" {
-            allHealthy = false
-            break
-        }
-    }
-    
-    response := fiber.Map{
-        "status": "ready",
-        "timestamp": time.Now().Unix(),
-        "checks": checks,
-    }
-    
-    if !allHealthy {
-        response["status"] = "not_ready"
-        return c.Status(503).JSON(response)
-    }
-    
-    return c.JSON(response)
-}
+```yaml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8181:8181"
+      - "9090:9090"  # Metrics endpoint
+    environment:
+      - OTEL_ENABLED=true
+      - OTEL_METRICS_ENABLED=true
+      - OTEL_TRACING_ENABLED=true
+      - OTEL_SERVICE_NAME=my-goe-app
+      - OTEL_ENVIRONMENT=production
 
-func (h *HealthHandler) checkDatabase(ctx context.Context) interface{} {
-    if err := h.db.Instance().WithContext(ctx).Exec("SELECT 1").Error; err != nil {
-        return map[string]interface{}{
-            "status": "unhealthy",
-            "error":  err.Error(),
-        }
-    }
-    
-    return map[string]interface{}{
-        "status": "healthy",
-    }
-}
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
 
-func (h *HealthHandler) checkCache(ctx context.Context) interface{} {
-    if err := h.cache.Set("health_check", "ok", 10*time.Second); err != nil {
-        return map[string]interface{}{
-            "status": "unhealthy",
-            "error":  err.Error(),
-        }
-    }
-    
-    return map[string]interface{}{
-        "status": "healthy",
-    }
-}
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+volumes:
+  grafana-storage:
 ```
-
-## Monitoring Stack
 
 ### Prometheus Configuration
 
@@ -450,7 +300,6 @@ func (h *HealthHandler) checkCache(ctx context.Context) interface{} {
 # prometheus.yml
 global:
   scrape_interval: 15s
-  evaluation_interval: 15s
 
 scrape_configs:
   - job_name: 'goe-app'
@@ -458,231 +307,147 @@ scrape_configs:
       - targets: ['app:9090']
     metrics_path: '/metrics'
     scrape_interval: 5s
-
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['postgres-exporter:9187']
-
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis-exporter:9121']
 ```
 
-### Grafana Dashboard
+## Troubleshooting
 
-```json
-{
-  "dashboard": {
-    "title": "GOE Application Metrics",
-    "panels": [
-      {
-        "title": "Request Rate",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(http_requests_total[5m])",
-            "legendFormat": "Requests/sec"
-          }
-        ]
-      },
-      {
-        "title": "Error Rate",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(http_requests_total{status=~\"4..|5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
-            "legendFormat": "Error %"
-          }
-        ]
-      },
-      {
-        "title": "Response Time",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "95th percentile"
-          },
-          {
-            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "50th percentile"
-          }
-        ]
-      },
-      {
-        "title": "Database Connections",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "db_connections_open",
-            "legendFormat": "Open"
-          },
-          {
-            "expr": "db_connections_idle",
-            "legendFormat": "Idle"
-          }
-        ]
-      }
-    ]
-  }
-}
+### Common Issues
+
+#### 1. No Metrics Endpoint
+
+**Problem**: `curl http://localhost:9090/metrics` fails
+
+**Solutions**:
+- Ensure `WithObservability: true` in your app configuration
+- Check `OTEL_ENABLED=true` and `OTEL_METRICS_ENABLED=true`
+- Verify port isn't in use: `lsof -i :9090`
+
+#### 2. No Module Metrics
+
+**Problem**: Only basic Go metrics, no `http_`, `db_`, `cache_`, or `event_` metrics
+
+**Solutions**:
+- Generate activity: make HTTP requests, use database, cache, events
+- Check logs for: `Creating metrics middleware - observability components available`
+- Verify modules are enabled: `WithHTTP: true`, `WithDB: true`, etc.
+
+#### 3. High Memory Usage
+
+**Problem**: Memory usage increases over time
+
+**Solutions**:
+- Avoid high-cardinality labels (user IDs, timestamps)
+- Reduce sampling: `OTEL_TRACING_SAMPLING_RATIO=0.1`
+- Monitor metric series count
+
+### Debug Steps
+
+1. **Check application startup logs**:
+   ```
+   Creating metrics middleware - observability components available
+   Prometheus server verified running status=200
+   ```
+
+2. **Test metrics endpoint**:
+   ```bash
+   curl -I http://localhost:9090/metrics
+   ```
+
+3. **Generate activity and check for module metrics**:
+   ```bash
+   # Generate HTTP traffic
+   curl http://localhost:8181/
+   
+   # Check for module metrics
+   curl -s http://localhost:9090/metrics | grep -E "^(http|db|cache|event)_"
+   ```
+
+4. **Verify configuration**:
+   ```bash
+   echo "OTEL_ENABLED: $OTEL_ENABLED"
+   echo "OTEL_METRICS_ENABLED: $OTEL_METRICS_ENABLED"
+   ```
+
+## Monitoring Stack Integration
+
+### Grafana Dashboards
+
+GOE metrics work with standard Grafana dashboards. Key queries:
+
+```promql
+# Request rate
+rate(http_requests_total[5m])
+
+# Error rate
+rate(http_requests_total{status=~"4..|5.."}[5m]) / rate(http_requests_total[5m]) * 100
+
+# Response time percentiles
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Database query performance
+rate(db_queries_total[5m])
+histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))
+
+# Cache hit rate
+rate(cache_hits_total[5m]) / rate(cache_operations_total[5m]) * 100
 ```
 
-## Alerting
-
-### Prometheus Alerting Rules
+### Alerting Rules
 
 ```yaml
-# alerts.yml
+# prometheus-alerts.yml
 groups:
-  - name: goe-app-alerts
+  - name: goe-app
     rules:
       - alert: HighErrorRate
         expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
         for: 5m
-        labels:
-          severity: critical
         annotations:
           summary: "High error rate detected"
-          description: "Error rate is {{ $value }} requests/sec"
 
       - alert: HighResponseTime
         expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
         for: 5m
-        labels:
-          severity: warning
         annotations:
           summary: "High response time detected"
-          description: "95th percentile response time is {{ $value }} seconds"
 
-      - alert: DatabaseDown
-        expr: up{job="goe-app"} == 0
-        for: 1m
-        labels:
-          severity: critical
+      - alert: DatabaseErrors
+        expr: rate(db_errors_total[5m]) > 0.01
+        for: 2m
         annotations:
-          summary: "Database is down"
-          description: "Database has been down for more than 1 minute"
-
-      - alert: HighMemoryUsage
-        expr: (process_resident_memory_bytes / process_virtual_memory_bytes) * 100 > 80
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory usage"
-          description: "Memory usage is {{ $value }}%"
-```
-
-### Alertmanager Configuration
-
-```yaml
-# alertmanager.yml
-global:
-  smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'alerts@myapp.com'
-
-route:
-  group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'web.hook'
-
-receivers:
-  - name: 'web.hook'
-    email_configs:
-      - to: 'admin@myapp.com'
-        subject: 'GOE App Alert: {{ .GroupLabels.alertname }}'
-        body: |
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          {{ end }}
-    
-    slack_configs:
-      - api_url: 'https://hooks.slack.com/services/...'
-        channel: '#alerts'
-        title: 'GOE App Alert'
-        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-```
-
-## Performance Monitoring
-
-### APM Integration
-
-```go
-package main
-
-import (
-    "go.opentelemetry.io/contrib/instrumentation/github.com/gofiber/fiber/otelfiber"
-    "go.opentelemetry.io/contrib/instrumentation/gorm.io/gorm/otelgorm"
-)
-
-func setupAPM(app *fiber.App, db *gorm.DB) {
-    // Add OpenTelemetry middleware to Fiber
-    app.Use(otelfiber.Middleware())
-    
-    // Add OpenTelemetry plugin to GORM
-    if err := db.Use(otelgorm.NewPlugin()); err != nil {
-        log.Fatal("Failed to setup GORM OpenTelemetry plugin", err)
-    }
-}
-```
-
-### Custom Instrumentation
-
-```go
-package service
-
-import (
-    "context"
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/attribute"
-    "go.opentelemetry.io/otel/metric"
-)
-
-type PaymentService struct {
-    meter   metric.Meter
-    counter metric.Int64Counter
-}
-
-func NewPaymentService() *PaymentService {
-    meter := otel.Meter("payment-service")
-    counter, _ := meter.Int64Counter("payments_processed")
-    
-    return &PaymentService{
-        meter:   meter,
-        counter: counter,
-    }
-}
-
-func (s *PaymentService) ProcessPayment(ctx context.Context, amount float64, currency string) error {
-    // Record payment
-    s.counter.Add(ctx, 1, metric.WithAttributes(
-        attribute.String("currency", currency),
-        attribute.Float64("amount", amount),
-    ))
-    
-    // Process payment logic...
-    
-    return nil
-}
+          summary: "Database errors detected"
 ```
 
 ## Best Practices
 
-1. **Use structured logging** with consistent field names
-2. **Implement proper error handling** with appropriate log levels
-3. **Monitor key business metrics** not just technical metrics
-4. **Set up alerting** for critical issues
-5. **Use distributed tracing** for complex operations
-6. **Implement health checks** for all external dependencies
-7. **Monitor performance trends** over time
-8. **Set up automated incident response** where possible
+1. **Enable observability from day one** - it's zero-configuration
+2. **Use structured logging** with consistent field names
+3. **Monitor business metrics** in addition to technical metrics
+4. **Set up alerting** for critical application and infrastructure issues
+5. **Use distributed tracing** to debug complex request flows
+6. **Implement health checks** for external dependencies
+7. **Monitor trends over time** to spot gradual degradation
+8. **Test your monitoring** in staging environments
+
+## Migration from v1.x
+
+The v2.x observability system is a complete rewrite with automatic integration:
+
+### Key Changes
+- **Automatic**: Metrics are now automatically enabled with `WithObservability: true`
+- **Comprehensive**: All modules have built-in metrics (HTTP, DB, Cache, Events, MongoDB)
+- **Standards-Based**: Full OpenTelemetry compliance
+- **Zero-Config**: Works out-of-the-box with sensible defaults
+
+### Upgrade Steps
+1. Add `WithObservability: true` to your app configuration
+2. Remove any custom metrics code (now handled automatically)
+3. Update environment variables (see Configuration section)
+4. Update dashboards to use new metric names
+5. Test the metrics endpoint after upgrade
 
 ## Next Steps
 
 - [**Deployment**](./deployment.md) - Deploy with monitoring enabled
-- [**Best Practices**](./best-practices.md) - Follow monitoring best practices
-- [**Testing**](./testing.md) - Test your monitoring setup
+- [**Best Practices**](./best-practices.md) - Follow development best practices
+- [**Testing**](./testing.md) - Test your application including metrics

@@ -2,8 +2,8 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: "GOE Framework",
-  description: "Modern Go Application Framework - Built on Fx & Fiber",
+  title: 'GOE Framework',
+  description: 'Modern Go Application Framework - Built on Fx & Fiber',
   base: '/goe/',
   cleanUrls: true,
   lastUpdated: true,
@@ -15,9 +15,8 @@ export default defineConfig({
     ['meta', { name: 'og:site_name', content: 'GOE Framework' }],
   ],
   themeConfig: {
-    logo: { src: '/goe/logo.svg', width: 24, height: 24 },
+    logo: { src: '/goe_gopher_logo.png', width: 24, height: 24 },
     siteTitle: 'GOE Framework',
-    
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'Examples', link: '/examples/basic-app', activeMatch: '/examples/' },
@@ -93,6 +92,13 @@ export default defineConfig({
             { text: 'Microservices', link: '/examples/microservices' },
             { text: 'Production Setup', link: '/examples/production' }
           ]
+        },
+        {
+          text: 'Troubleshooting',
+          items: [
+            { text: 'Observability Issues', link: '/examples/observability-troubleshooting' },
+            { text: 'Metrics Implementation', link: '/examples/metrics-implementation-summary' }
+          ]
         }
       ],
     },
@@ -119,7 +125,7 @@ export default defineConfig({
       level: [2, 3]
     }
   },
-  
+
   markdown: {
     theme: {
       light: 'github-light',

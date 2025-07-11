@@ -312,6 +312,11 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, fx.Decorate(mongodb.ProvideMongoDBWithMetrics))
 	}
 
+	if opt.WithEvent && opt.WithObservability {
+		// Replace the plain Event provider with metrics-wrapped version when both Event and observability are enabled
+		fxOptions = append(fxOptions, fx.Decorate(event.ProvideEventManagerWithMetrics))
+	}
+
 	// Add custom providers
 	for _, provider := range opt.Providers {
 		fxOptions = append(fxOptions, fx.Provide(provider))
@@ -319,9 +324,15 @@ func New(opts ...Options) contract.Application {
 
 	// Add HTTP service injection BEFORE custom invokers to ensure middleware is applied first
 	if opt.WithHTTP {
-		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
-			// Set up service middleware with all available services (including observability if enabled)
-			httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
+		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle, provider http.ServiceProvider) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Set up service middleware with all available services (including observability if enabled)
+					// This happens after all modules are initialized
+					httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
+					return nil
+				},
+			})
 		}))
 	}
 

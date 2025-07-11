@@ -883,6 +883,8 @@ func TestHTTP_ServiceProvider(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	logger.On("Debug", mock.Anything, mock.Anything).Return()
+	logger.On("Warn", mock.Anything, mock.Anything).Return()
 
 	// Create mock application
 	mockApp := &MockApplication{}

@@ -92,8 +92,7 @@ func ProvideEventManagerWithMetrics(
 	metrics contract.MetricsManager,
 	tracing contract.TracingManager,
 ) contract.EventManager {
-	// TODO: Implement metrics wrapper when observability API is stable
-	return manager
+	return NewMetricsWrapper(manager, metrics, tracing)
 }
 
 // ValidateConfig validates the event module configuration

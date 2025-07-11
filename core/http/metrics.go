@@ -34,7 +34,7 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 		contract.WithUnit("bytes"),
 	)
 
-	activeConnections := metrics.Gauge("http_active_connections",
+	activeConnections := metrics.UpDownCounter("http_active_connections",
 		contract.WithDescription("Number of active HTTP connections"),
 		contract.WithUnit("connections"),
 	)
@@ -72,7 +72,7 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 		}
 
 		// Increment active connections
-		activeConnections.Set(ctx, 1, attribute.String("server", "http"))
+		activeConnections.Add(ctx, 1, attribute.String("server", "http"))
 
 		// Continue to next middleware
 		err := c.Next()
@@ -115,7 +115,7 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 		}
 
 		// Decrement active connections
-		activeConnections.Set(ctx, -1, attribute.String("server", "http"))
+		activeConnections.Add(ctx, -1, attribute.String("server", "http"))
 
 		return err
 	}

@@ -284,8 +284,10 @@ func NewMetricsWrapper(db contract.DB, metrics contract.MetricsManager, tracing 
 func (w *MetricsWrapper) Instance() *gorm.DB {
 	instance := w.db.Instance()
 	if instance != nil {
-		// Ensure metrics are added lazily
-		AddMetricsToGORM(instance, w.metrics, w.tracing)
+		// Ensure metrics are added lazily (only add if not already present)
+		if !w.hasMetricsPlugin(instance) {
+			AddMetricsToGORM(instance, w.metrics, w.tracing)
+		}
 	}
 	return instance
 }
@@ -297,8 +299,10 @@ func (w *MetricsWrapper) Connection(name string) (*gorm.DB, error) {
 		return nil, err
 	}
 	if conn != nil {
-		// Ensure metrics are added
-		AddMetricsToGORM(conn, w.metrics, w.tracing)
+		// Ensure metrics are added (only add if not already present)
+		if !w.hasMetricsPlugin(conn) {
+			AddMetricsToGORM(conn, w.metrics, w.tracing)
+		}
 	}
 	return conn, nil
 }
@@ -407,4 +411,20 @@ func (w *MetricsWrapper) RegisterModelsForMigration(dst ...interface{}) {
 // RegisterModelsForMigrationOnConnection pre-registers models for automatic migration on a specific connection
 func (w *MetricsWrapper) RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{}) {
 	w.db.RegisterModelsForMigrationOnConnection(connectionName, dst...)
+}
+
+// hasMetricsPlugin checks if the GORM instance already has the metrics plugin
+func (w *MetricsWrapper) hasMetricsPlugin(db *gorm.DB) bool {
+	if db == nil {
+		return false
+	}
+
+	// Check if our metrics plugin is already registered
+	plugins := db.Config.Plugins
+	for name := range plugins {
+		if name == "goe:metrics" {
+			return true
+		}
+	}
+	return false
 }

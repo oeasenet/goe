@@ -161,7 +161,7 @@ func (s *SDKManager) createPrometheusReader(config contract.MetricsConfig) (metr
 	mux.Handle(config.Path(), promhttp.Handler())
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.Port()),
+		Addr:    fmt.Sprintf("0.0.0.0:%d", config.Port()),
 		Handler: mux,
 	}
 
@@ -170,11 +170,25 @@ func (s *SDKManager) createPrometheusReader(config contract.MetricsConfig) (metr
 		s.logger.Info("Starting Prometheus metrics server",
 			"port", config.Port(),
 			"path", config.Path(),
+			"address", server.Addr,
 		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("Prometheus server error", "error", err)
 		}
 	}()
+
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+	
+	// Test if the server started successfully
+	testURL := fmt.Sprintf("http://localhost:%d%s", config.Port(), config.Path())
+	resp, err := http.Get(testURL)
+	if err != nil {
+		s.logger.Error("Failed to verify Prometheus server startup", "error", err, "url", testURL)
+	} else {
+		resp.Body.Close()
+		s.logger.Info("Prometheus server verified running", "status", resp.StatusCode, "url", testURL)
+	}
 
 	// Add shutdown function for server
 	s.shutdownFuncs = append(s.shutdownFuncs, func(ctx context.Context) error {
