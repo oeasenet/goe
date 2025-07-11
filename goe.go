@@ -15,7 +15,6 @@ import (
 	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/log"
-	"go.oease.dev/goe/v2/core/observability"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
@@ -24,30 +23,28 @@ import (
 var (
 	// Global instance holder
 	instance struct {
-		app           contract.Application
-		config        contract.Config
-		logger        contract.Logger
-		http          contract.HTTPKernel
-		cacheManager  contract.CacheManager
-		db            contract.DB      // Database instance
-		mongoDB       contract.MongoDB // Database instance
-		eventManager  contract.EventManager
-		observability contract.Observability
-		mu            sync.RWMutex
+		app          contract.Application
+		config       contract.Config
+		logger       contract.Logger
+		http         contract.HTTPKernel
+		cacheManager contract.CacheManager
+		db           contract.DB      // Database instance
+		mongoDB      contract.MongoDB // Database instance
+		eventManager contract.EventManager
+		mu           sync.RWMutex
 	}
 )
 
 // Options represents the application options
 type Options struct {
-	Modules           []contract.Module
-	Providers         []any
-	Invokers          []any
-	WithHTTP          bool // Enable HTTP module
-	WithCache         bool // Enable Cache module
-	WithDB            bool // Enable DB module
-	WithMongoDB       bool // Enable Mongo DB module
-	WithEvent         bool // Enable Event module
-	WithObservability bool // Enable Observability module
+	Modules     []contract.Module
+	Providers   []any
+	Invokers    []any
+	WithHTTP    bool // Enable HTTP module
+	WithCache   bool // Enable Cache module
+	WithDB      bool // Enable DB module
+	WithMongoDB bool // Enable Mongo DB module
+	WithEvent   bool // Enable Event module
 }
 
 // New creates a new Goe application
@@ -67,7 +64,6 @@ func New(opts ...Options) contract.Application {
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB // + Assign WithDB
 		opt.WithEvent = o.WithEvent
-		opt.WithObservability = o.WithObservability
 	}
 
 	// Create config first to read application settings
@@ -136,7 +132,6 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
 	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
-	instance.logger.Info("WithObservability flag", "enabled", opt.WithObservability)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
 
 	// Add Cache module if enabled
@@ -210,29 +205,6 @@ func New(opts ...Options) contract.Application {
 		)
 	}
 
-	// Add Observability module if enabled
-	var observabilityModule *observability.Module
-	if opt.WithObservability {
-		observabilityModule = observability.NewModule(instance.config, instance.logger)
-		instance.observability = observabilityModule.Provide()
-
-		instance.logger.Info("Registering Observability module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.Observability { return instance.observability }),
-			fx.Provide(func() contract.MetricsManager { return observabilityModule.ProvideMetrics() }),
-			fx.Provide(func() contract.TracingManager { return observabilityModule.ProvideTracing() }),
-			fx.Module(observabilityModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: observabilityModule.OnStart,
-						OnStop:  observabilityModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
 	// Add MongoDB module if enabled
 	var mongodbModule *mongodb.DatabaseModule
 	if opt.WithMongoDB {
@@ -290,31 +262,9 @@ func New(opts ...Options) contract.Application {
 		))
 	}
 
-	// Add conditional cache provider with metrics support
+	// Add cache provider
 	if opt.WithCache {
-		if opt.WithObservability {
-			// Provide cache with metrics when both cache and observability are enabled
-			fxOptions = append(fxOptions, fx.Provide(cache.ProvideCacheWithMetrics))
-		} else {
-			// Provide plain cache when only cache is enabled
-			fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return cacheModule.ProvideCache() }))
-		}
-	}
-
-	// Add conditional DB provider with metrics support
-	if opt.WithDB && opt.WithObservability {
-		// Replace the plain DB provider with metrics-wrapped version when both DB and observability are enabled
-		fxOptions = append(fxOptions, fx.Decorate(db.ProvideDBWithMetrics))
-	}
-
-	if opt.WithMongoDB && opt.WithObservability {
-		// Replace the plain MongoDB provider with metrics-wrapped version when both MongoDB and observability are enabled
-		fxOptions = append(fxOptions, fx.Decorate(mongodb.ProvideMongoDBWithMetrics))
-	}
-
-	if opt.WithEvent && opt.WithObservability {
-		// Replace the plain Event provider with metrics-wrapped version when both Event and observability are enabled
-		fxOptions = append(fxOptions, fx.Decorate(event.ProvideEventManagerWithMetrics))
+		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return cacheModule.ProvideCache() }))
 	}
 
 	// Add custom providers
@@ -328,10 +278,7 @@ func New(opts ...Options) contract.Application {
 			// Set up service middleware immediately when all dependencies are available
 			// This ensures the middleware is registered before the HTTP server starts listening
 			httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
-			instance.logger.Debug("HTTP middleware registered",
-				"metrics_available", provider.Metrics != nil,
-				"tracing_available", provider.Tracing != nil,
-			)
+			instance.logger.Debug("HTTP middleware registered")
 		}))
 	}
 
@@ -478,28 +425,6 @@ func EventConsumer() contract.EventConsumer {
 // DeadLetterQueue returns the global dead letter queue manager instance
 func DeadLetterQueue() contract.DeadLetterQueueManager {
 	return EventManager().GetDeadLetterQueue()
-}
-
-// Observability returns the global observability instance
-func Observability() contract.Observability {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.observability == nil {
-		panic("Observability module not initialized. Set WithObservability: true in goe.New() options")
-	}
-
-	return instance.observability
-}
-
-// Metrics returns the global metrics manager instance
-func Metrics() contract.MetricsManager {
-	return Observability().Metrics()
-}
-
-// Tracing returns the global tracing manager instance
-func Tracing() contract.TracingManager {
-	return Observability().Tracing()
 }
 
 // MongoDB returns the global MongoDB instance

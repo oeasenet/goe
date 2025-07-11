@@ -86,15 +86,6 @@ func (m *Module) ProvideDeadLetterQueue() contract.DeadLetterQueueManager {
 	return m.manager.GetDeadLetterQueue()
 }
 
-// ProvideEventManagerWithMetrics returns the event manager wrapped with metrics if observability is available
-func ProvideEventManagerWithMetrics(
-	manager contract.EventManager,
-	metrics contract.MetricsManager,
-	tracing contract.TracingManager,
-) contract.EventManager {
-	return NewMetricsWrapper(manager, metrics, tracing)
-}
-
 // ValidateConfig validates the event module configuration
 func (m *Module) ValidateConfig() error {
 	v := validator.NewConfigValidator(m.config, "event")

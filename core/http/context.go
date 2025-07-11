@@ -24,10 +24,7 @@ type Services struct {
 	Logger    contract.Logger
 	Validator *CustomValidator
 	// Add more services as needed
-	Cache         contract.Cache
-	Observability contract.Observability
-	Metrics       contract.MetricsManager
-	Tracing       contract.TracingManager
+	Cache contract.Cache
 }
 
 // InjectServices creates a middleware that injects services into the context
@@ -79,21 +76,6 @@ func GetCache(c fiber.Ctx) contract.Cache {
 	return GetServices(c).Cache
 }
 
-// GetObservability retrieves observability from the context
-func GetObservability(c fiber.Ctx) contract.Observability {
-	return GetServices(c).Observability
-}
-
-// GetMetrics retrieves metrics manager from the context
-func GetMetrics(c fiber.Ctx) contract.MetricsManager {
-	return GetServices(c).Metrics
-}
-
-// GetTracing retrieves tracing manager from the context
-func GetTracing(c fiber.Ctx) contract.TracingManager {
-	return GetServices(c).Tracing
-}
-
 // Handler creates a handler with dependency injection
 // This is a more convenient way to create handlers with DI
 type Handler[T any] func(c fiber.Ctx, deps T) error
@@ -109,76 +91,24 @@ func AsHandler[T any](h Handler[T], deps T) fiber.Handler {
 type ServiceProvider struct {
 	fx.In
 
-	App           contract.Application
-	Config        contract.Config
-	Logger        contract.Logger
-	Cache         contract.Cache          `optional:"true"`
-	Observability contract.Observability  `optional:"true"`
-	Metrics       contract.MetricsManager `optional:"true"`
-	Tracing       contract.TracingManager `optional:"true"`
+	App    contract.Application
+	Config contract.Config
+	Logger contract.Logger
+	Cache  contract.Cache `optional:"true"`
 }
 
-// CreateServiceMiddleware creates a middleware that injects services and optionally adds metrics
+// CreateServiceMiddleware creates a middleware that injects services into the context
 func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 	services := Services{
-		App:           provider.App,
-		Config:        provider.Config,
-		Logger:        provider.Logger,
-		Cache:         provider.Cache,
-		Observability: provider.Observability,
-		Metrics:       provider.Metrics,
-		Tracing:       provider.Tracing,
+		App:    provider.App,
+		Config: provider.Config,
+		Logger: provider.Logger,
+		Cache:  provider.Cache,
 	}
 
-	// Debug logging
-	provider.Logger.Debug("CreateServiceMiddleware called",
-		"metrics_available", provider.Metrics != nil,
-		"tracing_available", provider.Tracing != nil,
-		"observability_available", provider.Observability != nil,
-	)
+	provider.Logger.Debug("CreateServiceMiddleware called")
 
-	// More detailed logging
-	if provider.Metrics != nil {
-		provider.Logger.Info("Metrics manager is available for HTTP middleware")
-	} else {
-		provider.Logger.Warn("Metrics manager is NOT available for HTTP middleware")
-	}
-
-	if provider.Observability != nil {
-		provider.Logger.Info("Observability manager is available",
-			"metrics_from_obs", provider.Observability.Metrics() != nil,
-			"tracing_from_obs", provider.Observability.Tracing() != nil,
-		)
-	}
-
-	// Create service injection middleware
-	serviceMiddleware := InjectServices(services)
-
-	// If metrics are available, create a composite middleware with metrics
-	if provider.Metrics != nil {
-		provider.Logger.Info("Creating metrics middleware - metrics components available",
-			"metrics", provider.Metrics != nil,
-			"tracing", provider.Tracing != nil,
-		)
-		metricsMiddleware := CreateMetricsMiddleware(services)
-
-		// Return composite middleware that applies both service injection and metrics
-		return func(c fiber.Ctx) error {
-			// First inject services
-			if err := serviceMiddleware(c); err != nil {
-				return err
-			}
-			// Then apply metrics middleware
-			return metricsMiddleware(c)
-		}
-	}
-
-	// Return just service injection if metrics are not available
-	provider.Logger.Warn("Metrics middleware not created - metrics components missing",
-		"metrics", provider.Metrics != nil,
-		"tracing", provider.Tracing != nil,
-	)
-	return serviceMiddleware
+	return InjectServices(services)
 }
 
 // Group represents a route group with DI support

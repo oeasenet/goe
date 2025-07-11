@@ -297,15 +297,6 @@ func (dbm *DatabaseModule) Provide() contract.DB {
 	return dbm
 }
 
-// ProvideDBWithMetrics returns the DB instance wrapped with metrics if observability is available
-func ProvideDBWithMetrics(
-	db contract.DB,
-	metrics contract.MetricsManager,
-	tracing contract.TracingManager,
-) contract.DB {
-	return NewMetricsWrapper(db, metrics, tracing)
-}
-
 // ValidateConfig validates the database module configuration
 func (dbm *DatabaseModule) ValidateConfig() error {
 	v := validator.NewConfigValidator(dbm.config, "db")

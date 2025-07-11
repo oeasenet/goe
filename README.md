@@ -33,7 +33,7 @@ It aims to provide a solid foundation for building robust and scalable Go applic
 - **🔄 Concurrency Safety**: Core framework components are designed to be safe for concurrent use.
 - **🗄️ GORM Database Integration**: Seamless integration with GORM for database operations, supporting multiple SQL
   drivers.
-- **📊 Comprehensive Observability**: Built-in metrics collection and distributed tracing with OpenTelemetry and Prometheus support across all modules.
+- **🔄 Event System**: Built-in event system with Redis backend for publish-subscribe patterns and asynchronous processing.
 
 ## 🚀 Getting Started
 
@@ -55,10 +55,9 @@ import (
 )
 
 func main() {
-	// Initialize Goe with HTTP and observability modules enabled
+	// Initialize Goe with HTTP module enabled
 	_ = goe.New(goe.Options{
-		WithHTTP:          true,
-		WithObservability: true, // Enable metrics and tracing
+		WithHTTP: true,
 		Invokers: []any{ // Use Fx invoker to register routes
 			func(httpKernel contract.HTTPKernel, logger contract.Logger) {
 				app := httpKernel.App()
@@ -76,7 +75,7 @@ func main() {
 }
 ```
 
-With observability enabled, metrics are automatically collected and available at `http://localhost:9090/metrics`.
+Access your application at `http://localhost:8080`.
 
 For a detailed step-by-step guide, please see our full [Getting Started documentation](https://oeasenet.github.io/goe/guide/getting-started).
 
@@ -90,7 +89,7 @@ The documentation covers:
 - **Guide**: Step-by-step tutorials from installation to deployment
 - **Examples**: Practical, runnable code examples
 - **Reference**: API documentation and module references
-- **Metrics & Observability**: Comprehensive guide to built-in metrics collection ([Observability Guide](https://oeasenet.github.io/goe/guide/observability))
+- **Event System**: Guide to the built-in event system with Redis backend ([Event System Guide](https://oeasenet.github.io/goe/guide/event-system))
 
 You can also browse the documentation locally by running:
 ```bash

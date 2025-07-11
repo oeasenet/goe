@@ -60,7 +60,6 @@ export default defineConfig({
             { text: 'MongoDB', link: '/guide/mongodb' },
             { text: 'Caching', link: '/guide/caching' },
             { text: 'Event System', link: '/guide/event-system' },
-            { text: 'Observability', link: '/guide/observability' }
           ]
         },
         {
@@ -96,7 +95,6 @@ export default defineConfig({
         {
           text: 'Troubleshooting',
           items: [
-            { text: 'Observability Issues', link: '/examples/observability-troubleshooting' },
             { text: 'Metrics Implementation', link: '/examples/metrics-implementation-summary' }
           ]
         }

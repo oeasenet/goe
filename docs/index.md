@@ -44,8 +44,8 @@ features:
     -   icon: 🗄️
         title: GORM Database Integration
         details: Seamless integration with GORM for database operations, supporting MySQL, PostgreSQL, SQLite, and SQL Server.
-    -   icon: 📊
-        title: Built-in Observability
-        details: OpenTelemetry integration for metrics, tracing, and monitoring with Prometheus support out of the box.
+    -   icon: 🔄
+        title: Event System
+        details: Built-in event system with Redis backend for publish-subscribe patterns and asynchronous processing.
 ---
 

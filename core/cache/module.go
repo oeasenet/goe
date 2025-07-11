@@ -64,16 +64,6 @@ func (m *Module) ProvideCache() contract.Cache {
 	return m.manager.Store()
 }
 
-// ProvideCacheWithMetrics returns the default cache instance wrapped with metrics if observability is available
-func ProvideCacheWithMetrics(
-	manager contract.CacheManager,
-	metrics contract.MetricsManager,
-	tracing contract.TracingManager,
-) contract.Cache {
-	cache := manager.Store()
-	return NewMetricsWrapper(cache, metrics, tracing)
-}
-
 // ValidateConfig validates the cache module configuration
 func (m *Module) ValidateConfig() error {
 	v := validator.NewConfigValidator(m.config, "cache")
