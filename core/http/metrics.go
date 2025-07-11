@@ -43,20 +43,23 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 		start := time.Now()
 		ctx := c.Context()
 
-		// Start tracing span
-		ctx, span := tracing.StartSpan(ctx, "HTTP "+c.Method()+" "+c.Route().Path,
-			contract.WithSpanKind(trace.SpanKindServer),
-			contract.WithSpanAttributes(
-				attribute.String("http.method", c.Method()),
-				attribute.String("http.route", c.Route().Path),
-				attribute.String("http.url", c.OriginalURL()),
-				attribute.String("http.scheme", c.Protocol()),
-				attribute.String("http.host", c.Hostname()),
-				attribute.String("http.user_agent", c.Get("User-Agent")),
-				attribute.String("http.remote_addr", c.IP()),
-			),
-		)
-		defer span.End()
+		// Start tracing span if tracing is available
+		var span contract.Span
+		if tracing != nil {
+			ctx, span = tracing.StartSpan(ctx, "HTTP "+c.Method()+" "+c.Route().Path,
+				contract.WithSpanKind(trace.SpanKindServer),
+				contract.WithSpanAttributes(
+					attribute.String("http.method", c.Method()),
+					attribute.String("http.route", c.Route().Path),
+					attribute.String("http.url", c.OriginalURL()),
+					attribute.String("http.scheme", c.Protocol()),
+					attribute.String("http.host", c.Hostname()),
+					attribute.String("http.user_agent", c.Get("User-Agent")),
+					attribute.String("http.remote_addr", c.IP()),
+				),
+			)
+			defer span.End()
+		}
 
 		// Update context in fiber
 		c.SetContext(ctx)
@@ -97,21 +100,23 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 		// Record response size
 		responseSize.Record(ctx, float64(len(c.Response().Body())), attrs...)
 
-		// Update span with response information
-		span.SetAttributes(
-			attribute.Int("http.status_code", status),
-			attribute.Int("http.response_size", len(c.Response().Body())),
-			attribute.Float64("http.duration", duration),
-		)
+		// Update span with response information if tracing is available
+		if span != nil {
+			span.SetAttributes(
+				attribute.Int("http.status_code", status),
+				attribute.Int("http.response_size", len(c.Response().Body())),
+				attribute.Float64("http.duration", duration),
+			)
 
-		// Set span status based on HTTP status
-		if status >= 400 {
-			span.SetStatus(codes.Error, "HTTP "+strconv.Itoa(status))
-			if err != nil {
-				span.RecordError(err)
+			// Set span status based on HTTP status
+			if status >= 400 {
+				span.SetStatus(codes.Error, "HTTP "+strconv.Itoa(status))
+				if err != nil {
+					span.RecordError(err)
+				}
+			} else {
+				span.SetStatus(codes.Ok, "HTTP "+strconv.Itoa(status))
 			}
-		} else {
-			span.SetStatus(codes.Ok, "HTTP "+strconv.Itoa(status))
 		}
 
 		// Decrement active connections
@@ -121,12 +126,13 @@ func MetricsMiddleware(metrics contract.MetricsManager, tracing contract.Tracing
 	}
 }
 
-// CreateMetricsMiddleware creates metrics middleware if observability components are available
+// CreateMetricsMiddleware creates metrics middleware if metrics components are available
 func CreateMetricsMiddleware(services Services) fiber.Handler {
-	if services.Metrics != nil && services.Tracing != nil {
+	if services.Metrics != nil {
+		// Use tracing if available, otherwise use nil (middleware will handle it)
 		return MetricsMiddleware(services.Metrics, services.Tracing)
 	}
-	// Return no-op middleware if observability is not available
+	// Return no-op middleware if metrics are not available
 	return func(c fiber.Ctx) error {
 		return c.Next()
 	}

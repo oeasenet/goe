@@ -140,9 +140,12 @@ func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 	// Create service injection middleware
 	serviceMiddleware := InjectServices(services)
 
-	// If observability is available, create a composite middleware with metrics
-	if provider.Metrics != nil && provider.Tracing != nil {
-		provider.Logger.Info("Creating metrics middleware - observability components available")
+	// If metrics are available, create a composite middleware with metrics
+	if provider.Metrics != nil {
+		provider.Logger.Info("Creating metrics middleware - metrics components available",
+			"metrics", provider.Metrics != nil,
+			"tracing", provider.Tracing != nil,
+		)
 		metricsMiddleware := CreateMetricsMiddleware(services)
 
 		// Return composite middleware that applies both service injection and metrics
@@ -156,8 +159,8 @@ func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 		}
 	}
 
-	// Return just service injection if observability is not available
-	provider.Logger.Warn("Metrics middleware not created - observability components missing",
+	// Return just service injection if metrics are not available
+	provider.Logger.Warn("Metrics middleware not created - metrics components missing",
 		"metrics", provider.Metrics != nil,
 		"tracing", provider.Tracing != nil,
 	)
