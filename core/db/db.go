@@ -45,7 +45,8 @@ func (dbm *DatabaseModule) Instance() *gorm.DB {
 
 	conn, err := dbm.Connection(defaultConnectionName)
 	if err != nil {
-		dbm.logger.Error("Failed to get default database instance",
+		// Only log this as debug during startup, not as error
+		dbm.logger.Debug("Database instance not yet available",
 			"connection_name", defaultConnectionName,
 			"error", err,
 		)

@@ -273,10 +273,9 @@ func NewMetricsWrapper(db contract.DB, metrics contract.MetricsManager, tracing 
 		tracing: tracing,
 	}
 
-	// Add metrics to the default instance
-	if instance := db.Instance(); instance != nil {
-		AddMetricsToGORM(instance, metrics, tracing)
-	}
+	// Note: We don't add metrics here immediately because the database
+	// might not be connected yet. Metrics will be added lazily when
+	// the instance is first accessed.
 
 	return wrapper
 }
@@ -285,7 +284,7 @@ func NewMetricsWrapper(db contract.DB, metrics contract.MetricsManager, tracing 
 func (w *MetricsWrapper) Instance() *gorm.DB {
 	instance := w.db.Instance()
 	if instance != nil {
-		// Ensure metrics are added
+		// Ensure metrics are added lazily
 		AddMetricsToGORM(instance, w.metrics, w.tracing)
 	}
 	return instance
