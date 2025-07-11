@@ -227,20 +227,34 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 // --- GORM Logger Wrapper ---
 
 // GoeGormLogger wraps goe.Logger to be used as a gorm.logger.Interface
+// All GORM logs are converted to use GOE's structured logging format with "module": "gorm"
 type GoeGormLogger struct {
 	goeLogger contract.Logger
 }
 
 func (l *GoeGormLogger) Printf(s string, i ...interface{}) {
+	var message string
 	if i != nil {
-		s = fmt.Sprintf(s, i...)
+		message = fmt.Sprintf(s, i...)
+	} else {
+		message = s
 	}
-	// Suppress SLOW SQL logs during migration to reduce noise
-	if strings.Contains(s, "SLOW SQL") {
-		l.goeLogger.Debug(s)
+
+	// Parse GORM's formatted log messages and convert to structured logging
+	if strings.Contains(message, "SLOW SQL") {
+		// Extract slow query information and log with structured format
+		l.goeLogger.Debug("GORM slow query detected",
+			"module", "gorm",
+			"message", message,
+		)
 		return
 	}
-	l.goeLogger.Info(s)
+
+	// For other GORM log messages, use structured logging
+	l.goeLogger.Debug("GORM log",
+		"module", "gorm",
+		"message", message,
+	)
 }
 
 // NewGoeGormLogger creates a new GoeGormLogger
@@ -257,28 +271,35 @@ func (l *GoeGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface 
 
 // Info prints info messages
 func (l *GoeGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Info(msg, convertGormLogDataToArgs(data)...)
+	args := []interface{}{"module", "gorm"}
+	args = append(args, convertGormLogDataToArgs(data)...)
+	l.goeLogger.Debug(msg, args...)
 }
 
 // Warn prints warning messages
 func (l *GoeGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Warn(msg, convertGormLogDataToArgs(data)...)
+	args := []interface{}{"module", "gorm"}
+	args = append(args, convertGormLogDataToArgs(data)...)
+	l.goeLogger.Warn(msg, args...)
 }
 
 // Error prints error messages
 func (l *GoeGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	l.goeLogger.Error(msg, convertGormLogDataToArgs(data)...)
+	args := []interface{}{"module", "gorm"}
+	args = append(args, convertGormLogDataToArgs(data)...)
+	l.goeLogger.Error(msg, args...)
 }
 
 // Trace prints SQL query execution information
 func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	elapsed := time.Since(begin)
 	sql, rows := fc()
+	elapsedMs := float64(elapsed.Nanoseconds()) / 1e6
 
 	if err != nil && err != gorm.ErrRecordNotFound { // Don't log RecordNotFound as an error from Trace, GORM handles it.
-		l.goeLogger.Error("GORM Trace Error",
+		l.goeLogger.Error("GORM SQL error",
 			"module", "gorm",
-			"elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6),
+			"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
 			"sql", sql,
 			"rows", rows,
 			"error", err.Error(),
@@ -286,16 +307,22 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 		return
 	}
 
-	// Configurable slow query threshold
-	// slowThreshold := 200 * time.Millisecond // This should come from GORM config or dbm.config
-	// if l.config.SlowThreshold != 0 && elapsed > l.config.SlowThreshold {
-	// l.goeLogger.Warn(fmt.Sprintf("GORM Slow Query (%.3fms)", float64(elapsed.Nanoseconds())/1e6), "module", "gorm", "elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6), "sql", sql, "rows", rows)
-	// return
-	// }
+	// Log slow queries at warn level (threshold from GORM config is 200ms)
+	slowThreshold := 200 * time.Millisecond
+	if elapsed > slowThreshold {
+		l.goeLogger.Debug("GORM slow query",
+			"module", "gorm",
+			"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
+			"sql", sql,
+			"rows", rows,
+		)
+		return
+	}
 
-	l.goeLogger.Debug("GORM Trace",
+	// Regular queries at debug level
+	l.goeLogger.Debug("GORM SQL query",
 		"module", "gorm",
-		"elapsed", fmt.Sprintf("%.3fms", float64(elapsed.Nanoseconds())/1e6),
+		"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
 		"sql", sql,
 		"rows", rows,
 	)

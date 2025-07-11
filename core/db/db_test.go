@@ -560,7 +560,7 @@ func TestGoeGormLogger(t *testing.T) {
 	gormLogger := NewGoeGormLogger(logger)
 
 	t.Run("Printf", func(t *testing.T) {
-		logger.On("Info", "test message", []any(nil)).Return()
+		logger.On("Debug", "GORM log", []any{"module", "gorm", "message", "test message"}).Return()
 
 		gormLogger.Printf("test message")
 
@@ -568,7 +568,7 @@ func TestGoeGormLogger(t *testing.T) {
 	})
 
 	t.Run("Info", func(t *testing.T) {
-		logger.On("Info", "test info", mock.Anything).Return()
+		logger.On("Debug", "test info", mock.Anything).Return()
 
 		ctx := context.Background()
 		gormLogger.Info(ctx, "test info", "key", "value")
@@ -601,7 +601,7 @@ func TestGoeGormLogger(t *testing.T) {
 	})
 
 	t.Run("Trace", func(t *testing.T) {
-		logger.On("Debug", "GORM Trace", mock.Anything).Return()
+		logger.On("Debug", "GORM SQL query", mock.Anything).Return()
 
 		ctx := context.Background()
 		begin := time.Now()
@@ -614,7 +614,7 @@ func TestGoeGormLogger(t *testing.T) {
 	})
 
 	t.Run("Trace with error", func(t *testing.T) {
-		logger.On("Error", "GORM Trace Error", mock.Anything).Return()
+		logger.On("Error", "GORM SQL error", mock.Anything).Return()
 
 		ctx := context.Background()
 		begin := time.Now()
@@ -627,7 +627,7 @@ func TestGoeGormLogger(t *testing.T) {
 	})
 
 	t.Run("Trace with RecordNotFound", func(t *testing.T) {
-		logger.On("Debug", "GORM Trace", mock.Anything).Return()
+		logger.On("Debug", "GORM SQL query", mock.Anything).Return()
 
 		ctx := context.Background()
 		begin := time.Now()
