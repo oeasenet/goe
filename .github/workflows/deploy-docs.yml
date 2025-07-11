@@ -7,8 +7,6 @@ on:
       - v2
     paths:
       - 'docs/**'
-      - 'package.json'
-      - 'bun.lockb'
       - '.github/workflows/deploy-docs.yml'
 
   # Allows you to run this workflow manually from the Actions tab
@@ -47,9 +45,11 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+        working-directory: docs
 
       - name: Build documentation
         run: bun run docs:build
+        working-directory: docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

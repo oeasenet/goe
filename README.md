@@ -89,6 +89,7 @@ The documentation covers:
 
 You can also browse the documentation locally by running:
 ```bash
+cd docs
 bun run docs:dev
 ```
 
