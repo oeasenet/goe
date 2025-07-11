@@ -144,7 +144,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 					// Perform auto-migration for registered models
 					if models, exists := dbm.registeredModels[connName]; exists && len(models) > 0 {
-						dbm.logger.Info("Performing database migration...",
+						dbm.logger.Debug("Performing database migration...",
 							"connection_name", connName,
 							"model_count", len(models),
 						)
@@ -154,7 +154,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 								"error", err,
 							)
 						} else {
-							dbm.logger.Info("Database migration completed successfully",
+							dbm.logger.Debug("Database migration completed successfully",
 								"connection_name", connName,
 								"model_count", len(models),
 							)
@@ -184,7 +184,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 			// Perform auto-migration for registered models on default connection
 			if models, exists := dbm.registeredModels[defaultConnectionName]; exists && len(models) > 0 {
-				dbm.logger.Info("Performing database migration...",
+				dbm.logger.Debug("Performing database migration...",
 					"connection_name", defaultConnectionName,
 					"model_count", len(models),
 				)
@@ -194,7 +194,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 						"error", err,
 					)
 				} else {
-					dbm.logger.Info("Database migration completed successfully",
+					dbm.logger.Debug("Database migration completed successfully",
 						"connection_name", defaultConnectionName,
 						"model_count", len(models),
 					)

@@ -235,6 +235,11 @@ func (l *GoeGormLogger) Printf(s string, i ...interface{}) {
 	if i != nil {
 		s = fmt.Sprintf(s, i...)
 	}
+	// Suppress SLOW SQL logs during migration to reduce noise
+	if strings.Contains(s, "SLOW SQL") {
+		l.goeLogger.Debug(s)
+		return
+	}
 	l.goeLogger.Info(s)
 }
 
