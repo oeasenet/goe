@@ -2,14 +2,83 @@ package event
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.oease.dev/goe/v2/contract"
 )
+
+// parseRedisConfig parses Redis configuration from Config struct
+func parseRedisConfig(config *Config) (*redis.Options, error) {
+	// If URL is provided, parse it first
+	if config.RedisURL != "" {
+		return parseRedisURL(config.RedisURL)
+	}
+
+	// Use individual parameters or fallback to legacy
+	addr := "localhost:6379"
+	if len(config.RedisHosts) > 0 {
+		addr = config.RedisHosts[0] // Use first host for single client
+	} else if config.RedisAddr != "" {
+		addr = config.RedisAddr // Legacy fallback
+	}
+
+	return &redis.Options{
+		Addr:     addr,
+		Username: config.RedisUsername,
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
+	}, nil
+}
+
+// parseRedisURL parses Redis URL and returns redis.Options
+func parseRedisURL(redisURL string) (*redis.Options, error) {
+	u, err := url.Parse(redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Redis URL: %w", err)
+	}
+
+	// Support both redis:// and rediss:// schemes
+	if u.Scheme != "redis" && u.Scheme != "rediss" {
+		return nil, fmt.Errorf("unsupported Redis URL scheme: %s (supported: redis, rediss)", u.Scheme)
+	}
+
+	options := &redis.Options{
+		Addr: u.Host,
+	}
+
+	// Enable TLS for rediss:// scheme
+	if u.Scheme == "rediss" {
+		options.TLSConfig = &tls.Config{
+			InsecureSkipVerify: false,
+		}
+	}
+
+	// Extract username and password
+	if u.User != nil {
+		options.Username = u.User.Username()
+		if password, ok := u.User.Password(); ok {
+			options.Password = password
+		}
+	}
+
+	// Extract database number from path
+	if u.Path != "" && u.Path != "/" {
+		dbStr := strings.TrimPrefix(u.Path, "/")
+		if db, err := strconv.Atoi(dbStr); err == nil {
+			options.DB = db
+		}
+	}
+
+	return options, nil
+}
 
 // RedisManager implements EventManager using Redis Streams
 type RedisManager struct {
@@ -27,11 +96,13 @@ type RedisManager struct {
 
 // NewRedisManager creates a new Redis-based event manager
 func NewRedisManager(config *Config, logger contract.Logger) (*RedisManager, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     config.RedisAddr,
-		Password: config.RedisPassword,
-		DB:       config.RedisDB,
-	})
+	// Parse Redis configuration
+	redisOptions, err := parseRedisConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Redis configuration: %w", err)
+	}
+
+	client := redis.NewClient(redisOptions)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

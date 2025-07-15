@@ -115,11 +115,58 @@ func SetupEventSubscriptions(consumer contract.EventConsumer) {
 The event system can be configured using environment variables:
 
 ### Redis Connection
+
+The event system supports flexible Redis connection configuration with multiple formats:
+
+#### URL Format (Recommended)
 ```bash
-# Redis connection settings
+# Standard Redis connection
+EVENT_REDIS_URL=redis://username:password@localhost:6379/0
+
+# TLS/SSL connection (rediss protocol)
+EVENT_REDIS_URL=rediss://username:password@redis.example.com:6380/0
+```
+
+#### Individual Parameters
+```bash
+# Multiple hosts support
+EVENT_REDIS_HOSTS=localhost:6379,redis2:6379
+
+# Authentication
+EVENT_REDIS_USERNAME=username
+EVENT_REDIS_PASSWORD=password
+
+# Database selection
+EVENT_REDIS_DB=0
+```
+
+#### Legacy Format (Deprecated)
+```bash
+# Still supported for backward compatibility
 EVENT_REDIS_ADDR=localhost:6379
 EVENT_REDIS_PASSWORD=
 EVENT_REDIS_DB=0
+```
+
+#### Configuration Priority
+The event system uses the following priority order:
+1. **URL Format** (`EVENT_REDIS_URL`) - Complete connection string
+2. **Individual Parameters** - `EVENT_REDIS_HOSTS`, `EVENT_REDIS_USERNAME`, etc.
+3. **Legacy Format** - `EVENT_REDIS_ADDR` (for backward compatibility)
+
+#### Redis URL Examples
+```bash
+# Basic connection
+EVENT_REDIS_URL=redis://localhost:6379
+
+# With authentication
+EVENT_REDIS_URL=redis://username:password@localhost:6379
+
+# With database selection
+EVENT_REDIS_URL=redis://localhost:6379/2
+
+# TLS/SSL connection
+EVENT_REDIS_URL=rediss://username:password@redis.example.com:6380/0
 ```
 
 ### Consumer Settings

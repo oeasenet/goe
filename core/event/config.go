@@ -9,9 +9,14 @@ import (
 // Config holds the event system configuration
 type Config struct {
 	// Redis connection settings
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
+	RedisURL      string   // Redis connection URL (redis://username:password@host:port/database)
+	RedisHosts    []string // List of Redis hosts (fallback if URL not provided)
+	RedisUsername string   // Redis username (fallback if URL not provided)
+	RedisPassword string   // Redis password (fallback if URL not provided)
+	RedisDB       int      // Redis database number (fallback if URL not provided)
+
+	// Legacy fields for backward compatibility
+	RedisAddr string // Deprecated: use RedisURL or RedisHosts
 
 	// Consumer settings
 	ConsumerTimeout      time.Duration
@@ -34,9 +39,11 @@ type Config struct {
 // DefaultConfig returns the default event configuration
 func DefaultConfig() *Config {
 	return &Config{
-		RedisAddr:                 "localhost:6379",
+		RedisHosts:                []string{"localhost:6379"},
+		RedisUsername:             "",
 		RedisPassword:             "",
 		RedisDB:                   0,
+		RedisAddr:                 "localhost:6379", // Legacy field
 		ConsumerTimeout:           30 * time.Second,
 		MaxRetries:                3,
 		RetryBackoff:              time.Second,
@@ -55,15 +62,31 @@ func DefaultConfig() *Config {
 func LoadConfig(config contract.Config) *Config {
 	cfg := DefaultConfig()
 
-	// Redis connection
-	if addr := config.GetString("EVENT_REDIS_ADDR"); addr != "" {
-		cfg.RedisAddr = addr
-	}
-	if password := config.GetString("EVENT_REDIS_PASSWORD"); password != "" {
-		cfg.RedisPassword = password
-	}
-	if db := config.GetInt("EVENT_REDIS_DB"); db != 0 {
-		cfg.RedisDB = db
+	// Redis connection - priority: URL > individual parameters > legacy addr
+	if url := config.GetString("EVENT_REDIS_URL"); url != "" {
+		cfg.RedisURL = url
+	} else {
+		// Use individual parameters
+		if hosts := config.GetStringSlice("EVENT_REDIS_HOSTS"); len(hosts) > 0 {
+			cfg.RedisHosts = hosts
+		}
+		if username := config.GetString("EVENT_REDIS_USERNAME"); username != "" {
+			cfg.RedisUsername = username
+		}
+		if password := config.GetString("EVENT_REDIS_PASSWORD"); password != "" {
+			cfg.RedisPassword = password
+		}
+		if db := config.GetInt("EVENT_REDIS_DB"); db != 0 {
+			cfg.RedisDB = db
+		}
+
+		// Legacy support - fallback to EVENT_REDIS_ADDR if no hosts specified
+		if len(cfg.RedisHosts) == 0 {
+			if addr := config.GetString("EVENT_REDIS_ADDR"); addr != "" {
+				cfg.RedisAddr = addr
+				cfg.RedisHosts = []string{addr}
+			}
+		}
 	}
 
 	// Consumer settings
