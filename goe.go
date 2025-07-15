@@ -37,14 +37,16 @@ var (
 
 // Options represents the application options
 type Options struct {
-	Modules     []contract.Module
-	Providers   []any
-	Invokers    []any
-	WithHTTP    bool // Enable HTTP module
-	WithCache   bool // Enable Cache module
-	WithDB      bool // Enable DB module
-	WithMongoDB bool // Enable Mongo DB module
-	WithEvent   bool // Enable Event module
+	Modules         []contract.Module
+	Providers       []any
+	Invokers        []any
+	WithHTTP        bool           // Enable HTTP module
+	WithCache       bool           // Enable Cache module
+	WithDB          bool           // Enable DB module
+	WithMongoDB     bool           // Enable Mongo DB module
+	WithEvent       bool           // Enable Event module
+	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
+	ConfigOverrides map[string]any // Override any environment variables
 }
 
 // New creates a new Goe application
@@ -63,12 +65,35 @@ func New(opts ...Options) contract.Application {
 		opt.WithHTTP = o.WithHTTP
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB // + Assign WithDB
+		opt.WithMongoDB = o.WithMongoDB
 		opt.WithEvent = o.WithEvent
+		opt.HTTPPort = o.HTTPPort
+		opt.ConfigOverrides = o.ConfigOverrides
 	}
 
 	// Create config first to read application settings
 	configModule := config.NewModule()
-	instance.config = configModule.Provide()
+	baseConfig := configModule.Provide()
+
+	// Create configuration with overrides
+	configOverrides := make(map[string]any)
+	if opt.ConfigOverrides != nil {
+		for key, value := range opt.ConfigOverrides {
+			configOverrides[key] = value
+		}
+	}
+
+	// Add HTTPPort override if specified
+	if opt.HTTPPort > 0 {
+		configOverrides["HTTP_PORT"] = opt.HTTPPort
+	}
+
+	// Wrap config with overrides if any exist
+	if len(configOverrides) > 0 {
+		instance.config = config.NewConfigWrapper(baseConfig, configOverrides)
+	} else {
+		instance.config = baseConfig
+	}
 
 	// Get application settings from config
 	appName := instance.config.GetString("APP_NAME")

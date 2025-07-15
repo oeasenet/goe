@@ -127,6 +127,219 @@ func (s *DatabaseService) Connect() error {
 }
 ```
 
+## Configuration Overrides
+
+GOE provides a powerful feature to override configuration values programmatically through the `Options` struct. This allows you to set configuration values in code, which can be useful for:
+
+- Setting different ports for multiple application instances
+- Overriding configuration in tests
+- Configuring applications dynamically
+- Setting defaults that take precedence over environment variables
+
+### HTTP Port Override
+
+The most common use case is overriding the HTTP port:
+
+```go
+import "go.oease.dev/goe/v2"
+
+func main() {
+    // Override HTTP port to 3000
+    app := goe.New(goe.Options{
+        WithHTTP: true,
+        HTTPPort: 3000,
+        Invokers: []any{
+            func(httpKernel contract.HTTPKernel) {
+                httpKernel.App().Get("/", func(c fiber.Ctx) error {
+                    return c.SendString("Hello from port 3000!")
+                })
+            },
+        },
+    })
+    
+    goe.Run()
+}
+```
+
+This will start the HTTP server on port 3000, regardless of the `HTTP_PORT` environment variable.
+
+### General Configuration Overrides
+
+You can override any configuration value using the `ConfigOverrides` field:
+
+```go
+import "go.oease.dev/goe/v2"
+
+func main() {
+    app := goe.New(goe.Options{
+        WithHTTP: true,
+        WithDB:   true,
+        ConfigOverrides: map[string]any{
+            "HTTP_PORT": 8090,
+            "DB_HOST":   "localhost",
+            "DB_PORT":   5433,
+            "LOG_LEVEL": "debug",
+            "APP_NAME":  "My Overridden App",
+        },
+        Invokers: []any{
+            func(config contract.Config, logger contract.Logger) {
+                // These values will be overridden
+                logger.Info("Configuration values",
+                    "http_port", config.GetInt("HTTP_PORT"),     // 8090
+                    "db_host", config.GetString("DB_HOST"),      // localhost
+                    "db_port", config.GetInt("DB_PORT"),         // 5433
+                    "log_level", config.GetString("LOG_LEVEL"),  // debug
+                    "app_name", config.GetString("APP_NAME"),    // My Overridden App
+                )
+            },
+        },
+    })
+    
+    goe.Run()
+}
+```
+
+### Override Precedence
+
+Configuration values are resolved in the following order (highest to lowest priority):
+
+1. **`HTTPPort` field** (only for HTTP_PORT)
+2. **`ConfigOverrides` map**
+3. **System environment variables**
+4. **`.env.{GOE_ENV}` file**
+5. **`.env.local` file**
+6. **`.env` file**
+
+The `HTTPPort` field takes precedence over `ConfigOverrides` for the HTTP_PORT value:
+
+```go
+app := goe.New(goe.Options{
+    WithHTTP: true,
+    HTTPPort: 7000,  // This takes precedence
+    ConfigOverrides: map[string]any{
+        "HTTP_PORT": 8000,  // This will be ignored
+    },
+})
+// The HTTP server will start on port 7000
+```
+
+### Use Cases
+
+#### Testing with Different Ports
+
+```go
+func TestMultipleInstances(t *testing.T) {
+    // Start first instance on port 8001
+    app1 := goe.New(goe.Options{
+        WithHTTP: true,
+        HTTPPort: 8001,
+    })
+    
+    // Start second instance on port 8002
+    app2 := goe.New(goe.Options{
+        WithHTTP: true,
+        HTTPPort: 8002,
+    })
+    
+    // Test both instances independently
+}
+```
+
+#### Environment-Specific Overrides
+
+```go
+func main() {
+    var port int
+    var dbHost string
+    
+    // Set different values based on environment
+    if os.Getenv("GOE_ENV") == "development" {
+        port = 8080
+        dbHost = "localhost"
+    } else {
+        port = 80
+        dbHost = "prod-db.example.com"
+    }
+    
+    app := goe.New(goe.Options{
+        WithHTTP: true,
+        WithDB:   true,
+        ConfigOverrides: map[string]any{
+            "HTTP_PORT": port,
+            "DB_HOST":   dbHost,
+        },
+    })
+    
+    goe.Run()
+}
+```
+
+#### Configuration Factory Pattern
+
+```go
+type AppConfig struct {
+    HTTPPort int
+    DBHost   string
+    LogLevel string
+}
+
+func NewAppConfig(env string) *AppConfig {
+    switch env {
+    case "production":
+        return &AppConfig{
+            HTTPPort: 80,
+            DBHost:   "prod-db.example.com",
+            LogLevel: "warn",
+        }
+    case "staging":
+        return &AppConfig{
+            HTTPPort: 8080,
+            DBHost:   "staging-db.example.com",
+            LogLevel: "info",
+        }
+    default:
+        return &AppConfig{
+            HTTPPort: 8080,
+            DBHost:   "localhost",
+            LogLevel: "debug",
+        }
+    }
+}
+
+func main() {
+    config := NewAppConfig(os.Getenv("GOE_ENV"))
+    
+    app := goe.New(goe.Options{
+        WithHTTP: true,
+        WithDB:   true,
+        HTTPPort: config.HTTPPort,
+        ConfigOverrides: map[string]any{
+            "DB_HOST":   config.DBHost,
+            "LOG_LEVEL": config.LogLevel,
+        },
+    })
+    
+    goe.Run()
+}
+```
+
+### Override Types
+
+The `ConfigOverrides` map accepts various types that will be properly converted:
+
+```go
+app := goe.New(goe.Options{
+    ConfigOverrides: map[string]any{
+        "HTTP_PORT":     3000,                    // int
+        "DEBUG_MODE":    true,                    // bool
+        "APP_NAME":      "My App",                // string
+        "TIMEOUT":       30.5,                    // float64
+        "CACHE_TTL":     time.Minute * 15,        // time.Duration
+        "TRUSTED_HOSTS": []string{"localhost"},   // []string
+    },
+})
+```
+
 ## Configuration Methods
 
 ### Basic Getters
