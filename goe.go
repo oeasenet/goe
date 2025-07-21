@@ -2,9 +2,9 @@ package goe
 
 import (
 	"context"
-	"fmt"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -275,25 +275,48 @@ func New(opts ...Options) contract.Application {
 		)
 	}
 
-	// Add custom modules
-	for i, moduleConstructor := range opt.Modules {
+	// Add custom modules - Handle them exactly like built-in modules
+	for _, moduleConstructor := range opt.Modules {
 		constructor := moduleConstructor // Capture loop variable
-		moduleIndex := i                 // Capture index for unique naming
 
-		// Create a unique Fx module for each custom module
-		// Each module is isolated within its own Fx module to avoid DI conflicts
-		fxOptions = append(fxOptions, fx.Module(fmt.Sprintf("custom-module-%d", moduleIndex),
-			fx.Provide(constructor),
-			fx.Invoke(func(lc fx.Lifecycle, module contract.Module) {
-				instance.logger.Info("Registering custom module", "name", module.Name())
+		// Create module instance directly with dependencies (like built-in modules)
+		var module contract.Module
+		var moduleProviders []fx.Option
 
-				// Register lifecycle hooks
+		// Handle different constructor signatures
+		switch cons := constructor.(type) {
+		case func(contract.Logger, contract.Config) contract.Module:
+			module = cons(instance.logger, instance.config)
+		case func(contract.Config, contract.Logger) contract.Module:
+			module = cons(instance.config, instance.logger)
+		default:
+			instance.logger.Fatal("Invalid module constructor signature",
+				"expected", "func(contract.Logger, contract.Config) contract.Module",
+				"or", "func(contract.Config, contract.Logger) contract.Module")
+		}
+
+		instance.logger.Info("Registering custom module", "name", module.Name())
+
+		// If module provides services, register them to DI (like built-in modules)
+		if provider, ok := module.(interface{ ProvideServices() []fx.Option }); ok {
+			// Module can provide multiple services
+			moduleProviders = append(moduleProviders, provider.ProvideServices()...)
+		} else {
+			// Check for common service provider methods
+			moduleProviders = append(moduleProviders, checkAndProvideServices(module)...)
+		}
+
+		// Register module exactly like built-in modules
+		allOptions := append(moduleProviders, fx.Module(module.Name(),
+			fx.Invoke(func(lc fx.Lifecycle) {
 				lc.Append(fx.Hook{
 					OnStart: module.OnStart,
 					OnStop:  module.OnStop,
 				})
 			}),
 		))
+
+		fxOptions = append(fxOptions, allOptions...)
 	}
 
 	// Add cache provider
@@ -327,6 +350,54 @@ func New(opts ...Options) contract.Application {
 	}
 
 	return instance.app
+}
+
+// checkAndProvideServices inspects a module for common service provider methods
+// and automatically registers them with Fx DI (like built-in modules do)
+func checkAndProvideServices(module contract.Module) []fx.Option {
+	var providers []fx.Option
+	moduleValue := reflect.ValueOf(module)
+
+	// Common service provider method patterns used by GOE modules
+	serviceProviderMethods := []string{
+		"Provide",               // Generic service provider
+		"ProvideService",        // Generic service provider
+		"ProvideClient",         // For client modules (like gRPC, HTTP clients)
+		"ProvideManager",        // For manager services
+		"ProvideHandler",        // For handler services
+		"ProvideRepository",     // For data access modules
+		"ProvideCache",          // For cache services
+		"ProvideDB",             // For database services
+		"ProvideLogger",         // For logger services
+		"ProvideConfig",         // For config services
+		"ProvideEventPublisher", // For event services
+		"ProvideEventConsumer",  // For event services
+	}
+
+	// Check each potential service provider method
+	for _, methodName := range serviceProviderMethods {
+		if method := moduleValue.MethodByName(methodName); method.IsValid() {
+			methodType := method.Type()
+
+			// Method should have no parameters and return one value (the service)
+			if methodType.NumIn() == 0 && methodType.NumOut() == 1 {
+				// Create a provider function with the correct return type
+				returnType := methodType.Out(0)
+
+				// Create a function with the correct signature using reflection
+				providerFunc := reflect.MakeFunc(
+					reflect.FuncOf([]reflect.Type{}, []reflect.Type{returnType}, false),
+					func(args []reflect.Value) []reflect.Value {
+						return method.Call([]reflect.Value{})
+					},
+				)
+
+				providers = append(providers, fx.Provide(providerFunc.Interface()))
+			}
+		}
+	}
+
+	return providers
 }
 
 // Run runs the application

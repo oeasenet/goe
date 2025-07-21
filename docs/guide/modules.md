@@ -276,6 +276,66 @@ func main() {
 
 The framework will automatically inject the required dependencies (logger, config, etc.) into your module constructors, just like it does for providers and invokers.
 
+**Key Features:**
+- ✅ **Multiple modules supported** - Register as many modules as needed
+- ✅ **Automatic dependency injection** - Logger and config automatically provided
+- ✅ **Flexible constructor signatures** - Supports both `(logger, config)` and `(config, logger)` parameter orders
+- ✅ **Automatic service registration** - Modules can provide services to the DI container automatically
+- ✅ **Access to core services** - Modules can use all GOE core services (cache, database, HTTP, etc.)
+- ✅ **Proper lifecycle management** - OnStart/OnStop hooks managed by GOE
+
+### Automatic Service Registration
+
+GOE automatically detects and registers services that your modules provide. Simply add methods with these naming patterns to your module:
+
+- `Provide()` - Generic service provider
+- `ProvideService()` - Generic service provider  
+- `ProvideClient()` - For client modules (gRPC, HTTP clients)
+- `ProvideManager()` - For manager services
+- `ProvideHandler()` - For handler services
+- `ProvideRepository()` - For data access modules
+- `ProvideCache()` - For cache services
+- `ProvideDB()` - For database services
+
+**Example with automatic service registration:**
+```go
+type EmailService interface {
+    SendEmail(to, subject, body string) error
+}
+
+type emailModule struct {
+    logger contract.Logger
+    config contract.Config
+    service EmailService
+}
+
+func NewEmailModule(logger contract.Logger, config contract.Config) contract.Module {
+    return &emailModule{
+        logger:  logger,
+        config:  config,
+        service: &emailService{logger: logger},
+    }
+}
+
+// This method will be automatically detected and registered with DI
+func (m *emailModule) Provide() EmailService {
+    return m.service
+}
+
+// Then use it in your application:
+goe.New(goe.Options{
+    Modules: []any{
+        NewEmailModule,
+    },
+    Invokers: []any{
+        func(emailService EmailService) {
+            // EmailService is automatically available!
+            emailService.SendEmail("user@example.com", "Hello", "World")
+        },
+    },
+})
+```
+
 ### Method 2: Module with Service Provider
 
 If your module provides services that other components need:
