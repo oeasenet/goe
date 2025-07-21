@@ -78,19 +78,22 @@ func TestDependencyInjection_Integration(t *testing.T) {
 		var initOrderMutex sync.Mutex
 
 		// Custom module to track initialization order
-		testModule := &testModule{
-			name: "test-module",
-			onStart: func() {
-				initOrderMutex.Lock()
-				initOrder = append(initOrder, "test-module")
-				initOrderMutex.Unlock()
-			},
+		// Module constructor that will be called by DI
+		moduleConstructor := func(logger contract.Logger, config contract.Config) contract.Module {
+			return &testModule{
+				name: "test-module",
+				onStart: func() {
+					initOrderMutex.Lock()
+					initOrder = append(initOrder, "test-module")
+					initOrderMutex.Unlock()
+				},
+			}
 		}
 
 		app := New(Options{
 			WithHTTP:  true,
 			WithCache: true,
-			Modules:   []contract.Module{testModule},
+			Modules:   []any{moduleConstructor}, // Pass constructor function
 			Invokers: []any{
 				func(logger contract.Logger) {
 					initOrderMutex.Lock()

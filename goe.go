@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"fmt"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"os"
 	"sync"
@@ -37,7 +38,7 @@ var (
 
 // Options represents the application options
 type Options struct {
-	Modules         []contract.Module
+	Modules         []any // Module constructors (functions that return contract.Module)
 	Providers       []any
 	Invokers        []any
 	WithHTTP        bool           // Enable HTTP module
@@ -275,13 +276,21 @@ func New(opts ...Options) contract.Application {
 	}
 
 	// Add custom modules
-	for _, module := range opt.Modules {
-		mod := module // Capture loop variable
-		fxOptions = append(fxOptions, fx.Module(mod.Name(),
-			fx.Invoke(func(lc fx.Lifecycle) {
+	for i, moduleConstructor := range opt.Modules {
+		constructor := moduleConstructor // Capture loop variable
+		moduleIndex := i                 // Capture index for unique naming
+
+		// Create a unique Fx module for each custom module
+		// Each module is isolated within its own Fx module to avoid DI conflicts
+		fxOptions = append(fxOptions, fx.Module(fmt.Sprintf("custom-module-%d", moduleIndex),
+			fx.Provide(constructor),
+			fx.Invoke(func(lc fx.Lifecycle, module contract.Module) {
+				instance.logger.Info("Registering custom module", "name", module.Name())
+
+				// Register lifecycle hooks
 				lc.Append(fx.Hook{
-					OnStart: mod.OnStart,
-					OnStop:  mod.OnStop,
+					OnStart: module.OnStart,
+					OnStop:  module.OnStop,
 				})
 			}),
 		))

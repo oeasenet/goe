@@ -10,6 +10,28 @@ GOE modules provide:
 - **Modular Architecture**: Enable only what you need
 - **Extensibility**: Easy to create custom modules
 
+### Module Initialization Order
+
+When GOE starts up, modules are initialized in this specific order:
+
+1. **Config Module** (always first) - Reads application configuration
+2. **Logger Module** (always second) - Sets up logging based on config
+3. **Core Modules** (if enabled via options):
+   - Cache Module (`WithCache: true`)
+   - Database Module (`WithDB: true`)
+   - Event Module (`WithEvent: true`)
+   - MongoDB Module (`WithMongoDB: true`)
+   - HTTP Module (`WithHTTP: true`)
+4. **Custom Modules** - Your modules added via `Modules` array
+5. **Providers** - Dependency injection providers
+6. **Invokers** - Functions that run after all dependencies are ready
+
+This order ensures:
+- Core infrastructure is ready before custom modules
+- Custom modules can depend on core services
+- All modules are started before invokers run
+- Services are available through dependency injection
+
 ## Built-in Modules
 
 GOE comes with several built-in modules that you can enable as needed:
@@ -228,7 +250,7 @@ func (m *Module) backgroundTask() {
 
 ## Registering Custom Modules
 
-### Method 1: Direct Module Registration
+### Method 1: Module Registration with Dependency Injection
 
 ```go
 package main
@@ -242,9 +264,9 @@ import (
 func main() {
     goe.New(goe.Options{
         WithHTTP: true,
-        Modules: []contract.Module{
-            email.NewModule,
-            task.NewModule,
+        Modules: []any{
+            email.NewModule,  // Pass constructor functions
+            task.NewModule,   // DI will inject dependencies automatically
         },
     })
     
@@ -252,27 +274,60 @@ func main() {
 }
 ```
 
-### Method 2: Using Fx Providers
+The framework will automatically inject the required dependencies (logger, config, etc.) into your module constructors, just like it does for providers and invokers.
+
+### Method 2: Module with Service Provider
+
+If your module provides services that other components need:
 
 ```go
-package main
+package emailmodule
 
-import (
-    "go.oease.dev/goe/v2"
-    "yourapp/internal/modules/email"
-)
+type EmailService interface {
+    SendEmail(to, subject, body string) error
+}
 
+type Module struct {
+    service EmailService
+    logger  contract.Logger
+}
+
+// Constructor with DI - dependencies are injected automatically
+func NewModule(logger contract.Logger, config contract.Config) contract.Module {
+    return &Module{
+        service: &emailService{logger: logger, config: config},
+        logger:  logger,
+    }
+}
+
+// Provide service for other components
+func ProvideEmailService(module contract.Module) EmailService {
+    if m, ok := module.(*Module); ok {
+        return m.service
+    }
+    return nil
+}
+```
+
+Then register both the module and its service provider:
+
+```go
 func main() {
     goe.New(goe.Options{
         WithHTTP: true,
+        Modules: []any{
+            email.NewModule,  // Module constructor
+        },
         Providers: []any{
-            email.NewModule,
+            email.ProvideEmailService,  // Service provider
         },
         Invokers: []any{
-            func(emailModule *email.Module) {
-                // Use the email module
-                service := emailModule.EmailService()
-                // Register routes that use the email service
+            func(emailService email.EmailService, httpKernel contract.HTTPKernel) {
+                // Use the email service in your HTTP routes
+                app := httpKernel.App()
+                app.Post("/send-email", func(c fiber.Ctx) error {
+                    return emailService.SendEmail("user@example.com", "Hello", "Welcome!")
+                })
             },
         },
     })
