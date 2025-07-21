@@ -50,18 +50,19 @@ func New(config contract.LoggerConfig) contract.Logger {
 	} else {
 		// Development: pretty console output
 		encoderConfig = zapcore.EncoderConfig{
-			TimeKey:        "T",
-			LevelKey:       "L",
-			NameKey:        "N",
-			CallerKey:      "C",
-			FunctionKey:    zapcore.OmitKey,
-			MessageKey:     "M",
-			StacktraceKey:  "S",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    customLevelEncoder,
-			EncodeTime:     customTimeEncoder,
-			EncodeDuration: zapcore.StringDurationEncoder,
-			EncodeCaller:   customCallerEncoder,
+			TimeKey:          "T",
+			LevelKey:         "L",
+			NameKey:          "N",
+			CallerKey:        "C",
+			FunctionKey:      zapcore.OmitKey,
+			MessageKey:       "M",
+			StacktraceKey:    "S",
+			LineEnding:       zapcore.DefaultLineEnding,
+			EncodeLevel:      customLevelEncoder,
+			EncodeTime:       customTimeEncoder,
+			EncodeDuration:   zapcore.StringDurationEncoder,
+			EncodeCaller:     customCallerEncoder,
+			ConsoleSeparator: "    ", // Add spacing between fields
 		}
 	}
 
