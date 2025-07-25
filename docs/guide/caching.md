@@ -10,6 +10,7 @@ The caching module in GOE:
 - Includes JSON serialization for complex data types
 - Integrates with the dependency injection system
 - Supports multiple named cache stores
+- Uses type-safe pointer-based API for better type safety and predictability
 
 ## Supported Cache Drivers
 
@@ -93,24 +94,39 @@ func main() {
 import (
     "go.oease.dev/goe/v2"
     "time"
+    "fmt"
 )
 
 func someFunction() {
     cache := goe.Cache()
     
     // Set a value
-    cache.Set("user:123", "John Doe", 10*time.Minute)
-    
-    // Get a value
-    value, err := cache.Get("user:123")
+    err := cache.Set("user:123", "John Doe", 10*time.Minute)
     if err != nil {
         // Handle error
     }
     
-    // Check if value is a string
-    if str, ok := value.(string); ok {
-        fmt.Println("User name:", str)
+    // Get a value (pointer-based)
+    var userName string
+    err = cache.Get("user:123", &userName)
+    if err != nil {
+        // Handle error (validation or store errors)
+        // Note: Cache miss is NOT an error
+    } else if userName != "" {
+        // Got a value from cache
+        fmt.Println("User name:", userName)
+    } else {
+        // Cache miss - userName remains empty string (zero value)
+        fmt.Println("User not found in cache")
     }
+    
+    // Get with default value
+    var userAge int
+    err = cache.GetWithDefault("user:age:123", &userAge, 25)
+    if err != nil {
+        // Handle error
+    }
+    // userAge will be 25 if key doesn't exist, otherwise the cached value
 }
 ```
 
@@ -131,16 +147,15 @@ func NewUserService(cache contract.Cache) *UserService {
 }
 
 func (s *UserService) GetUserFromCache(id string) (string, error) {
-    value, err := s.cache.Get("user:" + id)
+    var userName string
+    err := s.cache.Get("user:" + id, &userName)
     if err != nil {
-        return "", err
+        return "", err // Handle validation or store errors
     }
-    
-    if str, ok := value.(string); ok {
-        return str, nil
+    if userName == "" {
+        return "", errors.New("user not found in cache")
     }
-    
-    return "", errors.New("user not found in cache")
+    return userName, nil
 }
 
 func (s *UserService) CacheUser(id, name string) error {
@@ -156,19 +171,27 @@ func (s *UserService) CacheUser(id, name string) error {
 cache := goe.Cache()
 
 // Set a value with TTL
-cache.Set("key", "value", 5*time.Minute)
+err := cache.Set("key", "value", 5*time.Minute)
 
-// Get a value
-value, err := cache.Get("key")
+// Get a value (pointer-based)
+var value string
+err = cache.Get("key", &value)
+
+// Get with default
+var count int
+err = cache.GetWithDefault("counter", &count, 0)
 
 // Delete a value
-cache.Delete("key")
+err = cache.Forget("key")
 
 // Check if key exists
 exists := cache.Has("key")
 
-// Clear all cache (if supported by driver)
-cache.Clear()
+// Clear all cache
+err = cache.Flush()
+
+// Store value forever (no TTL)
+err = cache.Forever("permanent-key", "permanent-value")
 ```
 
 ### Working with Complex Data
@@ -186,15 +209,18 @@ user := User{ID: 123, Name: "John Doe"}
 // Cache complex data
 cache.Set("user:123", user, 10*time.Minute)
 
-// Retrieve complex data
-value, err := cache.Get("user:123")
+// Retrieve complex data (pointer-based)
+var retrievedUser User
+err = cache.Get("user:123", &retrievedUser)
 if err != nil {
-    // Handle error
-}
-
-// Type assertion for complex data
-if userData, ok := value.(User); ok {
-    fmt.Printf("User: %+v\n", userData)
+    // Handle validation or store errors
+    // Note: Cache miss is NOT an error
+} else if retrievedUser.ID != 0 {
+    // Check if we got a valid user (non-zero value)
+    fmt.Printf("User: %+v\n", retrievedUser)
+} else {
+    // Cache miss - retrievedUser remains zero value
+    fmt.Println("User not found in cache")
 }
 ```
 
@@ -206,25 +232,34 @@ The "Remember" pattern retrieves from cache or computes and caches the value:
 func (s *UserService) GetUser(id int) (*User, error) {
     cacheKey := fmt.Sprintf("user:%d", id)
     
-    // Try to get from cache first
-    if value, err := s.cache.Get(cacheKey); err == nil {
-        if user, ok := value.(*User); ok {
-            return user, nil
-        }
-    }
+    var user User
+    err := s.cache.Remember(cacheKey, &user, 10*time.Minute, func() (any, error) {
+        // This callback is only called if the key is not in cache
+        return s.db.GetUser(id)
+    })
     
-    // Not in cache, fetch from database
-    user, err := s.db.GetUser(id)
     if err != nil {
         return nil, err
     }
     
-    // Cache the result
-    s.cache.Set(cacheKey, user, 10*time.Minute)
+    return &user, nil
+}
+
+// Remember forever (no TTL)
+func (s *UserService) GetConfig(key string) (*Config, error) {
+    var config Config
+    err := s.cache.RememberForever(key, &config, func() (any, error) {
+        return s.db.GetConfig(key)
+    })
     
-    return user, nil
+    if err != nil {
+        return nil, err
+    }
+    
+    return &config, nil
 }
 ```
+
 
 ## Multiple Cache Stores
 
@@ -267,12 +302,14 @@ func (h *UserHandler) GetUser(c fiber.Ctx) error {
     cacheKey := "user:" + userID
     
     // Try cache first
-    if value, err := h.cache.Get(cacheKey); err == nil {
-        return c.JSON(value)
+    var user User
+    err := h.cache.Get(cacheKey, &user)
+    if err == nil {
+        return c.JSON(user)
     }
     
-    // Fetch from database (mock)
-    user := User{ID: userID, Name: "John Doe"}
+    // Not in cache, fetch from database
+    user = User{ID: userID, Name: "John Doe"}
     
     // Cache the result
     h.cache.Set(cacheKey, user, 10*time.Minute)
@@ -322,13 +359,21 @@ Always handle cache errors gracefully:
 ```go
 func GetUser(id string) (*User, error) {
     // Try cache first, but don't fail if cache is down
-    if value, err := cache.Get("user:" + id); err == nil {
-        if user, ok := value.(*User); ok {
-            return user, nil
-        }
+    var user User
+    err := cache.Get("user:" + id, &user)
+    if err != nil {
+        log.Warn("Cache error", "error", err)
+        // Fallback to database on error
+        return database.GetUser(id)
     }
     
-    // Fallback to database
+    if user.ID != 0 {
+        // Got a valid user from cache
+        return &user, nil
+    }
+    
+    // Cache miss - fallback to database
+    log.Debug("Cache miss for user", "id", id)
     return database.GetUser(id)
 }
 ```
@@ -345,10 +390,20 @@ func UpdateUser(user *User) error {
     }
     
     // Invalidate cache
-    cache.Delete("user:" + user.ID)
-    cache.Delete("user:" + user.ID + ":profile")
+    cache.Forget("user:" + user.ID)
+    cache.Forget("user:" + user.ID + ":profile")
     
     return nil
+}
+
+// Pull pattern - get and remove in one operation
+func ConsumeToken(tokenID string) (*Token, error) {
+    var token Token
+    err := cache.Pull("token:" + tokenID, &token)
+    if err != nil {
+        return nil, err
+    }
+    return &token, nil
 }
 ```
 
@@ -358,27 +413,65 @@ Mock the cache for testing:
 
 ```go
 type MockCache struct {
-    data map[string]interface{}
+    data map[string][]byte
+    mu   sync.RWMutex
 }
 
-func (m *MockCache) Get(key string) (interface{}, error) {
-    if value, exists := m.data[key]; exists {
-        return value, nil
+func (m *MockCache) Get(key string, value any) error {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    
+    if data, exists := m.data[key]; exists {
+        return json.Unmarshal(data, value)
     }
-    return nil, errors.New("key not found")
+    return contract.ErrCacheMiss
 }
 
-func (m *MockCache) Set(key string, value interface{}, ttl time.Duration) error {
-    m.data[key] = value
+func (m *MockCache) GetWithDefault(key string, value any, defaultValue any) error {
+    err := m.Get(key, value)
+    if errors.Is(err, contract.ErrCacheMiss) {
+        // Use reflection to set default value
+        rv := reflect.ValueOf(value)
+        rdv := reflect.ValueOf(defaultValue)
+        rv.Elem().Set(rdv)
+        return nil
+    }
+    return err
+}
+
+func (m *MockCache) Set(key string, value any, ttl time.Duration) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    
+    data, err := json.Marshal(value)
+    if err != nil {
+        return err
+    }
+    m.data[key] = data
+    return nil
+}
+
+func (m *MockCache) Has(key string) bool {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    _, exists := m.data[key]
+    return exists
+}
+
+func (m *MockCache) Forget(key string) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    delete(m.data, key)
     return nil
 }
 
 func TestUserService(t *testing.T) {
-    mockCache := &MockCache{data: make(map[string]interface{})}
+    mockCache := &MockCache{data: make(map[string][]byte)}
     service := NewUserService(mockCache)
     
     // Test caching behavior
-    service.CacheUser("123", "John Doe")
+    err := service.CacheUser("123", "John Doe")
+    assert.NoError(t, err)
     
     name, err := service.GetUserFromCache("123")
     assert.NoError(t, err)
@@ -411,6 +504,72 @@ LOG_LEVEL=debug
 ```
 
 This will show cache hit/miss operations in the logs.
+
+## Migration Guide
+
+### Migrating from the Old API
+
+The cache module has been updated to use a pointer-based API for better type safety. Here's how to migrate your code:
+
+#### Old API (returning `any`):
+```go
+// Get
+value, err := cache.Get("key")
+if err != nil {
+    // handle error
+}
+if str, ok := value.(string); ok {
+    // use str
+}
+
+// Remember
+value, err := cache.Remember("key", ttl, func() (any, error) {
+    return computeValue()
+})
+
+// Pull
+value, err := cache.Pull("key")
+```
+
+#### New API (pointer-based):
+```go
+// Get - cache miss is not an error
+var str string
+err := cache.Get("key", &str)
+if err != nil {
+    // Handle validation or store errors
+    // Note: Cache miss is NOT an error
+} else if str != "" {
+    // Got a value from cache
+} else {
+    // Cache miss - str remains empty (zero value)
+}
+
+// Get with default
+var count int
+err := cache.GetWithDefault("counter", &count, 0)
+// count will be 0 if key doesn't exist
+
+// Remember
+var result MyStruct
+err := cache.Remember("key", &result, ttl, func() (any, error) {
+    return computeValue()
+})
+
+// Pull
+var value MyType
+err := cache.Pull("key", &value)
+// No error for cache miss, value remains zero if key doesn't exist
+```
+
+### Key Benefits of the New API
+
+1. **Type Safety**: No more type assertions - the compiler ensures type correctness
+2. **Pointer Validation**: Automatic validation that values are non-nil pointers
+3. **Go-idiomatic**: Cache misses are not errors - values remain at zero state
+4. **Default Values**: Built-in support for default values with `GetWithDefault`
+5. **Better IDE Support**: Auto-completion and type hints work correctly
+6. **Simplified Error Handling**: Only actual errors (validation, store failures) are returned
 
 ## Next Steps
 
