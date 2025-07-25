@@ -4,8 +4,17 @@ import "time"
 
 // Cache defines the caching interface
 type Cache interface {
-	// Get retrieves a value from cache
-	Get(key string) (any, error)
+	// Get retrieves a value from cache and binds it to the provided pointer
+	// The value parameter must be a pointer to the type you want to retrieve
+	// Returns nil if the key doesn't exist (no error)
+	// Returns an error only if value is not a pointer or if unmarshaling fails
+	Get(key string, value any) error
+
+	// GetWithDefault retrieves a value from cache or sets a default if not found
+	// The value parameter must be a pointer to the type you want to retrieve
+	// If the key doesn't exist, the default value is assigned to the pointer
+	// Returns an error only if value is not a pointer or if unmarshaling fails
+	GetWithDefault(key string, value any, defaultValue any) error
 
 	// Set stores a value in cache with TTL
 	Set(key string, value any, ttl time.Duration) error
@@ -23,13 +32,19 @@ type Cache interface {
 	Has(key string) bool
 
 	// Remember gets a value from cache or computes it
-	Remember(key string, ttl time.Duration, callback func() (any, error)) (any, error)
+	// The value parameter must be a pointer to the type you want to retrieve
+	// Returns an error only if value is not a pointer, callback fails, or unmarshaling fails
+	Remember(key string, value any, ttl time.Duration, callback func() (any, error)) error
 
 	// RememberForever gets a value from cache or computes it forever
-	RememberForever(key string, callback func() (any, error)) (any, error)
+	// The value parameter must be a pointer to the type you want to retrieve
+	// Returns an error only if value is not a pointer, callback fails, or unmarshaling fails
+	RememberForever(key string, value any, callback func() (any, error)) error
 
 	// Pull retrieves and removes a value from cache
-	Pull(key string) (any, error)
+	// The value parameter must be a pointer to the type you want to retrieve
+	// Returns nil if the key doesn't exist (no error)
+	Pull(key string, value any) error
 
 	// Add stores a value only if key doesn't exist
 	Add(key string, value any, ttl time.Duration) error

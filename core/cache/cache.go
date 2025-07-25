@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -25,25 +26,52 @@ func New(store contract.CacheStore, prefix string) contract.Cache {
 	}
 }
 
-// Get retrieves a value from cache
-func (c *cache) Get(key string) (any, error) {
+// Get retrieves a value from cache and binds it to the provided pointer
+func (c *cache) Get(key string, value any) error {
+	// Validate that value is a pointer
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return errors.New("value must be a non-nil pointer")
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	data, err := c.store.Get(c.prefixKey(key))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if data == nil {
-		return nil, nil
+		// Cache miss is not an error, just return nil
+		return nil
 	}
 
-	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
-		return nil, err
+	return json.Unmarshal(data, value)
+}
+
+// GetWithDefault retrieves a value from cache or sets a default if not found
+func (c *cache) GetWithDefault(key string, value any, defaultValue any) error {
+	// Validate that value is a pointer
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return errors.New("value must be a non-nil pointer")
 	}
 
-	return value, nil
+	c.mu.RLock()
+	data, err := c.store.Get(c.prefixKey(key))
+	c.mu.RUnlock()
+
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		// Cache miss - use the default value
+		rdv := reflect.ValueOf(defaultValue)
+		rv.Elem().Set(rdv)
+		return nil
+	}
+
+	return json.Unmarshal(data, value)
 }
 
 // Set stores a value in cache with TTL
@@ -90,44 +118,80 @@ func (c *cache) Has(key string) bool {
 }
 
 // Remember gets a value from cache or computes it
-func (c *cache) Remember(key string, ttl time.Duration, callback func() (any, error)) (any, error) {
-	// Try to get from cache first
-	value, err := c.Get(key)
-	if err == nil && value != nil {
-		return value, nil
+func (c *cache) Remember(key string, value any, ttl time.Duration, callback func() (any, error)) error {
+	// Validate that value is a pointer
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return errors.New("value must be a non-nil pointer")
 	}
 
-	// Compute the value
-	value, err = callback()
+	c.mu.RLock()
+	data, err := c.store.Get(c.prefixKey(key))
+	c.mu.RUnlock()
+
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if data != nil {
+		// Cache hit - unmarshal and return
+		return json.Unmarshal(data, value)
+	}
+
+	// Cache miss - compute the value
+	computedValue, err := callback()
+	if err != nil {
+		return err
 	}
 
 	// Store in cache
-	if err := c.Set(key, value, ttl); err != nil {
-		return value, err
+	if err := c.Set(key, computedValue, ttl); err != nil {
+		return err
 	}
 
-	return value, nil
+	// Unmarshal the computed value into the provided pointer
+	computedData, err := json.Marshal(computedValue)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(computedData, value)
 }
 
 // RememberForever gets a value from cache or computes it forever
-func (c *cache) RememberForever(key string, callback func() (any, error)) (any, error) {
-	return c.Remember(key, 0, callback)
+func (c *cache) RememberForever(key string, value any, callback func() (any, error)) error {
+	return c.Remember(key, value, 0, callback)
 }
 
 // Pull retrieves and removes a value from cache
-func (c *cache) Pull(key string) (any, error) {
-	value, err := c.Get(key)
+func (c *cache) Pull(key string, value any) error {
+	// Validate that value is a pointer
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return errors.New("value must be a non-nil pointer")
+	}
+
+	c.mu.RLock()
+	data, err := c.store.Get(c.prefixKey(key))
+	c.mu.RUnlock()
+
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if data == nil {
+		// Cache miss is not an error, just return nil
+		return nil
 	}
 
-	if value != nil {
-		_ = c.Forget(key)
+	// Unmarshal the value
+	err = json.Unmarshal(data, value)
+	if err != nil {
+		return err
 	}
 
-	return value, nil
+	// Remove the key after successful retrieval
+	_ = c.Forget(key)
+
+	return nil
 }
 
 // Add stores a value only if key doesn't exist
@@ -147,22 +211,34 @@ func (c *cache) Increment(key string, value ...int64) (int64, error) {
 	}
 
 	// Get current value
-	val, err := c.Get(key)
+	c.mu.RLock()
+	data, err := c.store.Get(c.prefixKey(key))
+	c.mu.RUnlock()
+
 	if err != nil {
 		return 0, err
 	}
 
 	var current int64
-	if val != nil {
-		switch v := val.(type) {
-		case int64:
-			current = v
-		case float64:
-			current = int64(v)
-		case int:
-			current = int64(v)
-		default:
-			return 0, fmt.Errorf("value is not a number")
+	if data == nil {
+		// Key doesn't exist, start from 0
+		current = 0
+	} else {
+		// Try to unmarshal as different numeric types
+		if err := json.Unmarshal(data, &current); err != nil {
+			// Try as float64
+			var floatVal float64
+			if err2 := json.Unmarshal(data, &floatVal); err2 == nil {
+				current = int64(floatVal)
+			} else {
+				// Try as int
+				var intVal int
+				if err3 := json.Unmarshal(data, &intVal); err3 == nil {
+					current = int64(intVal)
+				} else {
+					return 0, fmt.Errorf("value is not a number")
+				}
+			}
 		}
 	}
 
