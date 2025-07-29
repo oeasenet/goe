@@ -61,6 +61,7 @@ export default withMermaid(defineConfig(
               { text: 'MongoDB', link: '/guide/mongodb' },
               { text: 'Caching', link: '/guide/caching' },
               { text: 'Event System', link: '/guide/event-system' },
+              { text: 'Lifecycle Hooks', link: '/guide/lifecycle-hooks' },
             ]
           },
           {

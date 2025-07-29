@@ -48,6 +48,10 @@ type Options struct {
 	WithEvent       bool           // Enable Event module
 	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
 	ConfigOverrides map[string]any // Override any environment variables
+
+	// Lifecycle hooks - these are executed through Fx's lifecycle system
+	OnStart []func(context.Context) error // Functions to run after all modules start
+	OnStop  []func(context.Context) error // Functions to run before modules stop
 }
 
 // New creates a new Goe application
@@ -70,6 +74,8 @@ func New(opts ...Options) contract.Application {
 		opt.WithEvent = o.WithEvent
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
+		opt.OnStart = o.OnStart
+		opt.OnStop = o.OnStop
 	}
 
 	// Create config first to read application settings
@@ -342,6 +348,34 @@ func New(opts ...Options) contract.Application {
 	// Add custom invokers (which may register routes)
 	for _, invoker := range opt.Invokers {
 		fxOptions = append(fxOptions, fx.Invoke(invoker))
+	}
+
+	// Add lifecycle hooks
+	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {
+		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Execute all OnStart hooks
+					for i, hook := range opt.OnStart {
+						if err := hook(ctx); err != nil {
+							instance.logger.Error("OnStart hook failed", "index", i, "error", err)
+							return err
+						}
+					}
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					// Execute all OnStop hooks in reverse order
+					for i := len(opt.OnStop) - 1; i >= 0; i-- {
+						if err := opt.OnStop[i](ctx); err != nil {
+							instance.logger.Error("OnStop hook failed", "index", i, "error", err)
+							// Continue with other hooks even if one fails
+						}
+					}
+					return nil
+				},
+			})
+		}))
 	}
 
 	// Register all options with the application
