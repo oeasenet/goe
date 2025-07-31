@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"go.oease.dev/goe/v2/core/meilisearch"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"os"
 	"reflect"
@@ -31,6 +32,7 @@ var (
 		cacheManager contract.CacheManager
 		db           contract.DB      // Database instance
 		mongoDB      contract.MongoDB // Database instance
+		meilisearch  contract.Meilisearch
 		eventManager contract.EventManager
 		mu           sync.RWMutex
 	}
@@ -45,6 +47,7 @@ type Options struct {
 	WithCache       bool           // Enable Cache module
 	WithDB          bool           // Enable DB module
 	WithMongoDB     bool           // Enable Mongo DB module
+	WithMeilisearch bool           // Enable Meilisearch module
 	WithEvent       bool           // Enable Event module
 	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
 	ConfigOverrides map[string]any // Override any environment variables
@@ -67,6 +70,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB // + Assign WithDB
 		opt.WithMongoDB = o.WithMongoDB
+		opt.WithMeilisearch = o.WithMeilisearch
 		opt.WithEvent = o.WithEvent
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
@@ -248,6 +252,29 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: mongodbModule.OnStart,
 						OnStop:  mongodbModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add Meilisearch module if enabled
+	var meilisearchModule *meilisearch.MeiliSearch
+	if opt.WithMeilisearch {
+		meilisearchModule = meilisearch.NewMeiliSearch(instance.config, instance.logger)
+		instance.meilisearch = meilisearchModule.Provide()
+
+		instance.logger.Info("Registering meilisearch module")
+
+		fxOptions = append(fxOptions,
+			// Provide contract.Meilisearch for dependency injection
+			fx.Provide(func() contract.Meilisearch { return instance.meilisearch }),
+			// Register Meilisearch module with its lifecycle hooks
+			fx.Module(meilisearchModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: meilisearchModule.OnStart,
+						OnStop:  meilisearchModule.OnStop,
 					})
 				}),
 			),

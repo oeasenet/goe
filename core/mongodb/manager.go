@@ -61,10 +61,6 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 		}
 	}
 
-	dbm.logger.Info("MONGO Database connection established successfully",
-		"name", name,
-	)
-
 	client, err := mongo.Connect(opt)
 	if err != nil {
 		return nil, err
