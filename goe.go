@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"go.oease.dev/goe/v2/core/mongodb"
-
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
 	"go.oease.dev/goe/v2/core/cache"
@@ -134,7 +132,7 @@ func New(opts ...Options) contract.Application {
 
 	// Build Fx options
 	fxOptions := []fx.Option{
-		fx.StartTimeout(2 * time.Minute),
+		fx.StartTimeout(1 * time.Minute),
 		// Configure Fx to use our custom logger that logs at debug level
 		fx.WithLogger(func() fxevent.Logger {
 			zapLogger := logModule.ProvideZap()
