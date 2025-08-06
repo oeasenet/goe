@@ -36,7 +36,6 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	if err != nil {
 		logger.Fatal(err.Error())
 		panic(err)
-		return nil
 	}
 
 	// Create fiber config with all supported options
