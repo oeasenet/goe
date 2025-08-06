@@ -2,8 +2,6 @@ package goe
 
 import (
 	"context"
-	"go.oease.dev/goe/v2/core/meilisearch"
-	"go.oease.dev/goe/v2/core/mongodb"
 	"os"
 	"reflect"
 	"sync"
@@ -17,6 +15,8 @@ import (
 	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/log"
+	"go.oease.dev/goe/v2/core/meilisearch"
+	"go.oease.dev/goe/v2/core/mongodb"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
