@@ -11,7 +11,7 @@ require (
 	github.com/gofiber/storage/memory/v2 v2.0.1
 	github.com/gofiber/storage/rueidis v1.2.5
 	github.com/google/uuid v1.6.0
-	github.com/redis/go-redis/v9 v9.11.0
+	github.com/redis/go-redis/v9 v9.12.0
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.10.0
 	go.mongodb.org/mongo-driver/v2 v2.2.2
