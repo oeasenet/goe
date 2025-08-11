@@ -8,8 +8,8 @@ require (
 	github.com/bytedance/sonic v1.13.3
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/fiber/v3 v3.0.0-beta.5
-	github.com/gofiber/storage/memory/v2 v2.0.1
-	github.com/gofiber/storage/rueidis v1.2.5
+	github.com/gofiber/storage/memory/v2 v2.1.0
+	github.com/gofiber/storage/rueidis v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/rs/xid v1.6.0
