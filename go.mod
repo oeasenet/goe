@@ -14,7 +14,7 @@ require (
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.10.0
-	go.mongodb.org/mongo-driver/v2 v2.2.2
+	go.mongodb.org/mongo-driver/v2 v2.2.3
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
 	gorm.io/driver/mysql v1.6.0
