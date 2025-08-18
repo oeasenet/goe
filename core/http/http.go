@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
+	htmltpl "github.com/gofiber/template/html/v2"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/validator"
 	"go.uber.org/fx"
@@ -58,6 +59,27 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 		ColorScheme:        fiber.DefaultColors,
 		StructValidator:    validator,
 		ErrorHandler:       defaultErrorHandler(logger),
+	}
+
+	// Configure views (template engine) if enabled
+	if engine := config.GetString("VIEWS_ENGINE"); engine != "" {
+		if engine == "html" {
+			root := config.GetString("VIEWS_ROOT")
+			if root == "" {
+				root = "./views"
+			}
+			ext := config.GetString("VIEWS_EXT")
+			if ext == "" {
+				ext = ".gohtml"
+			}
+			fiberConfig.Views = htmltpl.New(root, ext)
+			if layout := config.GetString("VIEWS_LAYOUT"); layout != "" {
+				fiberConfig.ViewsLayout = layout
+			}
+			logger.Info("HTTP Views engine initialized", "engine", engine, "root", root, "ext", ext)
+		} else {
+			logger.Warn("Unsupported VIEWS_ENGINE specified; views not initialized", "engine", engine)
+		}
 	}
 
 	// Handle TrustProxy configuration
@@ -366,6 +388,30 @@ func (m *Module) ValidateConfig() error {
 					Module:      "http",
 					InvalidKeys: map[string]string{"FIBER_TRUST_PROXIES": "proxy address cannot be empty"},
 				}
+			}
+		}
+	}
+
+	// Validate view engine configuration if present
+	if k.config.Has("VIEWS_ENGINE") {
+		engine := k.config.GetString("VIEWS_ENGINE")
+		if engine != "html" {
+			return &contract.ConfigValidationError{
+				Module:      "http",
+				InvalidKeys: map[string]string{"VIEWS_ENGINE": "unsupported engine; only 'html' is supported"},
+			}
+		}
+		// Optional: ensure non-empty strings if provided
+		if k.config.Has("VIEWS_ROOT") && k.config.GetString("VIEWS_ROOT") == "" {
+			return &contract.ConfigValidationError{
+				Module:      "http",
+				InvalidKeys: map[string]string{"VIEWS_ROOT": "cannot be empty when VIEWS_ENGINE is set"},
+			}
+		}
+		if k.config.Has("VIEWS_EXT") && k.config.GetString("VIEWS_EXT") == "" {
+			return &contract.ConfigValidationError{
+				Module:      "http",
+				InvalidKeys: map[string]string{"VIEWS_EXT": "cannot be empty when VIEWS_ENGINE is set"},
 			}
 		}
 	}

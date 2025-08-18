@@ -70,6 +70,12 @@ github.com/gofiber/storage/memory/v2 v2.0.1 h1:tAETnom9uvEB9B3I2LkgewiuqYDAH0Itr
 github.com/gofiber/storage/memory/v2 v2.0.1/go.mod h1:RRo3RfX6nTD/UhERyE/u5LcSfqtMo9dA4ltmieSe+QM=
 github.com/gofiber/storage/rueidis v1.2.5 h1:AnFqww2Wp8/3+9ZLcMC74U1bI27r/cgaK44PxRvPhpI=
 github.com/gofiber/storage/rueidis v1.2.5/go.mod h1:+ZlKIfkUsNhbfyi7XwZHWuq9DElERQdQea8qY/2zrwQ=
+github.com/gofiber/template v1.8.3 h1:hzHdvMwMo/T2kouz2pPCA0zGiLCeMnoGsQZBTSYgZxc=
+github.com/gofiber/template v1.8.3/go.mod h1:bs/2n0pSNPOkRa5VJ8zTIvedcI/lEYxzV3+YPXdBvq8=
+github.com/gofiber/template/html/v2 v2.1.3 h1:n1LYBtmr9C0V/k/3qBblXyMxV5B0o/gpb6dFLp8ea+o=
+github.com/gofiber/template/html/v2 v2.1.3/go.mod h1:U5Fxgc5KpyujU9OqKzy6Kn6Qup6Tm7zdsISR+VpnHRE=
+github.com/gofiber/utils v1.1.0 h1:vdEBpn7AzIUJRhe+CiTOJdUcTg4Q9RK+pEa0KPbLdrM=
+github.com/gofiber/utils v1.1.0/go.mod h1:poZpsnhBykfnY1Mc0KeEa6mSHrS3dV0+oBWyeQmb2e0=
 github.com/gofiber/utils/v2 v2.0.0-beta.13 h1:dlpbGFLveQ9OduL2UHw4dtu4lXE+Gb3bHMc+8Yxp/dk=
 github.com/gofiber/utils/v2 v2.0.0-beta.13/go.mod h1:qEZ175nSOkl5xciHmqxwNDsWzwiB39gB8RgU1d3U4mQ=
 github.com/golang-jwt/jwt/v5 v5.0.0/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
