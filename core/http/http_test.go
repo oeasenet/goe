@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
@@ -315,14 +316,14 @@ func TestHTTP_Module(t *testing.T) {
 	})
 }
 
-func TestHTTP_CustomValidator(t *testing.T) {
+func TestHTTP_Validator(t *testing.T) {
 	t.Run("new validator", func(t *testing.T) {
-		validator := NewValidator()
+		validator := validation.New()
 		assert.NotNil(t, validator)
 	})
 
 	t.Run("validate valid struct", func(t *testing.T) {
-		validator := NewValidator()
+		validator := validation.New()
 
 		type TestStruct struct {
 			Name  string `validate:"required"`
@@ -339,7 +340,7 @@ func TestHTTP_CustomValidator(t *testing.T) {
 	})
 
 	t.Run("validate invalid struct", func(t *testing.T) {
-		validator := NewValidator()
+		validator := validation.New()
 
 		type TestStruct struct {
 			Name  string `validate:"required"`
@@ -356,7 +357,7 @@ func TestHTTP_CustomValidator(t *testing.T) {
 	})
 
 	t.Run("register custom validation", func(t *testing.T) {
-		v := NewValidator()
+		v := validation.New()
 
 		err := v.RegisterValidation("custom", func(fl validator.FieldLevel) bool {
 			return true
@@ -365,7 +366,7 @@ func TestHTTP_CustomValidator(t *testing.T) {
 	})
 
 	t.Run("register alias", func(t *testing.T) {
-		validator := NewValidator()
+		validator := validation.New()
 
 		validator.RegisterAlias("password", "required,min=8")
 
@@ -376,21 +377,15 @@ func TestHTTP_CustomValidator(t *testing.T) {
 	})
 }
 
-func TestHTTP_ValidatorProvider(t *testing.T) {
-	logger := &MockLogger{}
-	logger.On("Debug", mock.Anything, mock.Anything).Return()
-	logger.On("Error", mock.Anything, mock.Anything).Return()
+// TestHTTP_ValidatorProvider tests are now handled by the validation package
+// The validator provider functionality has been moved to the validation package
+func TestHTTP_ValidatorIntegration(t *testing.T) {
+	t.Run("validator is available in HTTP module", func(t *testing.T) {
+		v := validation.New()
+		assert.NotNil(t, v)
 
-	t.Run("new validator provider", func(t *testing.T) {
-		provider := NewValidatorProvider(logger)
-		assert.NotNil(t, provider)
-		assert.NotNil(t, provider.Provide())
-	})
-
-	t.Run("register custom validation", func(t *testing.T) {
-		provider := NewValidatorProvider(logger)
-
-		err := provider.RegisterCustomValidation("test", func(fl validator.FieldLevel) bool {
+		// Test custom validation registration
+		err := v.RegisterValidation("test", func(fl validator.FieldLevel) bool {
 			return true
 		})
 		assert.NoError(t, err)
@@ -429,7 +424,7 @@ func TestHTTP_Context(t *testing.T) {
 		App:       mockApp,
 		Config:    config,
 		Logger:    logger,
-		Validator: kernel.Validator().(*CustomValidator),
+		Validator: kernel.Validator().(*validation.Validator),
 	}
 
 	// Add service injection middleware
@@ -767,7 +762,7 @@ func TestHTTP_GroupRouter(t *testing.T) {
 		App:       mockApp,
 		Config:    config,
 		Logger:    logger,
-		Validator: kernel.Validator().(*CustomValidator),
+		Validator: kernel.Validator().(*validation.Validator),
 	}
 
 	// Create group

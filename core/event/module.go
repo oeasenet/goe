@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
 // Module represents the event module for Fx
@@ -88,27 +88,27 @@ func (m *Module) ProvideDeadLetterQueue() contract.DeadLetterQueueManager {
 
 // ValidateConfig validates the event module configuration
 func (m *Module) ValidateConfig() error {
-	v := validator.NewConfigValidator(m.config, "event")
+	v := configvalidator.NewConfigValidator(m.config, "event")
 
 	// Event system requires Redis connection
-	v.RequireWithValidator("EVENT_REDIS_ADDR", "Redis server address for event system", validator.ValidateHostPort)
+	v.RequireWithValidator("EVENT_REDIS_ADDR", "Redis server address for event system", configvalidator.ValidateHostPort)
 
 	// Optional Redis configurations
 	if m.config.Has("EVENT_REDIS_DB") {
-		v.Optional("EVENT_REDIS_DB", "Redis database number", validator.ValidatePositiveInt)
+		v.Optional("EVENT_REDIS_DB", "Redis database number", configvalidator.ValidatePositiveInt)
 	}
 
 	// Optional but validated if present
 	if m.config.Has("EVENT_MAX_RETRIES") {
-		v.Optional("EVENT_MAX_RETRIES", "Maximum retry attempts", validator.ValidatePositiveInt)
+		v.Optional("EVENT_MAX_RETRIES", "Maximum retry attempts", configvalidator.ValidatePositiveInt)
 	}
 
 	if m.config.Has("EVENT_BATCH_SIZE") {
-		v.Optional("EVENT_BATCH_SIZE", "Event batch size", validator.ValidatePositiveInt)
+		v.Optional("EVENT_BATCH_SIZE", "Event batch size", configvalidator.ValidatePositiveInt)
 	}
 
 	if m.config.Has("EVENT_MAX_PENDING_MESSAGES") {
-		v.Optional("EVENT_MAX_PENDING_MESSAGES", "Maximum pending messages", validator.ValidatePositiveInt)
+		v.Optional("EVENT_MAX_PENDING_MESSAGES", "Maximum pending messages", configvalidator.ValidatePositiveInt)
 	}
 
 	return v.Validate()

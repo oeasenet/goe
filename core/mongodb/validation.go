@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
 // ValidateConfig validates the MongoDB module configuration
 func (dbm *DatabaseModule) ValidateConfig() error {
-	v := validator.NewConfigValidator(dbm.config, "mongodb")
+	v := configvalidator.NewConfigValidator(dbm.config, "mongodb")
 
 	// Get default connection name
 	defaultConnectionName := dbm.config.GetString("MONGO_DB_CONNECTION")
@@ -27,8 +27,8 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 	v.Require(configPrefix+"DB_NAME", "MongoDB database name")
 
 	// Optional connection pool settings
-	v.Optional(configPrefix+"MIN_POOL_SIZE", "MongoDB minimum pool size", validator.ValidatePositiveInt)
-	v.Optional(configPrefix+"MAX_POOL_SIZE", "MongoDB maximum pool size", validator.ValidatePositiveInt)
+	v.Optional(configPrefix+"MIN_POOL_SIZE", "MongoDB minimum pool size", configvalidator.ValidatePositiveInt)
+	v.Optional(configPrefix+"MAX_POOL_SIZE", "MongoDB maximum pool size", configvalidator.ValidatePositiveInt)
 	v.Optional(configPrefix+"MAX_CONN_IDLE_TIME", "MongoDB max connection idle time", func(value any) error {
 		duration := dbm.config.GetDuration(configPrefix + "MAX_CONN_IDLE_TIME")
 		if duration < 0 {
@@ -56,8 +56,8 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 			v.Require(additionalPrefix+"DB_NAME", "MongoDB database name for "+connName)
 
 			// Optional settings for additional connections
-			v.Optional(additionalPrefix+"MIN_POOL_SIZE", "MongoDB minimum pool size for "+connName, validator.ValidatePositiveInt)
-			v.Optional(additionalPrefix+"MAX_POOL_SIZE", "MongoDB maximum pool size for "+connName, validator.ValidatePositiveInt)
+			v.Optional(additionalPrefix+"MIN_POOL_SIZE", "MongoDB minimum pool size for "+connName, configvalidator.ValidatePositiveInt)
+			v.Optional(additionalPrefix+"MAX_POOL_SIZE", "MongoDB maximum pool size for "+connName, configvalidator.ValidatePositiveInt)
 			v.Optional(additionalPrefix+"MAX_CONN_IDLE_TIME", "MongoDB max connection idle time for "+connName, func(value any) error {
 				duration := dbm.config.GetDuration(additionalPrefix + "MAX_CONN_IDLE_TIME")
 				if duration < 0 {

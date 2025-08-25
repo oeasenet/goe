@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
 // Module represents the cache module for Fx
@@ -66,22 +66,22 @@ func (m *Module) ProvideCache() contract.Cache {
 
 // ValidateConfig validates the cache module configuration
 func (m *Module) ValidateConfig() error {
-	v := validator.NewConfigValidator(m.config, "cache")
+	v := configvalidator.NewConfigValidator(m.config, "cache")
 
 	// Cache store is optional, defaults to memory
 	store := m.config.GetString("CACHE_STORE")
 	if store != "" {
 		// Validate store type
 		validStores := []string{"memory", "redis", "memcache", "badger", "sqlite3", "postgres", "mysql", "mongodb", "dynamodb", "s3"}
-		v.Optional("CACHE_STORE", "Cache store type", validator.ValidateOneOf(validStores...))
+		v.Optional("CACHE_STORE", "Cache store type", configvalidator.ValidateOneOf(validStores...))
 
 		// Store-specific validations
 		switch store {
 		case "redis":
-			v.RequireWithValidator("CACHE_REDIS_ADDR", "Redis server address", validator.ValidateHostPort)
+			v.RequireWithValidator("CACHE_REDIS_ADDR", "Redis server address", configvalidator.ValidateHostPort)
 
 			if m.config.Has("CACHE_REDIS_DB") {
-				v.Optional("CACHE_REDIS_DB", "Redis database number", validator.ValidatePositiveInt)
+				v.Optional("CACHE_REDIS_DB", "Redis database number", configvalidator.ValidatePositiveInt)
 			}
 
 		case "memcache":
@@ -93,7 +93,7 @@ func (m *Module) ValidateConfig() error {
 			v.Require("CACHE_DB_USERNAME", "Database username")
 
 			if m.config.Has("CACHE_DB_PORT") {
-				v.Optional("CACHE_DB_PORT", "Database port", validator.ValidatePort)
+				v.Optional("CACHE_DB_PORT", "Database port", configvalidator.ValidatePort)
 			}
 
 		case "mongodb":

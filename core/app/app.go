@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.uber.org/fx"
 )
 
@@ -184,7 +184,7 @@ func (a *app) validateModules() error {
 	}
 
 	// Create startup validator
-	startupValidator := validator.NewStartupValidator(a.config, a.logger)
+	startupValidator := configvalidator.NewStartupValidator(a.config, a.logger)
 
 	// Register all modules that support validation
 	for _, module := range a.modules {

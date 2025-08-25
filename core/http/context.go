@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/fx"
 )
 
@@ -22,7 +23,7 @@ type Services struct {
 	App       contract.Application
 	Config    contract.Config
 	Logger    contract.Logger
-	Validator *CustomValidator
+	Validator *validation.Validator
 	// Add more services as needed
 	Cache contract.Cache
 }
@@ -67,7 +68,7 @@ func GetApp(c fiber.Ctx) contract.Application {
 }
 
 // GetValidator retrieves validator from the context
-func GetValidator(c fiber.Ctx) *CustomValidator {
+func GetValidator(c fiber.Ctx) *validation.Validator {
 	return GetServices(c).Validator
 }
 

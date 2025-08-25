@@ -14,7 +14,8 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	htmltpl "github.com/gofiber/template/html/v2"
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
+	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/fx"
 )
 
@@ -23,13 +24,13 @@ type kernel struct {
 	app       *fiber.App
 	config    contract.Config
 	logger    contract.Logger
-	validator *CustomValidator
+	validator *validation.Validator
 }
 
 // New creates a new HTTP kernel
 func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	// Create validator
-	validator := NewValidator()
+	validator := validation.New()
 
 	// Init error page template
 	var err error
@@ -193,6 +194,11 @@ func (k *kernel) Validator() any {
 	return k.validator
 }
 
+// HTTPValidator returns the validator as an HTTPValidator interface
+func (k *kernel) HTTPValidator() contract.HTTPValidator {
+	return k.validator
+}
+
 // Listen starts the HTTP server
 func (k *kernel) Listen(addr string) error {
 	if addr == "" {
@@ -284,10 +290,18 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 	}
 }
 
+// getValidatorFromKernel safely extracts the validator from the kernel
+func getValidatorFromKernel(kernel contract.HTTPKernel) *validation.Validator {
+	if v, ok := kernel.Validator().(*validation.Validator); ok {
+		return v
+	}
+	return nil
+}
+
 // Module represents the HTTP module for Fx
 type Module struct {
 	kernel    contract.HTTPKernel
-	validator *CustomValidator
+	validator *validation.Validator
 }
 
 // NewModule creates a new HTTP module
@@ -295,7 +309,7 @@ func NewModule(config contract.Config, logger contract.Logger) *Module {
 	kernel := New(config, logger)
 	return &Module{
 		kernel:    kernel,
-		validator: kernel.Validator().(*CustomValidator),
+		validator: getValidatorFromKernel(kernel),
 	}
 }
 
@@ -342,7 +356,7 @@ func (m *Module) Provide() contract.HTTPKernel {
 }
 
 // ProvideValidator returns the validator instance
-func (m *Module) ProvideValidator() *CustomValidator {
+func (m *Module) ProvideValidator() *validation.Validator {
 	return m.validator
 }
 
@@ -361,20 +375,20 @@ func (m *Module) SetupServiceMiddleware(app contract.Application, config contrac
 func (m *Module) ValidateConfig() error {
 	// Get the kernel's config
 	k := m.kernel.(*kernel)
-	v := validator.NewConfigValidator(k.config, "http")
+	v := configvalidator.NewConfigValidator(k.config, "http")
 
 	// HTTP port is optional but should be valid if set
 	if k.config.Has("HTTP_PORT") {
-		v.Optional("HTTP_PORT", "HTTP server port", validator.ValidatePort)
+		v.Optional("HTTP_PORT", "HTTP server port", configvalidator.ValidatePort)
 	}
 
 	// Validate Fiber-specific configurations if set
 	if k.config.Has("FIBER_BODY_LIMIT") {
-		v.Optional("FIBER_BODY_LIMIT", "Request body size limit", validator.ValidatePositiveInt)
+		v.Optional("FIBER_BODY_LIMIT", "Request body size limit", configvalidator.ValidatePositiveInt)
 	}
 
 	if k.config.Has("FIBER_CONCURRENCY") {
-		v.Optional("FIBER_CONCURRENCY", "Maximum concurrent connections", validator.ValidatePositiveInt)
+		v.Optional("FIBER_CONCURRENCY", "Maximum concurrent connections", configvalidator.ValidatePositiveInt)
 	}
 
 	// Validate trust proxy configuration

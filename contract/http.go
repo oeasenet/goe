@@ -15,8 +15,11 @@ type HTTPKernel interface {
 	// Shutdown gracefully shuts down the server
 	Shutdown() error
 
-	// Validator returns the struct validator for request validation
+	// Validator returns the struct validator for request validation (legacy)
 	Validator() any
+
+	// HTTPValidator returns the HTTP validator interface
+	HTTPValidator() HTTPValidator
 }
 
 // Router defines the HTTP router interface

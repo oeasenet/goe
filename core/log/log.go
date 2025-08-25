@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -387,18 +387,18 @@ func (m *Module) ProvideZap() *zap.Logger {
 
 // ValidateConfig validates the log module configuration
 func (m *Module) ValidateConfig() error {
-	v := validator.NewConfigValidator(m.config, "log")
+	v := configvalidator.NewConfigValidator(m.config, "log")
 
 	// Log level validation
 	if m.config.Has("LOG_LEVEL") {
 		validLevels := []string{"debug", "info", "warn", "error", "panic", "fatal"}
-		v.Optional("LOG_LEVEL", "Log level", validator.ValidateOneOf(validLevels...))
+		v.Optional("LOG_LEVEL", "Log level", configvalidator.ValidateOneOf(validLevels...))
 	}
 
 	// Log format validation
 	if m.config.Has("LOG_FORMAT") {
 		validFormats := []string{"json", "console"}
-		v.Optional("LOG_FORMAT", "Log format", validator.ValidateOneOf(validFormats...))
+		v.Optional("LOG_FORMAT", "Log format", configvalidator.ValidateOneOf(validFormats...))
 	}
 
 	// Log output validation

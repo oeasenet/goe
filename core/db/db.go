@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/core/validator"
+	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
 // DatabaseModule implements the contract.DB and contract.Module interfaces
@@ -299,7 +299,7 @@ func (dbm *DatabaseModule) Provide() contract.DB {
 
 // ValidateConfig validates the database module configuration
 func (dbm *DatabaseModule) ValidateConfig() error {
-	v := validator.NewConfigValidator(dbm.config, "db")
+	v := configvalidator.NewConfigValidator(dbm.config, "db")
 
 	// Get default connection name
 	defaultConnectionName := dbm.config.GetString("DB_CONNECTION")
@@ -316,7 +316,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 	// Driver is always required (except for SQLite which can work with defaults)
 	driver := dbm.config.GetString(configPrefix + "DRIVER")
 	if driver != "" {
-		v.RequireWithValidator(configPrefix+"DRIVER", "Database driver type", validator.ValidateDatabaseDriver)
+		v.RequireWithValidator(configPrefix+"DRIVER", "Database driver type", configvalidator.ValidateDatabaseDriver)
 
 		// For non-SQLite databases, host is required
 		if !strings.Contains(strings.ToLower(driver), "sqlite") {
@@ -328,7 +328,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 
 		// Optional validations
 		if dbm.config.Has(configPrefix + "PORT") {
-			v.Optional(configPrefix+"PORT", "Database port", validator.ValidatePort)
+			v.Optional(configPrefix+"PORT", "Database port", configvalidator.ValidatePort)
 		}
 	} else {
 		// If no driver specified, it's required
@@ -348,7 +348,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 			connPrefix := fmt.Sprintf("DB_%s_", strings.ToUpper(connName))
 
 			// Each additional connection must have a driver
-			v.RequireWithValidator(connPrefix+"DRIVER", fmt.Sprintf("Database driver for connection '%s'", connName), validator.ValidateDatabaseDriver)
+			v.RequireWithValidator(connPrefix+"DRIVER", fmt.Sprintf("Database driver for connection '%s'", connName), configvalidator.ValidateDatabaseDriver)
 
 			connDriver := dbm.config.GetString(connPrefix + "DRIVER")
 			if connDriver != "" && !strings.Contains(strings.ToLower(connDriver), "sqlite") {
@@ -356,7 +356,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 				v.Require(connPrefix+"DATABASE", fmt.Sprintf("Database name for connection '%s'", connName))
 
 				if dbm.config.Has(connPrefix + "PORT") {
-					v.Optional(connPrefix+"PORT", fmt.Sprintf("Database port for connection '%s'", connName), validator.ValidatePort)
+					v.Optional(connPrefix+"PORT", fmt.Sprintf("Database port for connection '%s'", connName), configvalidator.ValidatePort)
 				}
 			}
 		}
