@@ -579,6 +579,11 @@ func MongoDB() contract.MongoDB {
 	return instance.mongoDB
 }
 
+// Mongo is a convenient alias for MongoDB() for shorter access
+func Mongo() contract.MongoDB {
+	return MongoDB()
+}
+
 // AddModule adds a module to the global application instance
 func AddModule(module contract.Module) error {
 	instance.mu.RLock()

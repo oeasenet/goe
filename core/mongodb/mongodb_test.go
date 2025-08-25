@@ -252,15 +252,15 @@ func TestDatabaseModule_OnStop(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// TestDatabaseModule_Instance tests the Instance method
+// TestDatabaseModule_Instance tests the DB method
 func TestDatabaseModule_Instance(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
 	dbModule := NewDBModule(config, logger)
 
-	// Test that Instance returns nil before connection is established
-	instance := dbModule.Instance()
+	// Test that DB returns nil before connection is established
+	instance := dbModule.DB()
 	assert.Nil(t, instance)
 }
 
@@ -315,4 +315,52 @@ func TestDatabaseModule_ConfigValidation(t *testing.T) {
 	assert.NotNil(t, dbModule)
 	assert.Equal(t, "mongo_db", dbModule.Name())
 	assert.NotNil(t, dbModule.Provide())
+}
+
+// TestDatabaseModule_Collection tests the Col method
+func TestDatabaseModule_Collection(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	dbModule := NewDBModule(config, logger)
+
+	// Test that Col returns nil when no connection is established
+	col := dbModule.Col("test_collection")
+	assert.Nil(t, col)
+}
+
+// TestDatabaseModule_CollectionFrom tests the ColFrom method
+func TestDatabaseModule_CollectionFrom(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	dbModule := NewDBModule(config, logger)
+
+	// Test that ColFrom returns error for non-existent connection
+	_, err := dbModule.ColFrom("nonexistent", "test_collection")
+	assert.Error(t, err)
+}
+
+// TestDatabaseModule_Client tests the Client method
+func TestDatabaseModule_Client(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	dbModule := NewDBModule(config, logger)
+
+	// Test that Client returns nil when no connection is established
+	client := dbModule.Client()
+	assert.Nil(t, client)
+}
+
+// TestDatabaseModule_DatabaseFrom is an alias test for Connection method
+func TestDatabaseModule_DatabaseFrom(t *testing.T) {
+	config := setupTestConfig()
+	logger := setupTestLogger()
+
+	dbModule := NewDBModule(config, logger)
+
+	// Test that Connection returns error for non-existent connection
+	_, err := dbModule.Connection("nonexistent")
+	assert.Error(t, err)
 }

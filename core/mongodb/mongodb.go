@@ -35,8 +35,8 @@ func (dbm *DatabaseModule) setMonitor(monitor *event.CommandMonitor) {
 	dbm.customMonitor = monitor
 }
 
-// Instance returns the underlying MONGO DB instance for the default connection
-func (dbm *DatabaseModule) Instance() *mongo.Database {
+// DB Instance returns the underlying MONGO DB instance for the default connection
+func (dbm *DatabaseModule) DB() *mongo.Database {
 	defaultConnectionName := dbm.config.GetString("MONGO_DB_CONNECTION")
 	if defaultConnectionName == "" {
 		defaultConnectionName = "default"
@@ -97,7 +97,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 			"connection_config_name", defaultConnectionName,
 			"error", err.Error(),
 		)
-		// Allow app to start, Instance() will return nil.
+		// Allow app to start, DB() will return nil.
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
@@ -167,6 +167,34 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 		delete(dbm.connections, name)
 	}
 	return lastErr
+}
+
+// Client returns the MongoDB client from the default connection
+func (dbm *DatabaseModule) Client() *mongo.Client {
+	db := dbm.DB()
+	if db == nil {
+		return nil
+	}
+	return db.Client()
+}
+
+// Col Collection returns a collection from the default database
+func (dbm *DatabaseModule) Col(name string) *mongo.Collection {
+	db := dbm.DB()
+	if db == nil {
+		dbm.logger.Error("Cannot get collection: default database instance is nil", "collection", name)
+		return nil
+	}
+	return db.Collection(name)
+}
+
+// ColFrom CollectionFrom returns a collection from a specific database connection
+func (dbm *DatabaseModule) ColFrom(connectionName, collectionName string) (*mongo.Collection, error) {
+	db, err := dbm.Connection(connectionName)
+	if err != nil {
+		return nil, err
+	}
+	return db.Collection(collectionName), nil
 }
 
 // Provide returns the MONGODB instance for Fx

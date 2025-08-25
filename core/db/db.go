@@ -3,9 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
-	"gorm.io/gorm"
 	"strings" // Added for strings.ToUpper
 	"sync"
+
+	"gorm.io/gorm"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
@@ -97,7 +98,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 			"connection_config_name", defaultConnectionName,
 			"error", err.Error(),
 		)
-		// Allow app to start, Instance() will return nil.
+		// Allow app to start, DB() will return nil.
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
