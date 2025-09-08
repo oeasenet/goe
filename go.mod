@@ -1,22 +1,20 @@
 module go.oease.dev/goe/v2
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.25.0
 
 replace github.com/gofiber/storage/testhelpers/redis v0.0.0-00010101000000-000000000000 => github.com/gofiber/storage/testhelpers/redis v0.0.0-20250812164253-52f9c30759a4
 
 require (
 	github.com/bytedance/sonic v1.14.0
 	github.com/go-playground/validator/v10 v10.27.0
-	github.com/gofiber/fiber/v3 v3.0.0-beta.5
+	github.com/gofiber/fiber/v3 v3.0.0-rc.1
 	github.com/gofiber/storage/memory/v2 v2.1.0
-	github.com/gofiber/storage/rueidis v1.3.0
+	github.com/gofiber/storage/rueidis v1.3.1
 	github.com/gofiber/template/html/v2 v2.1.3
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.12.1
 	github.com/rs/xid v1.6.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	go.mongodb.org/mongo-driver/v2 v2.3.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
