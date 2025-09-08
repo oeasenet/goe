@@ -7,7 +7,7 @@ toolchain go1.24.4
 replace github.com/gofiber/storage/testhelpers/redis v0.0.0-00010101000000-000000000000 => github.com/gofiber/storage/testhelpers/redis v0.0.0-20250812164253-52f9c30759a4
 
 require (
-	github.com/bytedance/sonic v1.14.0
+	github.com/bytedance/sonic v1.14.1
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/fiber/v3 v3.0.0-beta.5
 	github.com/gofiber/storage/memory/v2 v2.1.0
@@ -31,6 +31,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
