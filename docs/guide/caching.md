@@ -17,7 +17,7 @@ The caching module in GOE:
 GOE currently supports the following cache drivers:
 
 - **Memory**: In-memory cache using Fiber's memory storage (default)
-- **Redis**: Redis-based caching using the Rueidis client
+- **Redis**: Redis-based caching using the go-redis client with support for single instance, cluster, and failover modes
 
 > **Note**: While GOE's architecture supports additional drivers, currently only memory and Redis are implemented. Support for other drivers like SQLite, PostgreSQL, MySQL, MongoDB, and filesystem may be added in future versions.
 
@@ -40,10 +40,29 @@ When using Redis as the cache driver:
 
 ```bash
 CACHE_DRIVER=redis
+
+# Single instance configuration
 CACHE_REDIS_HOST=localhost
 CACHE_REDIS_PORT=6379
 CACHE_REDIS_PASSWORD=
-CACHE_REDIS_DB=0
+CACHE_REDIS_DATABASE=0
+CACHE_REDIS_USERNAME=
+CACHE_REDIS_CLIENT_NAME=
+
+# OR use URL connection string
+CACHE_REDIS_URL=redis://username:password@localhost:6379/0
+
+# Cluster mode configuration
+CACHE_REDIS_ADDRS=localhost:7000,localhost:7001,localhost:7002
+CACHE_REDIS_IS_CLUSTER_MODE=true
+
+# Failover configuration (Redis Sentinel)
+CACHE_REDIS_MASTER_NAME=mymaster
+CACHE_REDIS_ADDRS=localhost:26379,localhost:26380,localhost:26381
+
+# Performance tuning
+CACHE_REDIS_POOL_SIZE=10
+CACHE_REDIS_RESET=false  # Clear existing keys on startup
 ```
 
 ### Multiple Cache Stores
@@ -56,6 +75,8 @@ CACHE_DRIVER=memory
 
 # Redis store for sessions
 CACHE_SESSIONS_DRIVER=redis
+CACHE_SESSIONS_REDIS_HOST=localhost
+CACHE_SESSIONS_REDIS_PORT=6379
 CACHE_SESSIONS_PREFIX=sess_
 CACHE_SESSIONS_TTL=1h
 

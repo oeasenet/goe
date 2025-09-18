@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/storage/memory/v2"
-	"github.com/gofiber/storage/rueidis"
+	"github.com/gofiber/storage/redis/v3"
 	"go.oease.dev/goe/v2/contract"
 )
 
@@ -22,10 +22,10 @@ func MemoryStoreFactory(config contract.Config) (contract.CacheStore, error) {
 	}), nil
 }
 
-// RedisStoreFactory creates Fiber Redis store instances using rueidis
+// RedisStoreFactory creates Fiber Redis store instances
 func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
 	// Build Redis configuration from environment
-	redisConfig := rueidis.Config{
+	redisConfig := redis.Config{
 		Reset: config.GetBool("CACHE_REDIS_RESET"),
 	}
 
@@ -34,12 +34,17 @@ func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
 		redisConfig.URL = url
 	} else {
 		// Use individual configuration
-		hosts := config.GetStringSlice("CACHE_REDIS_HOSTS")
-		if len(hosts) == 0 {
-			// Default to localhost:6379
-			hosts = []string{"localhost:6379"}
+		host := config.GetString("CACHE_REDIS_HOST")
+		if host == "" {
+			host = "127.0.0.1"
 		}
-		redisConfig.InitAddress = hosts
+		redisConfig.Host = host
+
+		port := config.GetInt("CACHE_REDIS_PORT")
+		if port == 0 {
+			port = 6379
+		}
+		redisConfig.Port = port
 
 		if username := config.GetString("CACHE_REDIS_USERNAME"); username != "" {
 			redisConfig.Username = username
@@ -53,36 +58,29 @@ func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
 			redisConfig.ClientName = clientName
 		}
 
-		redisConfig.SelectDB = config.GetInt("CACHE_REDIS_DATABASE")
+		redisConfig.Database = config.GetInt("CACHE_REDIS_DATABASE")
+
+		// Check for cluster mode with multiple hosts
+		hosts := config.GetStringSlice("CACHE_REDIS_ADDRS")
+		if len(hosts) > 0 {
+			redisConfig.Addrs = hosts
+		}
+
+		// Failover configuration
+		if masterName := config.GetString("CACHE_REDIS_MASTER_NAME"); masterName != "" {
+			redisConfig.MasterName = masterName
+		}
 	}
 
-	// Advanced configuration
-	if cacheSize := config.GetInt("CACHE_REDIS_CACHE_SIZE"); cacheSize > 0 {
-		redisConfig.CacheSizeEachConn = cacheSize
+	// Pool size configuration
+	if poolSize := config.GetInt("CACHE_REDIS_POOL_SIZE"); poolSize > 0 {
+		redisConfig.PoolSize = poolSize
 	}
 
-	if blockingPoolSize := config.GetInt("CACHE_REDIS_BLOCKING_POOL_SIZE"); blockingPoolSize > 0 {
-		redisConfig.BlockingPoolSize = blockingPoolSize
-	}
+	// Cluster mode
+	redisConfig.IsClusterMode = config.GetBool("CACHE_REDIS_IS_CLUSTER_MODE")
 
-	if pipelineMultiplex := config.GetInt("CACHE_REDIS_PIPELINE_MULTIPLEX"); pipelineMultiplex > 0 {
-		redisConfig.PipelineMultiplex = pipelineMultiplex
-	}
-
-	redisConfig.DisableRetry = config.GetBool("CACHE_REDIS_DISABLE_RETRY")
-	redisConfig.DisableCache = config.GetBool("CACHE_REDIS_DISABLE_CACHE")
-	redisConfig.AlwaysPipelining = config.GetBool("CACHE_REDIS_ALWAYS_PIPELINING")
-	if !config.Has("CACHE_REDIS_ALWAYS_PIPELINING") {
-		redisConfig.AlwaysPipelining = true // Default to true
-	}
-
-	if cacheTTL := config.GetDuration("CACHE_REDIS_CACHE_TTL"); cacheTTL > 0 {
-		redisConfig.CacheTTL = cacheTTL
-	} else {
-		redisConfig.CacheTTL = time.Minute // Default
-	}
-
-	return rueidis.New(redisConfig), nil
+	return redis.New(redisConfig), nil
 }
 
 // RegisterBuiltinDrivers registers all built-in cache drivers
@@ -90,7 +88,6 @@ func RegisterBuiltinDrivers(manager contract.CacheManager) {
 	// Register Fiber storage drivers
 	manager.Extend("memory", MemoryStoreFactory)
 	manager.Extend("redis", RedisStoreFactory)
-	manager.Extend("rueidis", RedisStoreFactory) // Alias for redis
 }
 
 // GetDriverInfo returns information about available drivers
@@ -98,8 +95,8 @@ func GetDriverInfo(driver string) string {
 	switch driver {
 	case "memory":
 		return "Fiber in-memory storage with automatic garbage collection"
-	case "redis", "rueidis":
-		return "Fiber Redis storage using rueidis client with auto-pipelining and client-side caching"
+	case "redis":
+		return "Fiber Redis storage using go-redis client with connection pooling and cluster support"
 	default:
 		return fmt.Sprintf("Unknown driver: %s", driver)
 	}
