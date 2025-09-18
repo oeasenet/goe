@@ -18,13 +18,25 @@ COVERAGE_MODE=atomic
 # Default target
 all: test
 
-# Run tests
+# Run unit tests only (excludes integration tests)
 test:
 	$(GOTEST) -v -race $(TEST_PACKAGES)
 
-# Run tests with coverage
+# Run integration tests (requires external services like Redis)
+test_integration:
+	$(GOTEST) -v -race -tags=integration $(TEST_PACKAGES)
+
+# Run all tests (unit + integration)
+test_all:
+	$(GOTEST) -v -race -tags=integration $(TEST_PACKAGES)
+
+# Run tests with coverage (unit tests only)
 test_coverage:
 	$(GOTEST) -v -race -coverprofile=$(COVERAGE_FILE) -covermode=$(COVERAGE_MODE) $(TEST_PACKAGES)
+
+# Run tests with coverage including integration tests
+test_coverage_all:
+	$(GOTEST) -v -race -tags=integration -coverprofile=$(COVERAGE_FILE) -covermode=$(COVERAGE_MODE) $(TEST_PACKAGES)
 
 # Run tests with coverage and generate HTML report
 test_coverage_html: test_coverage
@@ -76,8 +88,11 @@ ci: verify fmt vet test_coverage
 
 help:
 	@echo "Available targets:"
-	@echo "  test           - Run tests"
-	@echo "  test_coverage  - Run tests with coverage"
+	@echo "  test           - Run unit tests only (excludes integration tests)"
+	@echo "  test_integration - Run integration tests (requires external services)"
+	@echo "  test_all       - Run all tests (unit + integration)"
+	@echo "  test_coverage  - Run unit tests with coverage"
+	@echo "  test_coverage_all - Run all tests with coverage"
 	@echo "  test_coverage_html - Run tests with coverage and generate HTML report"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  fmt            - Format code"
