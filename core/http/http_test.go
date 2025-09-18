@@ -975,7 +975,7 @@ func TestHTTP_RequestResponseFlow(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-		assert.Equal(t, fiber.MIMEApplicationJSON, resp.Header.Get("Content-Type"))
+		assert.Equal(t, fiber.MIMEApplicationJSONCharsetUTF8, resp.Header.Get("Content-Type"))
 
 		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)

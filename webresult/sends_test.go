@@ -282,7 +282,7 @@ func TestSendSucceed(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-			assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -364,7 +364,7 @@ func TestSendFailed(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-			assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
