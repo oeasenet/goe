@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/bytedance/sonic v1.14.1
 	github.com/go-playground/validator/v10 v10.27.0
-	github.com/gofiber/fiber/v3 v3.0.0-rc.1
+	github.com/gofiber/fiber/v3 v3.0.0-rc.2
 	github.com/gofiber/storage/memory/v2 v2.1.0
 	github.com/gofiber/storage/redis/v3 v3.4.1
 	github.com/gofiber/template/html/v2 v2.1.3
