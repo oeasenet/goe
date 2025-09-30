@@ -1,13 +1,13 @@
 # Getting Started with GOE
 
-This guide will walk you through installing GOE, setting up your first project, and running a basic "Hello, World" HTTP server. We'll also explore the modular architecture and show you different ways to structure your application.
+This guide will walk you through installing GOE, setting up your first project, and running a basic "Hello, World" HTTP
+server. We'll also explore the modular architecture and show you different ways to structure your application.
 
 ## Prerequisites
 
-*   **Go**: GOE requires Go version 1.21 or newer (recommended: 1.23+). You can download it from [golang.org](https://golang.org/dl/).
-    *   To check your Go version: `go version`
-
-> **Note**: The project currently specifies Go 1.24 in go.mod, but this version doesn't exist yet. The framework should work with Go 1.21+ and has been tested with Go 1.23.
+* **Go**: GOE requires Go version 1.24 or newer (1.25 is recommended). You can download it
+  from [golang.org](https://golang.org/dl/).
+    * To check your Go version: `go version`
 
 ## Installation
 
@@ -30,26 +30,27 @@ Before diving into code, let's understand GOE's key concepts:
 
 ## Creating Your First Project
 
-1.  **Create a project directory:**
-    ```bash
-    mkdir goe-hello-world
-    cd goe-hello-world
-    ```
+1. **Create a project directory:**
+   ```bash
+   mkdir goe-hello-world
+   cd goe-hello-world
+   ```
 
-2.  **Initialize Go modules:**
-    ```bash
-    go mod init example.com/goe-hello-world
-    # Replace example.com/goe-hello-world with your actual module path
-    ```
+2. **Initialize Go modules:**
+   ```bash
+   go mod init example.com/goe-hello-world
+   # Replace example.com/goe-hello-world with your actual module path
+   ```
 
-3.  **Install GOE (if not already done globally or for another project):**
-    ```bash
-    go get go.oease.dev/goe/v2
-    ```
+3. **Install GOE (if not already done globally or for another project):**
+   ```bash
+   go get go.oease.dev/goe/v2
+   ```
 
 ## Hello, World! - Your First GOE Application
 
-Let's create a simple HTTP server that responds with "Hello, World!". We'll show you two approaches: using global accessors (simple) and dependency injection (recommended for larger applications).
+Let's create a simple HTTP server that responds with "Hello, World!". We'll show you two approaches: using global
+accessors (simple) and dependency injection (recommended for larger applications).
 
 ### Approach 1: Simple Global Accessors
 
@@ -98,7 +99,7 @@ import (
 func main() {
 	// Initialize GOE with HTTP module and route registration
 	goe.New(goe.Options{
-		WithHTTP:  true,
+		WithHTTP: true,
 		Invokers: []any{RegisterRoutes},
 	})
 
@@ -118,7 +119,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"status": "healthy",
+			"status":  "healthy",
 			"service": "goe-app",
 		})
 	})
@@ -130,6 +131,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 **Key Concepts Explained:**
 
 ### Approach 1 (Global Accessors)
+
 - **`goe.New()`**: Initializes the application with specified modules
 - **`WithHTTP: true`**: Enables the HTTP server module (built on GoFiber)
 - **`goe.HTTP().App()`**: Gets the underlying Fiber app instance for route registration
@@ -137,6 +139,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 - **`goe.Run()`**: Starts all modules and blocks until shutdown
 
 ### Approach 2 (Dependency Injection)
+
 - **`Invokers`**: Functions called during startup with automatic dependency injection
 - **`contract.HTTPKernel`**: Interface for HTTP server operations
 - **`contract.Logger`**: Interface for structured logging
@@ -145,6 +148,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 ### Benefits of Each Approach
 
 **Global Accessors** (Approach 1):
+
 - ✅ Simple and quick for small applications
 - ✅ Less boilerplate code
 - ✅ Easy to understand for beginners
@@ -152,6 +156,7 @@ func RegisterRoutes(httpKernel contract.HTTPKernel, logger contract.Logger) {
 - ❌ Less explicit dependencies
 
 **Dependency Injection** (Approach 2):
+
 - ✅ Better for larger applications
 - ✅ Easier to test (mockable dependencies)
 - ✅ Explicit dependency management
@@ -228,8 +233,8 @@ appName := goe.Config().GetString("APP_NAME")
 
 // Using dependency injection
 func MyService(config contract.Config) *Service {
-    port := config.GetInt("HTTP_PORT")
-    return &Service{port: port}
+port := config.GetInt("HTTP_PORT")
+return &Service{port: port}
 }
 ```
 
@@ -239,17 +244,17 @@ Enable additional modules as needed:
 
 ```go
 app := goe.New(goe.Options{
-    WithHTTP:  true,  // Web server
-    WithCache: true,  // Caching system
-    WithDB:    true,  // Database integration
-    Providers: []any{
-        NewUserService,    // Your custom services
-        NewOrderService,
-    },
-    Invokers: []any{
-        RegisterRoutes,    // Route registration
-        SetupMiddleware,   // Middleware setup
-    },
+WithHTTP:  true, // Web server
+WithCache: true, // Caching system
+WithDB:    true, // Database integration
+Providers: []any{
+NewUserService, // Your custom services
+NewOrderService,
+},
+Invokers: []any{
+RegisterRoutes, // Route registration
+SetupMiddleware, // Middleware setup
+},
 })
 ```
 
@@ -259,17 +264,17 @@ GOE makes testing easy with dependency injection:
 
 ```go
 func TestUserService(t *testing.T) {
-    // Create mocks
-    mockDB := &MockDB{}
-    mockLogger := &MockLogger{}
+// Create mocks
+mockDB := &MockDB{}
+mockLogger := &MockLogger{}
 
-    // Create service with mocked dependencies
-    service := NewUserService(mockDB, mockLogger)
+// Create service with mocked dependencies
+service := NewUserService(mockDB, mockLogger)
 
-    // Test your service
-    user, err := service.GetUser("123")
-    assert.NoError(t, err)
-    assert.Equal(t, "John", user.Name)
+// Test your service
+user, err := service.GetUser("123")
+assert.NoError(t, err)
+assert.Equal(t, "John", user.Name)
 }
 ```
 
@@ -278,23 +283,28 @@ func TestUserService(t *testing.T) {
 Congratulations! You've successfully created your first GOE application. Here's what to explore next:
 
 ### Core Concepts
+
 - [Project Structure](./project-structure.md) - Organize your GOE projects effectively
 - [Architecture](./architecture.md) - Understand GOE's design principles
 - [Configuration](./configuration.md) - Master environment and config management
 
 ### Essential Components
+
 - [Logging](./logging.md) - Structured logging with Zap
 - [HTTP Server](./http-server.md) - Build robust web applications
 - [Database](./database.md) - GORM integration and best practices
 - [Caching](./caching.md) - Improve performance with caching
 
 ### Advanced Topics
+
 - [Modules](./modules.md) - Create custom modules
 - [Dependency Injection](./dependency-injection.md) - Master Fx patterns
 - [Testing](./testing.md) - Comprehensive testing strategies
 
 ### Production Ready
+
 - [Best Practices](./best-practices.md) - Production-ready development
 - [Deployment](./deployment.md) - Deploy your GOE applications
 
-Ready to dive deeper? Start with [Project Structure](./project-structure.md) to learn how to organize larger applications!
+Ready to dive deeper? Start with [Project Structure](./project-structure.md) to learn how to organize larger
+applications!
