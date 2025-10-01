@@ -1,6 +1,7 @@
 # MongoDB Integration
 
-GOE provides seamless MongoDB integration with a clean, simple contract interface. The MongoDB module handles connection management and provides direct access to the native MongoDB driver.
+GOE provides seamless MongoDB integration with a clean, simple contract interface. The MongoDB module handles connection
+management and provides direct access to the native MongoDB driver.
 
 ## Table of Contents
 
@@ -23,15 +24,15 @@ Enable MongoDB support in your GOE application:
 package main
 
 import (
-    "go.oease.dev/goe/v2"
+	"go.oease.dev/goe/v2"
 )
 
 func main() {
-    goe.New(goe.Options{
-        WithMongoDB: true, // Enable MongoDB integration
-    })
-    
-    goe.Run()
+	goe.New(goe.Options{
+		WithMongoDB: true, // Enable MongoDB integration
+	})
+
+	goe.Run()
 }
 ```
 
@@ -48,30 +49,30 @@ MONGO_DATABASE=myapp_db
 
 ```go
 import (
-    "context"
-    "go.mongodb.org/mongo-driver/v2/bson"
-    "go.oease.dev/goe/v2/contract"
-    "go.oease.dev/goe/v2/core/mongodb"
+"context"
+"go.mongodb.org/mongo-driver/v2/bson"
+"go.oease.dev/goe/v2/contract"
+"go.oease.dev/goe/v2/core/mongodb"
 )
 
 type UserService struct {
-    db contract.MongoDB
+db contract.MongoDB
 }
 
 func (s *UserService) CreateUser(name, email string) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    // Direct access to MongoDB collection
-    collection := s.db.Collection("users")
-    
-    user := bson.M{
-        "name":  name,
-        "email": email,
-    }
-    
-    _, err := collection.InsertOne(ctx, user)
-    return err
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+// Direct access to MongoDB collection
+collection := s.db.Collection("users")
+
+user := bson.M{
+"name":  name,
+"email": email,
+}
+
+_, err := collection.InsertOne(ctx, user)
+return err
 }
 ```
 
@@ -79,15 +80,15 @@ func (s *UserService) CreateUser(name, email string) error {
 
 ### Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MONGO_URI` | Yes | - | MongoDB connection string |
-| `MONGO_DATABASE` | Yes | - | Default database name |
-| `MONGO_DB_CONNECTION` | No | `default` | Default connection name |
-| `MONGO_DB_CONNECTIONS` | No | - | Additional named connections (comma-separated) |
-| `MONGO_TIMEOUT` | No | `10s` | Connection timeout |
-| `MONGO_MIN_POOL_SIZE` | No | `5` | Minimum connection pool size |
-| `MONGO_MAX_POOL_SIZE` | No | `100` | Maximum connection pool size |
+| Variable              | Required | Default   | Description                                    |
+|-----------------------|----------|-----------|------------------------------------------------|
+| `MONGO_URI`           | Yes      | -         | MongoDB connection string                      |
+| `MONGO_DB_NAME`       | Yes      | -         | Default database name                          |
+| `MONGO_CONNECTION`    | No       | `default` | Default connection name                        |
+| `MONGO_CONNECTIONS`   | No       | -         | Additional named connections (comma-separated) |
+| `MONGO_TIMEOUT`       | No       | `10s`     | Connection timeout                             |
+| `MONGO_MIN_POOL_SIZE` | No       | `5`       | Minimum connection pool size                   |
+| `MONGO_MAX_POOL_SIZE` | No       | `100`     | Maximum connection pool size                   |
 
 ### Single Database Configuration
 
@@ -101,10 +102,10 @@ MONGO_DATABASE=myapp_production
 ```env
 # Default connection
 MONGO_URI=mongodb://localhost:27017
-MONGO_DATABASE=myapp_production
+MONGO_DB_NAME=myapp_production
 
 # Additional connections
-MONGO_DB_CONNECTIONS=analytics,logs
+MONGO_CONNECTIONS=analytics,logs
 
 # Analytics connection
 MONGO_ANALYTICS_URI=mongodb://analytics.example.com:27017
@@ -123,20 +124,20 @@ The MongoDB contract provides clean, direct access to MongoDB functionality:
 
 ```go
 type MongoDB interface {
-    // Client returns the underlying MongoDB client for advanced operations
-    Client() *mongo.Client
+// Client returns the underlying MongoDB client for advanced operations
+Client() *mongo.Client
 
-    // Instance returns the default database instance
-    Instance() *mongo.Database
+// Instance returns the default database instance
+Instance() *mongo.Database
 
-    // Connection returns a specific database instance by connection name
-    Connection(name string) (*mongo.Database, error)
-    
-    // Collection returns a collection from the default database
-    Collection(name string) *mongo.Collection
-    
-    // CollectionFrom returns a collection from a specific database connection
-    CollectionFrom(connectionName, collectionName string) (*mongo.Collection, error)
+// Connection returns a specific database instance by connection name
+Connection(name string) (*mongo.Database, error)
+
+// Collection returns a collection from the default database
+Collection(name string) *mongo.Collection
+
+// CollectionFrom returns a collection from a specific database connection
+CollectionFrom(connectionName, collectionName string) (*mongo.Collection, error)
 }
 ```
 
@@ -144,47 +145,47 @@ type MongoDB interface {
 
 ```go
 type UserService struct {
-    db contract.MongoDB
+db contract.MongoDB
 }
 
 func (s *UserService) CreateUser(user *User) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    _, err := collection.InsertOne(ctx, user)
-    return err
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+_, err := collection.InsertOne(ctx, user)
+return err
 }
 
 func (s *UserService) GetUser(id string) (*User, error) {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    var user User
-    err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
-    if err != nil {
-        return nil, err
-    }
-    return &user, nil
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+var user User
+err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+if err != nil {
+return nil, err
+}
+return &user, nil
 }
 
 func (s *UserService) UpdateUser(id string, updates bson.M) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    _, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": updates})
-    return err
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+_, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": updates})
+return err
 }
 
 func (s *UserService) DeleteUser(id string) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    _, err := collection.DeleteOne(ctx, bson.M{"_id": id})
-    return err
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+_, err := collection.DeleteOne(ctx, bson.M{"_id": id})
+return err
 }
 ```
 
@@ -192,58 +193,58 @@ func (s *UserService) DeleteUser(id string) error {
 
 ```go
 func (s *UserService) GetActiveUsers() ([]*User, error) {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    
-    // Complex query with options
-    opts := options.Find().SetSort(bson.D{{"created_at", -1}}).SetLimit(100)
-    cursor, err := collection.Find(ctx, bson.M{"active": true}, opts)
-    if err != nil {
-        return nil, err
-    }
-    defer cursor.Close(ctx)
-    
-    var users []*User
-    if err := cursor.All(ctx, &users); err != nil {
-        return nil, err
-    }
-    
-    return users, nil
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+
+// Complex query with options
+opts := options.Find().SetSort(bson.D{{"created_at", -1}}).SetLimit(100)
+cursor, err := collection.Find(ctx, bson.M{"active": true}, opts)
+if err != nil {
+return nil, err
+}
+defer cursor.Close(ctx)
+
+var users []*User
+if err := cursor.All(ctx, &users); err != nil {
+return nil, err
+}
+
+return users, nil
 }
 
 func (s *UserService) GetUserStats() (*UserStats, error) {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    
-    // Aggregation pipeline
-    pipeline := mongo.Pipeline{
-        {{"$group", bson.D{
-            {"_id", nil},
-            {"total", bson.D{{"$sum", 1}}},
-            {"active", bson.D{{"$sum", bson.D{{"$cond", bson.A{"$active", 1, 0}}}}}},
-        }}},
-    }
-    
-    cursor, err := collection.Aggregate(ctx, pipeline)
-    if err != nil {
-        return nil, err
-    }
-    defer cursor.Close(ctx)
-    
-    var results []UserStats
-    if err := cursor.All(ctx, &results); err != nil {
-        return nil, err
-    }
-    
-    if len(results) == 0 {
-        return &UserStats{}, nil
-    }
-    
-    return &results[0], nil
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+collection := s.db.Collection("users")
+
+// Aggregation pipeline
+pipeline := mongo.Pipeline{
+{{"$group", bson.D{
+{"_id", nil},
+{"total", bson.D{{"$sum", 1}}},
+{"active", bson.D{{"$sum", bson.D{{"$cond", bson.A{"$active", 1, 0}}}}}},
+}}},
+}
+
+cursor, err := collection.Aggregate(ctx, pipeline)
+if err != nil {
+return nil, err
+}
+defer cursor.Close(ctx)
+
+var results []UserStats
+if err := cursor.All(ctx, &results); err != nil {
+return nil, err
+}
+
+if len(results) == 0 {
+return &UserStats{}, nil
+}
+
+return &results[0], nil
 }
 ```
 
@@ -253,30 +254,30 @@ Use named connections for different databases:
 
 ```go
 type AnalyticsService struct {
-    db contract.MongoDB
+db contract.MongoDB
 }
 
 func (s *AnalyticsService) LogEvent(event *Event) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    // Use analytics connection
-    collection, err := s.db.CollectionFrom("analytics", "events")
-    if err != nil {
-        return err
-    }
-    
-    _, err = collection.InsertOne(ctx, event)
-    return err
+ctx, cancel := mongodb.DefaultContext()
+defer cancel()
+
+// Use analytics connection
+collection, err := s.db.CollectionFrom("analytics", "events")
+if err != nil {
+return err
+}
+
+_, err = collection.InsertOne(ctx, event)
+return err
 }
 
 func (s *AnalyticsService) GetDatabase() *mongo.Database {
-    // Get specific database connection
-    db, err := s.db.Connection("analytics")
-    if err != nil {
-        return nil
-    }
-    return db
+// Get specific database connection
+db, err := s.db.Connection("analytics")
+if err != nil {
+return nil
+}
+return db
 }
 ```
 
@@ -302,16 +303,16 @@ defer cancel()
 
 ```go
 if err := collection.FindOne(ctx, filter).Decode(&result); err != nil {
-    if mongodb.IsNoDocumentsError(err) {
-        return nil, ErrUserNotFound
-    }
-    if mongodb.IsDuplicateKeyError(err) {
-        return nil, ErrUserExists
-    }
-    if mongodb.IsTimeout(err) {
-        return nil, ErrTimeout
-    }
-    return nil, err
+if mongodb.IsNoDocumentsError(err) {
+return nil, ErrUserNotFound
+}
+if mongodb.IsDuplicateKeyError(err) {
+return nil, ErrUserExists
+}
+if mongodb.IsTimeout(err) {
+return nil, ErrTimeout
+}
+return nil, err
 }
 ```
 
@@ -329,8 +330,8 @@ textIndex := mongodb.BuildTextIndex([]string{"title", "content"}, "search_index"
 
 // Create compound index
 compoundIndex := mongodb.BuildCompoundIndex(map[string]int{
-    "user_id": 1,
-    "created_at": -1,
+"user_id": 1,
+"created_at": -1,
 }, "user_timeline")
 
 // Create TTL index
@@ -338,9 +339,9 @@ ttlIndex := mongodb.BuildTTLIndex("expires_at", 24*time.Hour, "session_ttl")
 
 // Apply indexes
 err := mongodb.EnsureIndexes(ctx, collection, []mongo.IndexModel{
-    indexModel,
-    uniqueIndex,
-    textIndex,
+indexModel,
+uniqueIndex,
+textIndex,
 })
 ```
 
@@ -349,52 +350,52 @@ err := mongodb.EnsureIndexes(ctx, collection, []mongo.IndexModel{
 ```go
 // Create bulk write models
 models := []mongo.WriteModel{
-    mongodb.CreateInsertOneModel(user1),
-    mongodb.CreateUpdateOneModel(
-        bson.M{"_id": user2.ID}, 
-        bson.M{"$set": bson.M{"last_login": time.Now()}},
-    ),
-    mongodb.CreateDeleteOneModel(bson.M{"_id": oldUserID}),
+mongodb.CreateInsertOneModel(user1),
+mongodb.CreateUpdateOneModel(
+bson.M{"_id": user2.ID},
+bson.M{"$set": bson.M{"last_login": time.Now()}},
+),
+mongodb.CreateDeleteOneModel(bson.M{"_id": oldUserID}),
 }
 
 // Execute bulk operation
 result, err := collection.BulkWrite(ctx, models)
 if err != nil {
-    return err
+return err
 }
 
-fmt.Printf("Inserted: %d, Modified: %d, Deleted: %d\n", 
-    result.InsertedCount, result.ModifiedCount, result.DeletedCount)
+fmt.Printf("Inserted: %d, Modified: %d, Deleted: %d\n",
+result.InsertedCount, result.ModifiedCount, result.DeletedCount)
 ```
 
 ### Transactions
 
 ```go
 func (s *UserService) TransferCredits(fromID, toID string, amount int) error {
-    client := s.db.Client()
-    if client == nil {
-        return errors.New("MongoDB client not available")
-    }
-    
-    return mongodb.WithTransaction(ctx, client, func(sessCtx context.Context) error {
-        users := s.db.Collection("users")
-        
-        // Deduct from sender
-        _, err := users.UpdateOne(sessCtx,
-            bson.M{"_id": fromID},
-            bson.M{"$inc": bson.M{"credits": -amount}},
-        )
-        if err != nil {
-            return err
-        }
-        
-        // Add to receiver
-        _, err = users.UpdateOne(sessCtx,
-            bson.M{"_id": toID}, 
-            bson.M{"$inc": bson.M{"credits": amount}},
-        )
-        return err
-    })
+client := s.db.Client()
+if client == nil {
+return errors.New("MongoDB client not available")
+}
+
+return mongodb.WithTransaction(ctx, client, func (sessCtx context.Context) error {
+users := s.db.Collection("users")
+
+// Deduct from sender
+_, err := users.UpdateOne(sessCtx,
+bson.M{"_id": fromID},
+bson.M{"$inc": bson.M{"credits": -amount}},
+)
+if err != nil {
+return err
+}
+
+// Add to receiver
+_, err = users.UpdateOne(sessCtx,
+bson.M{"_id": toID},
+bson.M{"$inc": bson.M{"credits": amount}},
+)
+return err
+})
 }
 ```
 
@@ -416,17 +417,17 @@ defer cancel()
 
 ```go
 if err := collection.FindOne(ctx, filter).Decode(&result); err != nil {
-    if mongodb.IsNoDocumentsError(err) {
-        // Handle not found case
-        return nil, ErrNotFound
-    }
-    if mongodb.IsDuplicateKeyError(err) {
-        // Handle duplicate key
-        return nil, ErrAlreadyExists  
-    }
-    // Log and return other errors
-    logger.Error("MongoDB operation failed", "error", err)
-    return nil, err
+if mongodb.IsNoDocumentsError(err) {
+// Handle not found case
+return nil, ErrNotFound
+}
+if mongodb.IsDuplicateKeyError(err) {
+// Handle duplicate key
+return nil, ErrAlreadyExists
+}
+// Log and return other errors
+logger.Error("MongoDB operation failed", "error", err)
+return nil, err
 }
 ```
 
@@ -435,18 +436,18 @@ if err := collection.FindOne(ctx, filter).Decode(&result); err != nil {
 ```go
 // Inject the MongoDB contract
 func NewUserService(db contract.MongoDB, logger contract.Logger) *UserService {
-    return &UserService{
-        db:     db,
-        logger: logger,
-    }
+return &UserService{
+db:     db,
+logger: logger,
+}
 }
 
 // Register with GOE
 goe.New(goe.Options{
-    WithMongoDB: true,
-    Providers: []any{
-        NewUserService,
-    },
+WithMongoDB: true,
+Providers: []any{
+NewUserService,
+},
 })
 ```
 
@@ -454,15 +455,15 @@ goe.New(goe.Options{
 
 ```go
 func (s *UserService) SetupIndexes(ctx context.Context) error {
-    collection := s.db.Collection("users")
-    
-    indexes := []mongo.IndexModel{
-        mongodb.BuildUniqueIndex(bson.D{{"email", 1}}, "unique_email"),
-        mongodb.BuildIndexModel(bson.D{{"created_at", -1}}),
-        mongodb.BuildTextIndex([]string{"name", "bio"}, "user_search"),
-    }
-    
-    return mongodb.EnsureIndexes(ctx, collection, indexes)
+collection := s.db.Collection("users")
+
+indexes := []mongo.IndexModel{
+mongodb.BuildUniqueIndex(bson.D{{"email", 1}}, "unique_email"),
+mongodb.BuildIndexModel(bson.D{{"created_at", -1}}),
+mongodb.BuildTextIndex([]string{"name", "bio"}, "user_search"),
+}
+
+return mongodb.EnsureIndexes(ctx, collection, indexes)
 }
 ```
 
@@ -474,144 +475,144 @@ func (s *UserService) SetupIndexes(ctx context.Context) error {
 package services
 
 import (
-    "context"
-    "errors"
-    "time"
-    
-    "go.mongodb.org/mongo-driver/v2/bson"
-    "go.mongodb.org/mongo-driver/v2/bson/primitive"
-    "go.mongodb.org/mongo-driver/v2/mongo"
-    "go.mongodb.org/mongo-driver/v2/mongo/options"
-    "go.oease.dev/goe/v2/contract"
-    "go.oease.dev/goe/v2/core/mongodb"
+	"context"
+	"errors"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.oease.dev/goe/v2/contract"
+	"go.oease.dev/goe/v2/core/mongodb"
 )
 
 type User struct {
-    ID        primitive.ObjectID `bson:"_id,omitempty"`
-    Username  string            `bson:"username"`
-    Email     string            `bson:"email"`
-    Active    bool              `bson:"active"`
-    CreatedAt time.Time         `bson:"created_at"`
-    UpdatedAt time.Time         `bson:"updated_at"`
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	Username  string             `bson:"username"`
+	Email     string             `bson:"email"`
+	Active    bool               `bson:"active"`
+	CreatedAt time.Time          `bson:"created_at"`
+	UpdatedAt time.Time          `bson:"updated_at"`
 }
 
 type UserService struct {
-    db     contract.MongoDB
-    logger contract.Logger
+	db     contract.MongoDB
+	logger contract.Logger
 }
 
 func NewUserService(db contract.MongoDB, logger contract.Logger) *UserService {
-    return &UserService{
-        db:     db,
-        logger: logger,
-    }
+	return &UserService{
+		db:     db,
+		logger: logger,
+	}
 }
 
 func (s *UserService) Initialize(ctx context.Context) error {
-    collection := s.db.Collection("users")
-    
-    indexes := []mongo.IndexModel{
-        mongodb.BuildUniqueIndex(bson.D{{"email", 1}}, "unique_email"),
-        mongodb.BuildUniqueIndex(bson.D{{"username", 1}}, "unique_username"),
-        mongodb.BuildIndexModel(bson.D{{"active", 1}, {"created_at", -1}}),
-    }
-    
-    return mongodb.EnsureIndexes(ctx, collection, indexes)
+	collection := s.db.Collection("users")
+
+	indexes := []mongo.IndexModel{
+		mongodb.BuildUniqueIndex(bson.D{{"email", 1}}, "unique_email"),
+		mongodb.BuildUniqueIndex(bson.D{{"username", 1}}, "unique_username"),
+		mongodb.BuildIndexModel(bson.D{{"active", 1}, {"created_at", -1}}),
+	}
+
+	return mongodb.EnsureIndexes(ctx, collection, indexes)
 }
 
 func (s *UserService) Create(user *User) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    user.ID = primitive.NewObjectID()
-    user.CreatedAt = time.Now()
-    user.UpdatedAt = time.Now()
-    user.Active = true
-    
-    collection := s.db.Collection("users")
-    _, err := collection.InsertOne(ctx, user)
-    
-    if mongodb.IsDuplicateKeyError(err) {
-        return errors.New("user already exists")
-    }
-    
-    return err
+	ctx, cancel := mongodb.DefaultContext()
+	defer cancel()
+
+	user.ID = primitive.NewObjectID()
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
+	user.Active = true
+
+	collection := s.db.Collection("users")
+	_, err := collection.InsertOne(ctx, user)
+
+	if mongodb.IsDuplicateKeyError(err) {
+		return errors.New("user already exists")
+	}
+
+	return err
 }
 
 func (s *UserService) GetByID(id string) (*User, error) {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    objectID, err := primitive.ObjectIDFromHex(id)
-    if err != nil {
-        return nil, errors.New("invalid user ID")
-    }
-    
-    collection := s.db.Collection("users")
-    var user User
-    
-    err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
-    if mongodb.IsNoDocumentsError(err) {
-        return nil, errors.New("user not found")
-    }
-    if err != nil {
-        return nil, err
-    }
-    
-    return &user, nil
+	ctx, cancel := mongodb.DefaultContext()
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	collection := s.db.Collection("users")
+	var user User
+
+	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
+	if mongodb.IsNoDocumentsError(err) {
+		return nil, errors.New("user not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 func (s *UserService) Update(id string, updates bson.M) error {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    objectID, err := primitive.ObjectIDFromHex(id)
-    if err != nil {
-        return errors.New("invalid user ID")
-    }
-    
-    updates["updated_at"] = time.Now()
-    
-    collection := s.db.Collection("users")
-    result, err := collection.UpdateOne(ctx, 
-        bson.M{"_id": objectID},
-        bson.M{"$set": updates},
-    )
-    
-    if err != nil {
-        return err
-    }
-    
-    if result.MatchedCount == 0 {
-        return errors.New("user not found")
-    }
-    
-    return nil
+	ctx, cancel := mongodb.DefaultContext()
+	defer cancel()
+
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+
+	updates["updated_at"] = time.Now()
+
+	collection := s.db.Collection("users")
+	result, err := collection.UpdateOne(ctx,
+		bson.M{"_id": objectID},
+		bson.M{"$set": updates},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
 }
 
 func (s *UserService) List(limit, offset int) ([]*User, error) {
-    ctx, cancel := mongodb.DefaultContext()
-    defer cancel()
-    
-    collection := s.db.Collection("users")
-    
-    opts := options.Find().
-        SetSort(bson.D{{"created_at", -1}}).
-        SetLimit(int64(limit)).
-        SetSkip(int64(offset))
-    
-    cursor, err := collection.Find(ctx, bson.M{"active": true}, opts)
-    if err != nil {
-        return nil, err
-    }
-    defer cursor.Close(ctx)
-    
-    var users []*User
-    if err := cursor.All(ctx, &users); err != nil {
-        return nil, err
-    }
-    
-    return users, nil
+	ctx, cancel := mongodb.DefaultContext()
+	defer cancel()
+
+	collection := s.db.Collection("users")
+
+	opts := options.Find().
+		SetSort(bson.D{{"created_at", -1}}).
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset))
+
+	cursor, err := collection.Find(ctx, bson.M{"active": true}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []*User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 ```
 
@@ -620,6 +621,7 @@ func (s *UserService) List(limit, offset int) ([]*User, error) {
 If upgrading from an older version with wrapper classes:
 
 ### Before (Old API)
+
 ```go
 // Old wrapper approach
 ops := db.Operations("users")
@@ -627,6 +629,7 @@ repo := db.Repository("users").(mongodb.RepositoryFactory).Create[User]()
 ```
 
 ### After (New Simplified API)
+
 ```go  
 // Direct MongoDB driver access
 collection := db.Collection("users")
@@ -635,6 +638,7 @@ database := db.Instance()
 ```
 
 The new approach provides:
+
 - ✅ Direct access to MongoDB driver features
 - ✅ No wrapper overhead
 - ✅ Full MongoDB functionality available

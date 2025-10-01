@@ -37,7 +37,7 @@ func (dbm *DatabaseModule) setMonitor(monitor *event.CommandMonitor) {
 
 // DB Instance returns the underlying MONGO DB instance for the default connection
 func (dbm *DatabaseModule) DB() *mongo.Database {
-	defaultConnectionName := dbm.config.GetString("MONGO_DB_CONNECTION")
+	defaultConnectionName := dbm.config.GetString("MONGO_CONNECTION")
 	if defaultConnectionName == "" {
 		defaultConnectionName = "default"
 	}
@@ -82,7 +82,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	defer dbm.mu.Unlock()
 
 	// Get default connection name
-	defaultConnectionName := dbm.config.GetString("MONGO_DB_CONNECTION")
+	defaultConnectionName := dbm.config.GetString("MONGO_CONNECTION")
 	if defaultConnectionName == "" {
 		defaultConnectionName = "default"
 	}
@@ -107,7 +107,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	}
 
 	// Connect to additional databases if configured
-	connectionsList := dbm.config.GetString("MONGO_DB_CONNECTIONS")
+	connectionsList := dbm.config.GetString("MONGO_CONNECTIONS")
 	if connectionsList != "" {
 		// Split the comma-separated list of connection names
 		connectionNames := strings.Split(connectionsList, ",")

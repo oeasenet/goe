@@ -3,22 +3,23 @@ package mongodb
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.oease.dev/goe/v2/contract"
-	"strings"
 )
 
 // Connect initializes a Mongo DB connection based on the provided configuration prefix.
 // The configuration keys are expected to be like:
-// MONGO_DB_URI, MONGO_DB_DB
+// MONGO_URI, MONGO_DB
 // For a named connection "foo", the keys would be:
-// MONGO_DB_FOO_URI, MONGO_DB_FOO_DB_NAME
+// MONGO_FOO_URI, MONGO_FOO_DB_NAME
 func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
-	configPrefix := "MONGO_DB_"
+	configPrefix := "MONGO_"
 	if name != "default" && name != "" {
-		configPrefix = fmt.Sprintf("MONGO_DB_%s_", strings.ToUpper(name))
+		configPrefix = fmt.Sprintf("MONGO_%s_", strings.ToUpper(name))
 	}
 
 	// get uri and database

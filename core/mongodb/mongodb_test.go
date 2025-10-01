@@ -176,13 +176,13 @@ func setupTestConfig() *MockConfig {
 	config := new(MockConfig)
 
 	// Default connection settings
-	config.On("GetString", "MONGO_DB_CONNECTION").Return("")
-	config.On("GetString", "MONGO_DB_CONNECTIONS").Return("")
-	config.On("GetString", "MONGO_DB_URI").Return("mongodb://localhost:27017/")
-	config.On("GetString", "MONGO_DB_DB_NAME").Return("goe_test")
-	config.On("GetString", "MONGO_DB_MIN_POOL_SIZE").Return("")
-	config.On("GetString", "MONGO_DB_MAX_POOL_SIZE").Return("")
-	config.On("GetString", "MONGO_DB_MAX_CONN_IDLE_TIME").Return("")
+	config.On("GetString", "MONGO_CONNECTION").Return("")
+	config.On("GetString", "MONGO_CONNECTIONS").Return("")
+	config.On("GetString", "MONGO_URI").Return("mongodb://localhost:27017/")
+	config.On("GetString", "MONGO_DB_NAME").Return("goe_test")
+	config.On("GetString", "MONGO_MIN_POOL_SIZE").Return("")
+	config.On("GetString", "MONGO_MAX_POOL_SIZE").Return("")
+	config.On("GetString", "MONGO_MAX_CONN_IDLE_TIME").Return("")
 
 	// For Has method - return false for all config keys
 	config.On("Has", mock.Anything).Return(false)

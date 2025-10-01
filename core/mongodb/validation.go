@@ -12,15 +12,15 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 	v := configvalidator.NewConfigValidator(dbm.config, "mongodb")
 
 	// Get default connection name
-	defaultConnectionName := dbm.config.GetString("MONGO_DB_CONNECTION")
+	defaultConnectionName := dbm.config.GetString("MONGO_CONNECTION")
 	if defaultConnectionName == "" {
 		defaultConnectionName = "default"
 	}
 
 	// Validate default connection
-	configPrefix := "MONGO_DB_"
+	configPrefix := "MONGO_"
 	if defaultConnectionName != "default" {
-		configPrefix = "MONGO_DB_" + defaultConnectionName + "_"
+		configPrefix = "MONGO_" + defaultConnectionName + "_"
 	}
 
 	v.Require(configPrefix+"URI", "MongoDB connection URI")
@@ -38,7 +38,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 	})
 
 	// Validate additional connections if configured
-	connectionsList := dbm.config.GetString("MONGO_DB_CONNECTIONS")
+	connectionsList := dbm.config.GetString("MONGO_CONNECTIONS")
 	if connectionsList != "" {
 		// Parse connection names
 		connectionNames := parseConnectionNames(connectionsList)
@@ -51,7 +51,7 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 			}
 
 			// Validate each additional connection
-			additionalPrefix := "MONGO_DB_" + connName + "_"
+			additionalPrefix := "MONGO_" + connName + "_"
 			v.Require(additionalPrefix+"URI", "MongoDB connection URI for "+connName)
 			v.Require(additionalPrefix+"DB_NAME", "MongoDB database name for "+connName)
 
