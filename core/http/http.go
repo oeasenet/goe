@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
+	"github.com/gofiber/contrib/fiberzap/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -17,6 +18,7 @@ import (
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/fx"
+	"go.uber.org/zap/zapcore"
 )
 
 // kernel implements the HTTPKernel interface
@@ -150,31 +152,16 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	app.Use(recover.New())
 	app.Use(requestid.New())
 
-	// Add request logging middleware
-	app.Use(func(c fiber.Ctx) error {
-		start := time.Now()
-
-		// Retrieve request ID set by the requestid middleware
-		requestID := requestid.FromContext(c)
-		if requestID == "" {
-			requestID = c.Get(fiber.HeaderXRequestID)
-		}
-		c.Locals(string(RequestIDKey), requestID)
-
-		// Continue to next middleware
-		err := c.Next()
-
-		// Log request
-		logger.Info("HTTP Request",
-			"method", c.Method(),
-			"path", c.Path(),
-			"status", c.Response().StatusCode(),
-			"duration", time.Since(start).String(),
-			"request_id", requestID,
-		)
-
-		return err
+	// Add request logging middleware using fiber's official middleware
+	fiberZap := fiberzap.New(fiberzap.Config{
+		Logger:     logger.GetLogger().Desugar(),
+		Fields:     []string{"ip", "latency", "status", "method", "request_id", "url"},
+		FieldsFunc: nil,
+		Messages:   []string{"Server error", "Client error", "Success"},
+		Levels:     []zapcore.Level{zapcore.ErrorLevel, zapcore.WarnLevel, zapcore.InfoLevel},
 	})
+
+	app.Use(fiberZap)
 
 	return &kernel{
 		app:       app,

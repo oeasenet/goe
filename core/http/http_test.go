@@ -186,6 +186,9 @@ func TestHTTP_New(t *testing.T) {
 	config.On("Has", mock.Anything).Return(false)
 
 	logger.On("Fatal", mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	// This should not panic
 	assert.NotPanics(t, func() {
@@ -210,6 +213,9 @@ func TestHTTP_Kernel_Basic(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 
@@ -244,6 +250,9 @@ func TestHTTP_Listen(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 
@@ -283,6 +292,9 @@ func TestHTTP_Module(t *testing.T) {
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
 	logger.On("Error", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	module := NewModule(config, logger)
 
@@ -407,6 +419,9 @@ func TestHTTP_Context(t *testing.T) {
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
 	logger.On("With", mock.Anything).Return(logger)
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 	app := kernel.App()
@@ -476,6 +491,9 @@ func TestHTTP_ErrorHandler(t *testing.T) {
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
 	logger.On("Error", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 	app := kernel.App()
@@ -544,6 +562,9 @@ func TestHTTP_Middleware(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 	app := kernel.App()
@@ -560,8 +581,8 @@ func TestHTTP_Middleware(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-		// Verify logger was called (Info method should be called for request logging)
-		logger.AssertCalled(t, "Info", mock.Anything, mock.Anything)
+		// The fiberzap middleware now handles logging directly through zap logger
+		// instead of through our mock logger's Info method
 	})
 
 	t.Run("request id middleware", func(t *testing.T) {
@@ -581,6 +602,9 @@ func TestHTTP_Configuration(t *testing.T) {
 	logger := &MockLogger{}
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	testCases := []struct {
 		name           string
@@ -749,6 +773,9 @@ func TestHTTP_GroupRouter(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 	app := kernel.App()
@@ -928,6 +955,9 @@ func TestHTTP_RequestResponseFlow(t *testing.T) {
 
 	logger.On("Fatal", mock.Anything).Return()
 	logger.On("Info", mock.Anything, mock.Anything).Return()
+	// Create a noop logger for GetLogger
+	zapLogger, _ := zap.NewProduction()
+	logger.On("GetLogger").Return(zapLogger.Sugar())
 
 	kernel := New(config, logger)
 	app := kernel.App()

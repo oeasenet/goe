@@ -98,6 +98,8 @@ github.com/go-playground/validator/v10 v10.27.0 h1:w8+XrWVMhGkxOaaowyKH35gFydVHO
 github.com/go-playground/validator/v10 v10.27.0/go.mod h1:I5QpIEbmr8On7W0TktmJAumgzX4CA1XNl4ZmDuVHKKo=
 github.com/go-sql-driver/mysql v1.9.3 h1:U/N249h2WzJ3Ukj8SowVFjdtZKfu9vlLZxjPXV1aweo=
 github.com/go-sql-driver/mysql v1.9.3/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI64Gl8i5p1WMU=
+github.com/gofiber/contrib/fiberzap/v2 v2.1.7-0.20250901064417-5876714e4baf h1:sIsCg84IVn8MrQHu1qPAJZuDuIuZGwz54WeFSggHwJ8=
+github.com/gofiber/contrib/fiberzap/v2 v2.1.7-0.20250901064417-5876714e4baf/go.mod h1:jZp3LdGeQeiInDplpJJHBPRbBZcMV13lfZFhEulMXmk=
 github.com/gofiber/fiber/v3 v3.0.0-rc.2 h1:5I3RQ7XygDBfWRlMhkATjyJKupMmfMAVmnsrgo6wmc0=
 github.com/gofiber/fiber/v3 v3.0.0-rc.2/go.mod h1:EHKwhVCONMruJTOmvSPSy0CdACJ3uqCY8vGaBXft8yg=
 github.com/gofiber/schema v1.6.0 h1:rAgVDFwhndtC+hgV7Vu5ItQCn7eC2mBA4Eu1/ZTiEYY=
