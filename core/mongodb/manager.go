@@ -80,17 +80,16 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 // defaultMonitor returns a default CommandMonitor that logs MongoDB command events.
 //
 // This monitor logs all MongoDB operations with different log levels:
-//   - Info: when a command starts
 //   - Debug: when a command succeeds, including duration
 //   - Error: when a command fails, including the error message
 func defaultMonitor(logger contract.Logger) *event.CommandMonitor {
 	return &event.CommandMonitor{
-		Started: func(ctx context.Context, evt *event.CommandStartedEvent) {
-			logger.Info("[MONGO START]",
-				"command", evt.CommandName,
-				"details", evt.Command.String(),
-			)
-		},
+		//Started: func(ctx context.Context, evt *event.CommandStartedEvent) {
+		//	logger.Info("[MONGO START]",
+		//		"command", evt.CommandName,
+		//		"details", evt.Command.String(),
+		//	)
+		//},
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
 			logger.Debug("[MONGO SUCCEED]",
 				"command", evt.CommandName,
