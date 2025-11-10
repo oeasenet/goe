@@ -3,7 +3,7 @@ module go.oease.dev/goe/v2
 go 1.25.0
 
 require (
-	github.com/bytedance/sonic v1.14.1
+	github.com/bytedance/sonic v1.14.2
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/contrib/fiberzap/v2 v2.1.7-0.20250901064417-5876714e4baf
 	github.com/gofiber/fiber/v3 v3.0.0-rc.2
@@ -29,7 +29,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.3.0 // indirect
+	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
