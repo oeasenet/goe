@@ -230,15 +230,15 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 		}
 		ctx.Status(respCode)
 
-		// Log error for 5xx errors
-		if respCode >= 500 {
-			logger.Error("HTTP Error",
-				"error", err.Error(),
-				"path", ctx.Path(),
-				"method", ctx.Method(),
-				"status", respCode,
-			)
-		}
+		// Log error for 5xx errors, removing this because fiber already has the similar thing
+		//if respCode >= 500 {
+		//	logger.Error("HTTP Error",
+		//		"error", err.Error(),
+		//		"path", ctx.Path(),
+		//		"method", ctx.Method(),
+		//		"status", respCode,
+		//	)
+		//}
 
 		// If the format is forced to json or text through query parameter, then return the response in that format
 		if ctx.Query("format") == "json" {
