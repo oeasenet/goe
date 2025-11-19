@@ -6,12 +6,12 @@ require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/gofiber/contrib/fiberzap/v2 v2.1.7-0.20250901064417-5876714e4baf
-	github.com/gofiber/fiber/v3 v3.0.0-rc.2
+	github.com/gofiber/fiber/v3 v3.0.0-rc.3
 	github.com/gofiber/storage/memory/v2 v2.1.0
 	github.com/gofiber/storage/redis/v3 v3.4.1
 	github.com/gofiber/template/html/v2 v2.1.3
 	github.com/google/uuid v1.6.0
-	github.com/redis/go-redis/v9 v9.16.0
+	github.com/redis/go-redis/v9 v9.17.0
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver/v2 v2.4.0
@@ -84,7 +84,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
