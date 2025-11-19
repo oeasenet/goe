@@ -97,7 +97,7 @@ func defaultMonitor(logger contract.Logger) *event.CommandMonitor {
 			)
 		},
 		Failed: func(ctx context.Context, evt *event.CommandFailedEvent) {
-			logger.Error("[MONGO FAILED]",
+			logger.Debug("[MONGO FAILED]",
 				"command", evt.CommandName,
 				"error", evt.Failure.Error(),
 			)
