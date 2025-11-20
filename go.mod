@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/go-playground/validator/v10 v10.28.0
-	github.com/gofiber/contrib/fiberzap/v2 v2.1.7-0.20250901064417-5876714e4baf
+	github.com/gofiber/contrib/v3/zap v1.0.0-rc.1
 	github.com/gofiber/fiber/v3 v3.0.0-rc.3
 	github.com/gofiber/storage/memory/v2 v2.1.0
 	github.com/gofiber/storage/redis/v3 v3.4.1
@@ -16,7 +16,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver/v2 v2.4.0
 	go.uber.org/fx v1.24.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
