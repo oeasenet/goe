@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/gofiber/contrib/fiberzap/v2"
+	fiberzap "github.com/gofiber/contrib/v3/zap"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -18,6 +18,7 @@ import (
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -152,13 +153,17 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	app.Use(recover.New())
 	app.Use(requestid.New())
 
-	// Add request logging middleware using fiber's official middleware
+	//Add request logging middleware using fiber's official middleware
 	fiberZap := fiberzap.New(fiberzap.Config{
-		Logger:     logger.GetLogger().Desugar(),
-		Fields:     []string{"ip", "latency", "status", "method", "request_id", "url"},
-		FieldsFunc: nil,
-		Messages:   []string{"Server error", "Client error", "Success"},
-		Levels:     []zapcore.Level{zapcore.ErrorLevel, zapcore.WarnLevel, zapcore.InfoLevel},
+		Logger: logger.GetLogger().Desugar(),
+		Fields: []string{"ip", "latency", "status", "method", "request_id", "url"},
+		FieldsFunc: func(c fiber.Ctx) []zap.Field {
+			return []zap.Field{
+				zap.String("request_id", requestid.FromContext(c)),
+			}
+		},
+		Messages: []string{"HTTP REQUEST"},
+		Levels:   []zapcore.Level{zapcore.InfoLevel},
 	})
 
 	app.Use(fiberZap)
