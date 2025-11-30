@@ -19,89 +19,11 @@ export default withMermaid(defineConfig(
       logo: { src: '/goe_gopher_logo.png', width: 24, height: 24 },
       siteTitle: 'GOE Framework',
       nav: [
-        { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
-        { text: 'Examples', link: '/examples/basic-app', activeMatch: '/examples/' },
-        { text: 'FAQ', link: '/faq' },
-        {
-          text: 'v2.0',
-          items: [
-            { text: 'Changelog', link: '/changelog' },
-            { text: 'Migration Guide', link: '/migration' },
-          ]
-        }
+        { text: 'Documentation', link: 'https://deepwiki.com/oeasenet/goe' },
+        { text: 'GitHub', link: 'https://github.com/oeasenet/goe' }
       ],
 
-      sidebar: {
-        '/guide/': [
-          {
-            text: 'Getting Started',
-            items: [
-              { text: 'Introduction', link: '/guide/introduction' },
-              { text: 'Quick Start', link: '/guide/getting-started' },
-              { text: 'Installation', link: '/guide/installation' },
-              { text: 'Project Structure', link: '/guide/project-structure' },
-              { text: 'Architecture', link: '/guide/architecture' }
-            ]
-          },
-          {
-            text: 'Core Concepts',
-            items: [
-              { text: 'Configuration', link: '/guide/configuration' },
-              { text: 'Logging', link: '/guide/logging' },
-              { text: 'Dependency Injection', link: '/guide/dependency-injection' },
-              { text: 'Modules', link: '/guide/modules' },
-              { text: 'Error Handling', link: '/guide/error-handling' }
-            ]
-          },
-          {
-            text: 'Features',
-            items: [
-              { text: 'HTTP Server', link: '/guide/http-server' },
-              { text: 'Database', link: '/guide/database' },
-              { text: 'MongoDB', link: '/guide/mongodb' },
-              { text: 'Caching', link: '/guide/caching' },
-              { text: 'Event System', link: '/guide/event-system' },
-              { text: 'Lifecycle Hooks', link: '/guide/lifecycle-hooks' },
-            ]
-          },
-          {
-            text: 'Development',
-            items: [
-              { text: 'Testing', link: '/guide/testing' },
-              { text: 'Best Practices', link: '/guide/best-practices' },
-              { text: 'Deployment', link: '/guide/deployment' },
-              { text: 'Contributing', link: '/guide/contributing' }
-            ]
-          }
-        ],
-        '/examples/': [
-          {
-            text: 'Basic Examples',
-            items: [
-              { text: 'Hello World', link: '/examples/basic-app' },
-              { text: 'REST API', link: '/examples/rest-api' },
-              { text: 'Database CRUD', link: '/examples/database-crud' },
-              { text: 'MongoDB CRUD', link: '/examples/mongodb-crud' },
-              { text: 'Custom Module', link: '/examples/custom-module' }
-            ]
-          },
-          {
-            text: 'Advanced Examples',
-            items: [
-              { text: 'Authentication', link: '/examples/authentication' },
-              { text: 'Real-time Features', link: '/examples/realtime' },
-              { text: 'Microservices', link: '/examples/microservices' },
-              { text: 'Production Setup', link: '/examples/production' }
-            ]
-          },
-          {
-            text: 'Troubleshooting',
-            items: [
-              { text: 'Metrics Implementation', link: '/examples/metrics-implementation-summary' }
-            ]
-          }
-        ],
-      },
+      sidebar: {},
 
       socialLinks: [
         { icon: 'github', link: 'https://github.com/oeasenet/goe' }
@@ -112,10 +34,7 @@ export default withMermaid(defineConfig(
         copyright: 'Copyright © 2024 GOE Framework'
       },
 
-      editLink: {
-        pattern: 'https://github.com/oeasenet/goe/edit/v2/docs/:path',
-        text: 'Edit this page on GitHub'
-      },
+      editLink: false,
 
       search: {
         provider: 'local'
