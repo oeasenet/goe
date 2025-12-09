@@ -14,6 +14,8 @@
 [![Status](https://img.shields.io/badge/Status-Dev-yellow?style=for-the-badge)](https://github.com/oeasenet/goe)
 [![Coverage](https://img.shields.io/codecov/c/gh/oeasenet/goe/v2?token=9SWCFFQ38U&style=for-the-badge)](https://codecov.io/gh/oeasenet/goe)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oeasenet/goe)
+
   <br/>
 
 [Documentation](https://deepwiki.com/oeasenet/goe) •
@@ -37,21 +39,25 @@ extensibility, and concurrent safety.
 ## ✨ Features
 
 ### Core Infrastructure
+
 - 🔌 **Dependency Injection** - Built on Uber's Fx for type-safe component management
 - 🌐 **HTTP Server** - GoFiber v3 with middleware & fast routing
 - 📝 **Logging** - Uber's Zap with console & JSON formatting
 - ⚙️ **Configuration** - Environment-aware with `.env` file support
 
 ### Data & Storage
+
 - 🗄️ **SQL Database** - GORM integration (MySQL, PostgreSQL, SQLite, SQL Server)
 - 🍃 **MongoDB** - Native driver with connection pooling
 - 💾 **Caching** - 10+ backends (Redis, Memory, S3, DynamoDB...)
 
 ### Distributed Systems
+
 - 🔄 **Event System** - Redis Streams with consumer groups & DLQ
 - 🔐 **Distributed Lock** - Redlock algorithm for multi-process coordination
 
 ### Developer Experience
+
 - 🧩 **Module System** - Managed lifecycles (OnStart, OnStop)
 - 🛡️ **Contract-Driven** - Interface-based design for testability
 - ⚡ **Concurrency Safe** - Thread-safe core components
@@ -132,7 +138,8 @@ GOE loads configuration from multiple sources in order of priority:
 |    3     | `.{GOE_ENV}.env` | Environment-specific (e.g., `.prod.env`) |
 |    4     | **System ENV**   | Highest priority - overrides all         |
 
-> **See:** [`.example.env`](.example.env) for all options or the [Configuration Reference](CONFIGURATION.md) for detailed documentation.
+> **See:** [`.example.env`](.example.env) for all options or the [Configuration Reference](CONFIGURATION.md) for
+> detailed documentation.
 
 <br/>
 
