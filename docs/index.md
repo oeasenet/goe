@@ -31,7 +31,7 @@ features:
         details: Load configuration from environment variables and .env files with type-safe accessors and hot-reloading support.
     -   icon: 💾
         title: Versatile Cache Support
-        details: Unified caching interface supporting multiple drivers like Memory, Redis, and SQLite for optimal performance.
+        details: Unified caching interface supporting Memory, Redis, Memcache, Badger, SQLite3, PostgreSQL, MySQL, MongoDB, DynamoDB, and S3 backends.
     -   icon: 🧩
         title: Extensible Module System
         details: Organize your application into logical modules with managed lifecycles (OnStart, OnStop) and clean separation of concerns.
@@ -43,6 +43,12 @@ features:
         details: Seamless integration with GORM for database operations, supporting MySQL, PostgreSQL, SQLite, and SQL Server.
     -   icon: 🔄
         title: Event System
-        details: Built-in event system with Redis backend for publish-subscribe patterns and asynchronous processing.
+        details: Built-in event system using Redis Streams for publish-subscribe patterns, consumer groups, dead letter queues, and delayed message processing.
+    -   icon: 🍃
+        title: MongoDB Support
+        details: Native MongoDB integration with connection pooling, multiple database support, and helper utilities for indexes and transactions.
+    -   icon: 🔐
+        title: Distributed Locking
+        details: Redis-based distributed mutex system with support for single instance, Sentinel, Cluster, and Redlock algorithms.
 ---
 

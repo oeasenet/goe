@@ -1,7 +1,7 @@
-# Goe - Modern Go Application Framework 🐹
+# Goe - Modern Go Application Framework
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
+  <img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=for-the-badge&logo=go" alt="Go Version">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Status-Dev-yellow?style=for-the-badge" alt="Status">
   <img src="https://img.shields.io/codecov/c/gh/oeasenet/goe/v2?token=9SWCFFQ38U&style=for-the-badge" alt="Coverage">
@@ -12,31 +12,36 @@ entirely on [Uber's Fx](https://uber-go.github.io/fx/) dependency injection fram
 leveraging [GoFiber](https://gofiber.io/) for its HTTP layer, Goe prioritizes developer experience, modularity,
 extensibility, and concurrent safety.
 
-It aims to provide a solid foundation for building robust and scalable Go applications with ease. 😊
+It aims to provide a solid foundation for building robust and scalable Go applications with ease.
 
-## ✨ Core Features
+## Core Features
 
-- **🔌 Powerful Dependency Injection**: Built on Uber's Fx for type-safe management of application components and
+- **Powerful Dependency Injection**: Built on Uber's Fx for type-safe management of application components and
   lifecycle.
-- **🌐 High-Performance HTTP Server**: Integrated with GoFiber v3, featuring automatic request logging, middleware
+- **High-Performance HTTP Server**: Integrated with GoFiber v3, featuring automatic request logging, middleware
   support, and fast routing.
-- **📝 Structured & Flexible Logging**: Utilizes Uber's Zap logger with developer-friendly console output and
+- **Structured & Flexible Logging**: Utilizes Uber's Zap logger with developer-friendly console output and
   production-ready JSON formatting.
-- **⚙️ Environment-Aware Configuration**: Load configuration from environment variables and `.env` files, with type-safe
-  accessors.
-- **💾 Versatile Cache Support**: Unified caching interface via Fiber's storage, supporting Memory and Redis drivers.
-- **🧩 Extensible Module System**: Organize your application into logical modules with managed lifecycles (`OnStart`,
+- **Environment-Aware Configuration**: Load configuration from environment variables and `.env` files, with type-safe
+  accessors and environment-specific overrides.
+- **Versatile Cache Support**: Unified caching interface supporting Memory, Redis, Memcache, Badger, SQLite3,
+  PostgreSQL, MySQL, MongoDB, DynamoDB, and S3 backends.
+- **Extensible Module System**: Organize your application into logical modules with managed lifecycles (`OnStart`,
   `OnStop`).
-- **🛡️ Contract-Driven Design**: Core components are defined by interfaces, promoting loose coupling and testability.
-- **🎯 Intuitive Developer Experience**: Offers both simple global accessors for convenience and full support for
+- **Contract-Driven Design**: Core components are defined by interfaces, promoting loose coupling and testability.
+- **Intuitive Developer Experience**: Offers both simple global accessors for convenience and full support for
   explicit dependency injection.
-- **🔄 Concurrency Safety**: Core framework components are designed to be safe for concurrent use.
-- **🗄️ GORM Database Integration**: Seamless integration with GORM for database operations, supporting multiple SQL
-  drivers.
-- **🔄 Event System**: Built-in event system with Redis backend for publish-subscribe patterns and asynchronous
-  processing.
+- **Concurrency Safety**: Core framework components are designed to be safe for concurrent use.
+- **GORM Database Integration**: Seamless integration with GORM for database operations, supporting MySQL, PostgreSQL,
+  SQLite, and SQL Server with multiple named connections.
+- **MongoDB Support**: Native MongoDB integration with connection pooling, multiple database support, and helper
+  utilities for indexes and transactions.
+- **Event System**: Built-in event system using Redis Streams for publish-subscribe patterns, consumer groups, dead
+  letter queues, and delayed message processing.
+- **Distributed Locking**: Redis-based distributed mutex system with support for single instance, Sentinel, Cluster, and
+  Redlock algorithms for coordinating access across multiple processes.
 
-## 🚀 Getting Started
+## Getting Started
 
 Install the dependency:
 
@@ -59,12 +64,12 @@ func main() {
 	// Initialize Goe with HTTP module enabled
 	_ = goe.New(goe.Options{
 		WithHTTP: true,
-		Invokers: []any{ // Use Fx invoker to register routes
+		Invokers: []any{
 			func(httpKernel contract.HTTPKernel, logger contract.Logger) {
 				app := httpKernel.App()
 				app.Get("/", func(c fiber.Ctx) error {
 					logger.Info("Hello endpoint was hit!")
-					return c.SendString("Hello, World from Goe! 👋")
+					return c.SendString("Hello, World from Goe!")
 				})
 				logger.Info("Main route registered.")
 			},
@@ -78,16 +83,40 @@ func main() {
 
 Access your application at `http://localhost:8080`.
 
-For a detailed step-by-step guide, please see the full
-[Getting Started documentation](https://deepwiki.com/oeasenet/goe) on DeepWiki.
+## Available Modules
 
-## 📚 Official Documentation
+Enable modules via `goe.Options`:
 
-The **official documentation for GOE** is exclusively hosted on DeepWiki:
+```go
+goe.New(goe.Options{
+WithHTTP:    true, // HTTP server (Fiber)
+WithCache:   true, // Caching system
+WithDB:      true, // SQL database (GORM)
+WithMongoDB: true, // MongoDB
+WithEvent:   true,  // Event system (Redis Streams)
+WithLock:    true, // Distributed locking
+})
+```
 
-🌐 **[https://deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
+## Configuration
 
-## 🤝 Contributing
+Goe loads configuration from multiple sources in order of priority:
+
+1. `.env` - Base configuration
+2. `.local.env` - Local overrides (gitignored)
+3. `.{GOE_ENV}.env` - Environment-specific (e.g., `.prod.env`)
+4. System environment variables - Highest priority
+
+See [`.example.env`](.example.env) for all available options or the [Configuration Reference](CONFIGURATION.md) for
+detailed documentation.
+
+## Official Documentation
+
+The **official documentation for GOE** is hosted on DeepWiki:
+
+**[https://deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
+
+## Contributing
 
 Contributions are welcome and greatly appreciated! Here's how to get started:
 
@@ -99,10 +128,11 @@ Contributions are welcome and greatly appreciated! Here's how to get started:
    ```bash
    make test
    ```
-6. **Commit & PR**: Commit with clear messages and open a pull request against `main`, describing the change and any relevant context.
+6. **Commit & PR**: Commit with clear messages and open a pull request against `v2`, describing the change and any
+   relevant context.
 
 If you encounter issues or have questions, please open a GitHub issue so we can help.
 
-## 📝 License
+## License
 
 Goe is released under the [MIT License](LICENSE).
