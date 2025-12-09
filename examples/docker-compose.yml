@@ -1,0 +1,61 @@
+# Docker Compose for GOE Framework Examples
+# Provides Redis and MongoDB for running the examples
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose down           # Stop all services
+#   docker compose down -v        # Stop and remove volumes
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: goe-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: goe-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: goe
+      MONGO_INITDB_ROOT_PASSWORD: goepassword
+      MONGO_INITDB_DATABASE: goe_examples
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: goe-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: goe
+      POSTGRES_PASSWORD: goepassword
+      POSTGRES_DB: goe_examples
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goe -d goe_examples"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
+  mongodb_data:
+  postgres_data:
