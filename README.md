@@ -78,36 +78,30 @@ func main() {
 
 Access your application at `http://localhost:8080`.
 
-For a detailed step-by-step guide, please see our
-full [Getting Started documentation](https://oeasenet.github.io/goe/guide/getting-started).
+For a detailed step-by-step guide, please see the full
+[Getting Started documentation](https://deepwiki.com/oeasenet/goe) on DeepWiki.
 
-## 📖 Comprehensive Documentation
+## 📚 Official Documentation
 
-Our **comprehensive developer documentation** is now available as a beautiful VitePress site:
+The **official documentation for GOE** is exclusively hosted on DeepWiki:
 
-🌐 **[https://oeasenet.github.io/goe/](https://oeasenet.github.io/goe/)**
-
-The documentation covers:
-
-- **Guide**: Step-by-step tutorials from installation to deployment
-- **Examples**: Practical, runnable code examples
-- **Reference**: API documentation and module references
-- **Event System**: Guide to the built-in event system with Redis
-  backend ([Event System Guide](https://oeasenet.github.io/goe/guide/event-system))
-
-You can also browse the documentation locally by running:
-
-```bash
-cd docs
-bun run docs:dev
-```
+🌐 **[https://deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
 
 ## 🤝 Contributing
 
-Contributions are welcome and greatly appreciated! Please see
-the [Contributing Guide](https://oeasenet.github.io/goe/guide/contributing) for
-details on how to get started, including setting up your environment, running tests (`make test`), and submitting
-pull requests.
+Contributions are welcome and greatly appreciated! Here's how to get started:
+
+1. **Fork & Clone**: Fork this repository and clone your fork locally.
+2. **Create a Branch**: Use a descriptive branch name (e.g., `feature/add-cache-metrics`).
+3. **Install Dependencies**: Run `go mod download` to ensure all modules are available.
+4. **Format & Lint**: Ensure code is formatted (`gofmt -w .`) and linted as needed.
+5. **Test**: Run the test suite before opening a PR:
+   ```bash
+   make test
+   ```
+6. **Commit & PR**: Commit with clear messages and open a pull request against `main`, describing the change and any relevant context.
+
+If you encounter issues or have questions, please open a GitHub issue so we can help.
 
 ## 📝 License
 

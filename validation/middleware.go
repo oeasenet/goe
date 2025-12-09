@@ -7,7 +7,13 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// Config defines the config for validation middleware
+const (
+	// DefaultValidatorContextKey is the default name used to store the validator in Fiber locals.
+	DefaultValidatorContextKey = "validator"
+	validatorContextKeyKey     = "_goe_validator_context_key"
+)
+
+// Config defines the config for validation middleware.
 type Config struct {
 	// Validator instance to use
 	Validator *Validator
@@ -19,14 +25,14 @@ type Config struct {
 	ContextKey string
 }
 
-// ConfigDefault is the default config
+// ConfigDefault is the default config.
 var ConfigDefault = Config{
 	Validator:    nil,
 	ErrorHandler: defaultErrorHandler,
-	ContextKey:   "validator",
+	ContextKey:   DefaultValidatorContextKey,
 }
 
-// defaultErrorHandler handles validation errors
+// defaultErrorHandler handles validation errors.
 func defaultErrorHandler(c fiber.Ctx, err error) error {
 	// Check if it's a validation error
 	var ve Error
@@ -51,7 +57,7 @@ func defaultErrorHandler(c fiber.Ctx, err error) error {
 	})
 }
 
-// NewMiddleware New creates a new validation middleware
+// NewMiddleware creates a new validation middleware.
 func NewMiddleware(config ...Config) fiber.Handler {
 	// Set default config
 	cfg := ConfigDefault
@@ -74,19 +80,30 @@ func NewMiddleware(config ...Config) fiber.Handler {
 		cfg.Validator = New()
 	}
 
+	contextKey := cfg.ContextKey
+	if contextKey == "" {
+		contextKey = DefaultValidatorContextKey
+	}
+
 	// Return middleware handler
 	return func(c fiber.Ctx) error {
 		// Store validator in context for use in handlers
-		c.Locals(cfg.ContextKey, cfg.Validator)
+		c.Locals(contextKey, cfg.Validator)
+		c.Locals(validatorContextKeyKey, contextKey)
 
 		// Continue to next middleware
 		return c.Next()
 	}
 }
 
-// GetValidator retrieves the validator from context
+// GetValidator retrieves the validator from context.
 func GetValidator(c fiber.Ctx) *Validator {
-	if v, ok := c.Locals("validator").(*Validator); ok {
+	storedKey, ok := c.Locals(validatorContextKeyKey).(string)
+	if !ok || storedKey == "" {
+		storedKey = DefaultValidatorContextKey
+	}
+
+	if v, ok := c.Locals(storedKey).(*Validator); ok {
 		return v
 	}
 	return nil

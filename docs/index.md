@@ -10,11 +10,8 @@ hero:
         alt: GOE Framework Logo
     actions:
         -   theme: brand
-            text: Get Started
-            link: /guide/getting-started
-        -   theme: alt
-            text: View Examples
-            link: /examples/basic-app
+            text: Read Documentation
+            link: https://deepwiki.com/oeasenet/goe
         -   theme: alt
             text: GitHub
             link: https://github.com/oeasenet/goe
