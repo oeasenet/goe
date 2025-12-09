@@ -1,6 +1,60 @@
+# Codecov Configuration for GOE Framework
+# https://docs.codecov.com/docs/codecovyml-reference
+
+codecov:
+  require_ci_to_pass: true
+
 coverage:
-    status:
-        patch:
-            default:
-                target: 30% # Set your desired target percentage here
-                threshold: 5% # Optional: define a leniency threshold
+  precision: 2
+  round: down
+  range: "10...80"
+
+  status:
+    # Project-level coverage (overall codebase)
+    project:
+      default:
+        target: auto        # Use previous coverage as baseline
+        threshold: 2%       # Allow 2% drop from baseline
+        if_ci_failed: error
+        informational: false
+
+    # Patch coverage (new/changed code in PR)
+    patch:
+      default:
+        target: auto        # Compare against base branch
+        threshold: 5%       # Allow 5% variance
+        if_ci_failed: error
+        informational: true # Don't block PRs on patch coverage
+
+# Ignore files that are hard to unit test or not worth testing
+ignore:
+  - "**/*_test.go"           # Test files themselves
+  - "**/doc.go"              # Documentation files
+  - "**/test_*.go"           # Test helper files
+  - "**/mock_*.go"           # Mock files
+  - "**/mocks/**"            # Mock directories
+  - "docs/**"                # Documentation
+  - "examples/**"            # Example code
+
+# Comment configuration for PRs
+comment:
+  layout: "header, diff, flags, components"
+  behavior: default
+  require_changes: true      # Only comment if coverage changes
+  require_base: false        # Don't require base report
+  require_head: true
+
+# Flag management for different test types
+flags:
+  unit:
+    paths:
+      - "utils/"
+      - "validation/"
+      - "webresult/"
+      - "core/config/"
+    carryforward: true
+
+  integration:
+    paths:
+      - "core/"
+    carryforward: true
