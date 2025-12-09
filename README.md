@@ -36,56 +36,25 @@ extensibility, and concurrent safety.
 
 ## ✨ Features
 
-<table>
-<tr>
-<td width="50%">
-
 ### Core Infrastructure
-
-|    | Feature                  | Description                                           |
-|----|--------------------------|-------------------------------------------------------|
-| 🔌 | **Dependency Injection** | Built on Uber's Fx for type-safe component management |
-| 🌐 | **HTTP Server**          | GoFiber v3 with middleware & fast routing             |
-| 📝 | **Logging**              | Uber's Zap with console & JSON formatting             |
-| ⚙️ | **Configuration**        | Environment-aware with `.env` file support            |
-
-</td>
-<td width="50%">
+- 🔌 **Dependency Injection** - Built on Uber's Fx for type-safe component management
+- 🌐 **HTTP Server** - GoFiber v3 with middleware & fast routing
+- 📝 **Logging** - Uber's Zap with console & JSON formatting
+- ⚙️ **Configuration** - Environment-aware with `.env` file support
 
 ### Data & Storage
-
-|     | Feature          | Description                                              |
-|-----|------------------|----------------------------------------------------------|
-| 🗄️ | **SQL Database** | GORM integration (MySQL, PostgreSQL, SQLite, SQL Server) |
-| 🍃  | **MongoDB**      | Native driver with connection pooling                    |
-| 💾  | **Caching**      | 10+ backends (Redis, Memory, S3, DynamoDB...)            |
-
-</td>
-</tr>
-<tr>
-<td width="50%">
+- 🗄️ **SQL Database** - GORM integration (MySQL, PostgreSQL, SQLite, SQL Server)
+- 🍃 **MongoDB** - Native driver with connection pooling
+- 💾 **Caching** - 10+ backends (Redis, Memory, S3, DynamoDB...)
 
 ### Distributed Systems
-
-|    | Feature              | Description                                      |
-|----|----------------------|--------------------------------------------------|
-| 🔄 | **Event System**     | Redis Streams with consumer groups & DLQ         |
-| 🔐 | **Distributed Lock** | Redlock algorithm for multi-process coordination |
-
-</td>
-<td width="50%">
+- 🔄 **Event System** - Redis Streams with consumer groups & DLQ
+- 🔐 **Distributed Lock** - Redlock algorithm for multi-process coordination
 
 ### Developer Experience
-
-|     | Feature              | Description                            |
-|-----|----------------------|----------------------------------------|
-| 🧩  | **Module System**    | Managed lifecycles (OnStart, OnStop)   |
-| 🛡️ | **Contract-Driven**  | Interface-based design for testability |
-| ⚡   | **Concurrency Safe** | Thread-safe core components            |
-
-</td>
-</tr>
-</table>
+- 🧩 **Module System** - Managed lifecycles (OnStart, OnStop)
+- 🛡️ **Contract-Driven** - Interface-based design for testability
+- ⚡ **Concurrency Safe** - Thread-safe core components
 
 <br/>
 
@@ -163,8 +132,7 @@ GOE loads configuration from multiple sources in order of priority:
 |    3     | `.{GOE_ENV}.env` | Environment-specific (e.g., `.prod.env`) |
 |    4     | **System ENV**   | Highest priority - overrides all         |
 
-> **See:** [`.example.env`](.example.env) for all options or the [Configuration Reference](docs/CONFIGURATION.md) for
-> detailed documentation.
+> **See:** [`.example.env`](.example.env) for all options or the [Configuration Reference](CONFIGURATION.md) for detailed documentation.
 
 <br/>
 
