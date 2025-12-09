@@ -16,6 +16,7 @@ import (
 	"go.oease.dev/goe/v2/core/db" // + Import the new db package
 	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/http"
+	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -30,9 +31,10 @@ var (
 		logger       contract.Logger
 		http         contract.HTTPKernel
 		cacheManager contract.CacheManager
-		db           contract.DB      // Database instance
-		mongoDB      contract.MongoDB // Database instance
-		eventManager contract.EventManager
+		db           contract.DB           // Database instance
+		mongoDB      contract.MongoDB      // MongoDB instance
+		eventManager contract.EventManager // Event manager instance
+		lockManager  contract.LockManager  // Lock manager instance
 		mu           sync.RWMutex
 	}
 )
@@ -47,6 +49,7 @@ type Options struct {
 	WithDB          bool           // Enable DB module
 	WithMongoDB     bool           // Enable Mongo DB module
 	WithEvent       bool           // Enable Event module
+	WithLock        bool           // Enable Lock module (distributed mutex)
 	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
 	ConfigOverrides map[string]any // Override any environment variables
 
@@ -73,6 +76,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithDB = o.WithDB // + Assign WithDB
 		opt.WithMongoDB = o.WithMongoDB
 		opt.WithEvent = o.WithEvent
+		opt.WithLock = o.WithLock
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
 		opt.OnStart = o.OnStart
@@ -166,6 +170,7 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
 	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
+	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
@@ -255,6 +260,31 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: mongodbModule.OnStart,
 						OnStop:  mongodbModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add Lock module if enabled
+	var lockModule *lock.Module
+	if opt.WithLock {
+		var err error
+		lockModule, err = lock.NewModule(instance.config, instance.logger)
+		if err != nil {
+			instance.logger.Fatal("Failed to create lock module", "error", err)
+		}
+		instance.lockManager = lockModule.Provide()
+
+		instance.logger.Info("Registering Lock module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.LockManager { return instance.lockManager }),
+			fx.Module(lockModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: lockModule.OnStart,
+						OnStop:  lockModule.OnStop,
 					})
 				}),
 			),
@@ -582,6 +612,29 @@ func MongoDB() contract.MongoDB {
 // Mongo is a convenient alias for MongoDB() for shorter access
 func Mongo() contract.MongoDB {
 	return MongoDB()
+}
+
+// Lock returns the global lock manager instance.
+// Use this to create distributed mutex locks for coordinating access to
+// shared resources across multiple processes or machines.
+//
+// Example:
+//
+//	mutex := goe.Lock().NewMutex("my-resource")
+//	if err := mutex.Lock(ctx); err != nil {
+//	    return err
+//	}
+//	defer mutex.Unlock(ctx)
+//	// ... critical section ...
+func Lock() contract.LockManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.lockManager == nil {
+		panic("Lock module not initialized. Set WithLock: true in goe.New() options")
+	}
+
+	return instance.lockManager
 }
 
 // AddModule adds a module to the global application instance
