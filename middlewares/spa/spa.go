@@ -1,11 +1,12 @@
 package spa
 
 import (
-	"github.com/gofiber/fiber/v3"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 // New creates a new SPA serving middleware handler.

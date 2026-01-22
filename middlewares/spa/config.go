@@ -1,8 +1,9 @@
 package spa
 
 import (
-	"github.com/gofiber/fiber/v3"
 	"time"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 // Config defines the config for SPA (Single Page Application) middleware.

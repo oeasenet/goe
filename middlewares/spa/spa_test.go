@@ -1,13 +1,14 @@
 package spa
 
 import (
-	"github.com/gofiber/fiber/v3"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/stretchr/testify/require"
 )
 
 // Test helper to create temporary SPA directory structure

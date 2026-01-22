@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+
 	"go.uber.org/zap"
 )
 

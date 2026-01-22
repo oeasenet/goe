@@ -1,8 +1,9 @@
 package cachecontrol
 
 import (
-	"github.com/gofiber/fiber/v3"
 	"regexp"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 // Config defines the config for CDN Cache Control middleware.

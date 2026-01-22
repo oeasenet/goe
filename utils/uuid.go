@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"github.com/google/uuid"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // GenerateUUIDv7 generates a UUID version 7 string without dashes and returns it. Returns an empty string on error.

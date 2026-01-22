@@ -3,8 +3,9 @@ package http
 import (
 	"bytes"
 	"embed"
-	"github.com/gofiber/fiber/v3"
 	"html/template"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 //go:embed error_page.gohtml
