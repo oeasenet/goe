@@ -180,43 +180,69 @@ func TestBuildTextIndexWithoutName(t *testing.T) {
 }
 
 func TestBuildCompoundIndex(t *testing.T) {
-	fields := map[string]int{
-		"user_id":    1,
-		"created_at": -1,
-		"status":     1,
-	}
-	name := "compound_index"
+	t.Run("with name", func(t *testing.T) {
+		fields := map[string]int{
+			"user_id":    1,
+			"created_at": -1,
+			"status":     1,
+		}
+		name := "compound_index"
 
-	model := BuildCompoundIndex(fields, name)
+		model := BuildCompoundIndex(fields, name)
 
-	// The order of keys in bson.D matters, but map iteration is random
-	// So we just check that all fields are present
-	assert.Len(t, model.Keys, 3)
-	assert.NotNil(t, model.Options)
+		// The order of keys in bson.D matters, but map iteration is random
+		// So we just check that all fields are present
+		assert.Len(t, model.Keys, 3)
+		assert.NotNil(t, model.Options)
 
-	// Check that all expected fields are present by converting to bson.D
-	if keys, ok := model.Keys.(bson.D); ok {
-		keyMap := make(map[string]interface{})
-		for _, elem := range keys {
-			keyMap[elem.Key] = elem.Value
+		// Check that all expected fields are present by converting to bson.D
+		if keys, ok := model.Keys.(bson.D); ok {
+			keyMap := make(map[string]interface{})
+			for _, elem := range keys {
+				keyMap[elem.Key] = elem.Value
+			}
+
+			for field, order := range fields {
+				assert.Equal(t, order, keyMap[field])
+			}
+		}
+	})
+
+	t.Run("without name", func(t *testing.T) {
+		fields := map[string]int{
+			"tenant_id": 1,
+			"active":    1,
 		}
 
-		for field, order := range fields {
-			assert.Equal(t, order, keyMap[field])
-		}
-	}
+		model := BuildCompoundIndex(fields, "")
+
+		assert.Len(t, model.Keys, 2)
+	})
 }
 
 func TestBuildTTLIndex(t *testing.T) {
-	field := "expires_at"
-	expireAfter := 24 * time.Hour
-	name := "ttl_index"
+	t.Run("with name", func(t *testing.T) {
+		field := "expires_at"
+		expireAfter := 24 * time.Hour
+		name := "ttl_index"
 
-	model := BuildTTLIndex(field, expireAfter, name)
+		model := BuildTTLIndex(field, expireAfter, name)
 
-	expectedKeys := bson.D{{Key: "expires_at", Value: 1}}
-	assert.Equal(t, expectedKeys, model.Keys)
-	assert.NotNil(t, model.Options)
+		expectedKeys := bson.D{{Key: "expires_at", Value: 1}}
+		assert.Equal(t, expectedKeys, model.Keys)
+		assert.NotNil(t, model.Options)
+	})
+
+	t.Run("without name", func(t *testing.T) {
+		field := "created_at"
+		expireAfter := 48 * time.Hour
+
+		model := BuildTTLIndex(field, expireAfter, "")
+
+		expectedKeys := bson.D{{Key: "created_at", Value: 1}}
+		assert.Equal(t, expectedKeys, model.Keys)
+		assert.NotNil(t, model.Options)
+	})
 }
 
 func TestCreateInsertOneModel(t *testing.T) {
