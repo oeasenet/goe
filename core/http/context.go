@@ -92,19 +92,21 @@ func AsHandler[T any](h Handler[T], deps T) fiber.Handler {
 type ServiceProvider struct {
 	fx.In
 
-	App    contract.Application
-	Config contract.Config
-	Logger contract.Logger
-	Cache  contract.Cache `optional:"true"`
+	App       contract.Application
+	Config    contract.Config
+	Logger    contract.Logger
+	Cache     contract.Cache           `optional:"true"`
+	Validator *validation.Validator    `optional:"true"`
 }
 
 // CreateServiceMiddleware creates a middleware that injects services into the context
 func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 	services := Services{
-		App:    provider.App,
-		Config: provider.Config,
-		Logger: provider.Logger,
-		Cache:  provider.Cache,
+		App:       provider.App,
+		Config:    provider.Config,
+		Logger:    provider.Logger,
+		Cache:     provider.Cache,
+		Validator: provider.Validator,
 	}
 
 	provider.Logger.Debug("CreateServiceMiddleware called")

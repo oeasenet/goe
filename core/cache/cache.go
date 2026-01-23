@@ -195,26 +195,42 @@ func (c *cache) Pull(key string, value any) error {
 }
 
 // Add stores a value only if key doesn't exist
+// This is an atomic check-and-set operation to prevent race conditions
 func (c *cache) Add(key string, value any, ttl time.Duration) error {
-	if c.Has(key) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Check if key exists under the lock
+	data, err := c.store.Get(c.prefixKey(key))
+	if err != nil {
+		return err
+	}
+	if data != nil {
 		return errors.New("key already exists")
 	}
 
-	return c.Set(key, value, ttl)
+	// Key doesn't exist, set it atomically
+	marshaledData, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	return c.store.Set(c.prefixKey(key), marshaledData, ttl)
 }
 
 // Increment increments an integer value
+// This is an atomic read-modify-write operation to prevent race conditions
 func (c *cache) Increment(key string, value ...int64) (int64, error) {
 	increment := int64(1)
 	if len(value) > 0 {
 		increment = value[0]
 	}
 
-	// Get current value
-	c.mu.RLock()
-	data, err := c.store.Get(c.prefixKey(key))
-	c.mu.RUnlock()
+	// Use exclusive lock for the entire read-modify-write operation
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	data, err := c.store.Get(c.prefixKey(key))
 	if err != nil {
 		return 0, err
 	}
@@ -245,8 +261,13 @@ func (c *cache) Increment(key string, value ...int64) (int64, error) {
 	// Increment
 	newValue := current + increment
 
-	// Store back
-	if err := c.Set(key, newValue, 0); err != nil {
+	// Store back (directly to avoid re-acquiring lock)
+	marshaledData, err := json.Marshal(newValue)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := c.store.Set(c.prefixKey(key), marshaledData, 0); err != nil {
 		return 0, err
 	}
 

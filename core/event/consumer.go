@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -79,17 +80,19 @@ func (c *Consumer) Start(ctx context.Context) {
 	}()
 }
 
-// Stop stops the consumer
+// Stop stops the consumer gracefully
+// The mutex is released before waiting to prevent potential deadlocks
 func (c *Consumer) Stop() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.stopped {
+		c.mu.Unlock()
 		return
 	}
-
 	c.stopped = true
 	c.cancel()
+	c.mu.Unlock() // Release lock before waiting to prevent deadlock
+
+	// Wait for all goroutines to complete
 	c.wg.Wait()
 
 	c.logger.Info("Consumer stopped",
@@ -225,10 +228,25 @@ func (c *Consumer) claimPendingMessages(ctx context.Context) {
 	}
 }
 
-// processMessage processes a single message
+// processMessage processes a single message with panic recovery
 func (c *Consumer) processMessage(ctx context.Context, message redis.XMessage) {
 	streamKey := c.getStreamKey()
 	messageID := message.ID
+
+	// Panic recovery to prevent handler panics from crashing the consumer
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in event handler: %v", r)
+			c.logger.Error("Event handler panicked",
+				"topic", c.topic,
+				"consumer_group", c.consumerGroup,
+				"message_id", messageID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+			c.handleMessageError(ctx, messageID, err)
+		}
+	}()
 
 	// Deserialize event
 	event, err := c.serializer.Deserialize(message.Values)

@@ -308,7 +308,8 @@ func (c *config) AddSource(source contract.ConfigSource) {
 
 // Module represents the config module for Fx
 type Module struct {
-	config contract.Config
+	config   contract.Config
+	stopChan chan struct{} // Used to signal goroutine shutdown
 }
 
 // NewModule creates a new config module
@@ -325,6 +326,8 @@ func (m *Module) Name() string {
 
 // OnStart is called when the module starts
 func (m *Module) OnStart(ctx context.Context) error {
+	// Initialize stop channel
+	m.stopChan = make(chan struct{})
 	// Watch for env file changes
 	go m.watchEnvFiles()
 	return nil
@@ -332,6 +335,10 @@ func (m *Module) OnStart(ctx context.Context) error {
 
 // OnStop is called when the module stops
 func (m *Module) OnStop(ctx context.Context) error {
+	// Signal the watcher goroutine to stop
+	if m.stopChan != nil {
+		close(m.stopChan)
+	}
 	return nil
 }
 
@@ -342,8 +349,13 @@ func (m *Module) watchEnvFiles() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		_ = m.config.Reload()
+	for {
+		select {
+		case <-m.stopChan:
+			return
+		case <-ticker.C:
+			_ = m.config.Reload()
+		}
 	}
 }
 

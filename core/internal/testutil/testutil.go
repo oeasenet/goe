@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -138,4 +139,18 @@ func RetryOperation(t *testing.T, maxAttempts int, baseDelay time.Duration, op f
 func Cleanup(t *testing.T, cleanupFn func()) {
 	t.Helper()
 	t.Cleanup(cleanupFn)
+}
+
+// GetFreePort returns an available port on the system.
+// It binds to port 0, gets the assigned port, and closes the listener.
+// The port is then available for use.
+func GetFreePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to get free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
 }

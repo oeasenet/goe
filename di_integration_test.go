@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -13,16 +14,32 @@ import (
 	"go.oease.dev/goe/v2/core/http"
 )
 
+// getFreePort returns an available port on the system for testing.
+func getFreePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to get free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
+}
+
 func TestDependencyInjection_Integration(t *testing.T) {
 	t.Run("full application DI flow", func(t *testing.T) {
 		// Reset global state
 		resetGlobalInstance()
+
+		// Get a free port to avoid conflicts
+		port := getFreePort(t)
 
 		// Create app with multiple modules to test DI
 		app := New(Options{
 			WithHTTP:  true,
 			WithCache: true,
 			WithDB:    false, // Skip DB to avoid connection requirements
+			HTTPPort:  port,
 			Providers: []any{
 				// Custom provider that depends on config and logger
 				func(config contract.Config, logger contract.Logger) *customTestService {
@@ -74,6 +91,9 @@ func TestDependencyInjection_Integration(t *testing.T) {
 	t.Run("module registration order", func(t *testing.T) {
 		resetGlobalInstance()
 
+		// Get a free port to avoid conflicts
+		port := getFreePort(t)
+
 		var initOrder []string
 		var initOrderMutex sync.Mutex
 
@@ -93,6 +113,7 @@ func TestDependencyInjection_Integration(t *testing.T) {
 		app := New(Options{
 			WithHTTP:  true,
 			WithCache: true,
+			HTTPPort:  port,
 			Modules:   []any{moduleConstructor}, // Pass constructor function
 			Invokers: []any{
 				func(logger contract.Logger) {
@@ -176,11 +197,15 @@ func TestServiceProvider_DependencyInjection(t *testing.T) {
 	t.Run("HTTP service provider gets all dependencies", func(t *testing.T) {
 		resetGlobalInstance()
 
+		// Get a free port to avoid conflicts
+		port := getFreePort(t)
+
 		var providerReceived bool
 
 		app := New(Options{
 			WithHTTP:  true,
 			WithCache: true,
+			HTTPPort:  port,
 			Invokers: []any{
 				func(
 					app contract.Application,

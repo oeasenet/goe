@@ -2,18 +2,21 @@ package event
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 // Event represents a concrete event implementation
+// The struct is thread-safe for concurrent access to headers
 type Event struct {
 	id        string
 	topic     string
 	name      string
 	payload   any
 	headers   map[string]string
+	headersMu sync.RWMutex // Protects headers map for concurrent access
 	timestamp time.Time
 	ctx       context.Context
 }
@@ -62,9 +65,17 @@ func (e *Event) Payload() any {
 	return e.payload
 }
 
-// Headers returns the event headers
+// Headers returns a copy of the event headers for thread-safe access
 func (e *Event) Headers() map[string]string {
-	return e.headers
+	e.headersMu.RLock()
+	defer e.headersMu.RUnlock()
+
+	// Return a copy to prevent external modification
+	result := make(map[string]string, len(e.headers))
+	for k, v := range e.headers {
+		result[k] = v
+	}
+	return result
 }
 
 // Timestamp returns when the event was created
@@ -83,14 +94,18 @@ func (e *Event) WithTopic(topic string) *Event {
 	return e
 }
 
-// WithHeader sets a header value
+// WithHeader sets a header value in a thread-safe manner
 func (e *Event) WithHeader(key, value string) *Event {
+	e.headersMu.Lock()
+	defer e.headersMu.Unlock()
 	e.headers[key] = value
 	return e
 }
 
-// WithHeaders sets multiple headers
+// WithHeaders sets multiple headers in a thread-safe manner
 func (e *Event) WithHeaders(headers map[string]string) *Event {
+	e.headersMu.Lock()
+	defer e.headersMu.Unlock()
 	for k, v := range headers {
 		e.headers[k] = v
 	}

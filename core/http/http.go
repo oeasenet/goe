@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"net"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -325,9 +326,20 @@ func (m *Module) OnStart(ctx context.Context) error {
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 
-	// Start server in background
+	// Create listener first to ensure port is available and bound
+	// This guarantees the server is ready to accept connections when OnStart returns
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to bind HTTP server to %s: %w", addr, err)
+	}
+
+	m.kernel.(*kernel).logger.Info("HTTP server starting",
+		"address", addr,
+	)
+
+	// Start server in background using the pre-created listener
 	go func() {
-		if err := m.kernel.Listen(addr); err != nil {
+		if err := m.kernel.App().Listener(ln); err != nil {
 			m.kernel.(*kernel).logger.Error("HTTP server error",
 				"error", err.Error(),
 			)
