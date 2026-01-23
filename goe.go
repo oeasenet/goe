@@ -13,11 +13,15 @@ import (
 	"go.oease.dev/goe/v2/core/app"
 	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
-	"go.oease.dev/goe/v2/core/db" // + Import the new db package
+	"go.oease.dev/goe/v2/core/db"
 	"go.oease.dev/goe/v2/core/event"
+	"go.oease.dev/goe/v2/core/health"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
+	"go.oease.dev/goe/v2/core/metrics"
+	"go.oease.dev/goe/v2/core/otel"
+	"go.oease.dev/goe/v2/core/shutdown"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
@@ -26,16 +30,20 @@ import (
 var (
 	// Global instance holder
 	instance struct {
-		app          contract.Application
-		config       contract.Config
-		logger       contract.Logger
-		http         contract.HTTPKernel
-		cacheManager contract.CacheManager
-		db           contract.DB           // Database instance
-		mongoDB      contract.MongoDB      // MongoDB instance
-		eventManager contract.EventManager // Event manager instance
-		lockManager  contract.LockManager  // Lock manager instance
-		mu           sync.RWMutex
+		app             contract.Application
+		config          contract.Config
+		logger          contract.Logger
+		http            contract.HTTPKernel
+		cacheManager    contract.CacheManager
+		db              contract.DB             // Database instance
+		mongoDB         contract.MongoDB        // MongoDB instance
+		eventManager    contract.EventManager   // Event manager instance
+		lockManager     contract.LockManager    // Lock manager instance
+		healthManager   contract.HealthManager  // Health manager instance
+		metricsManager  contract.MetricsManager // Metrics manager instance
+		otelProvider    contract.OTelProvider   // OpenTelemetry provider instance
+		shutdownManager *shutdown.Manager       // Shutdown manager instance
+		mu              sync.RWMutex
 	}
 )
 
@@ -50,8 +58,15 @@ type Options struct {
 	WithMongoDB     bool           // Enable Mongo DB module
 	WithEvent       bool           // Enable Event module
 	WithLock        bool           // Enable Lock module (distributed mutex)
+	WithHealth      bool           // Enable Health module (health checks)
+	WithMetrics     bool           // Enable Metrics module (Prometheus metrics)
+	WithOTel        bool           // Enable OpenTelemetry module (distributed tracing)
 	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
 	ConfigOverrides map[string]any // Override any environment variables
+
+	// Shutdown configuration
+	ShutdownTimeout time.Duration // Total shutdown timeout (default: 30s)
+	DrainTimeout    time.Duration // HTTP drain timeout (default: 5s)
 
 	// Lifecycle hooks - these are executed through Fx's lifecycle system
 	OnStart []func(context.Context) error // Functions to run after all modules start
@@ -73,12 +88,17 @@ func New(opts ...Options) contract.Application {
 		opt.Invokers = o.Invokers
 		opt.WithHTTP = o.WithHTTP
 		opt.WithCache = o.WithCache
-		opt.WithDB = o.WithDB // + Assign WithDB
+		opt.WithDB = o.WithDB
 		opt.WithMongoDB = o.WithMongoDB
 		opt.WithEvent = o.WithEvent
 		opt.WithLock = o.WithLock
+		opt.WithHealth = o.WithHealth
+		opt.WithMetrics = o.WithMetrics
+		opt.WithOTel = o.WithOTel
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
+		opt.ShutdownTimeout = o.ShutdownTimeout
+		opt.DrainTimeout = o.DrainTimeout
 		opt.OnStart = o.OnStart
 		opt.OnStop = o.OnStop
 	}
@@ -171,6 +191,9 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
 	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
+	instance.logger.Info("WithHealth flag", "enabled", opt.WithHealth)
+	instance.logger.Info("WithMetrics flag", "enabled", opt.WithMetrics)
+	instance.logger.Info("WithOTel flag", "enabled", opt.WithOTel)
 
 	// Add Cache module if enabled
 	var cacheModule *cache.Module
@@ -291,6 +314,95 @@ func New(opts ...Options) contract.Application {
 		)
 	}
 
+	// Create shutdown manager with configured timeouts
+	shutdownTimeout := opt.ShutdownTimeout
+	if shutdownTimeout == 0 {
+		shutdownTimeout = instance.config.GetDuration("SHUTDOWN_TIMEOUT")
+		if shutdownTimeout == 0 {
+			shutdownTimeout = 30 * time.Second
+		}
+	}
+	drainTimeout := opt.DrainTimeout
+	if drainTimeout == 0 {
+		drainTimeout = instance.config.GetDuration("SHUTDOWN_DRAIN_TIMEOUT")
+		if drainTimeout == 0 {
+			drainTimeout = 5 * time.Second
+		}
+	}
+	instance.shutdownManager = shutdown.NewManager(instance.logger, shutdownTimeout, drainTimeout)
+
+	// Always provide shutdown manager for dependency injection
+	fxOptions = append(fxOptions,
+		fx.Provide(func() *shutdown.Manager { return instance.shutdownManager }),
+	)
+
+	// Add Health module if enabled
+	var healthModule *health.Module
+	if opt.WithHealth {
+		healthModule = health.NewModule(instance.config, instance.logger)
+		instance.healthManager = healthModule.Manager()
+
+		instance.logger.Info("Registering Health module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.HealthManager { return instance.healthManager }),
+			fx.Module(healthModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: healthModule.OnStart,
+						OnStop:  healthModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add Metrics module if enabled
+	var metricsModule *metrics.Module
+	if opt.WithMetrics {
+		metricsModule = metrics.NewModule(instance.config, instance.logger)
+		instance.metricsManager = metricsModule.Manager()
+
+		instance.logger.Info("Registering Metrics module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.MetricsManager { return instance.metricsManager }),
+			fx.Module(metricsModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: metricsModule.OnStart,
+						OnStop:  metricsModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add OpenTelemetry module if enabled
+	var otelModule *otel.Module
+	if opt.WithOTel {
+		var err error
+		otelModule, err = otel.NewModule(context.Background(), instance.config, instance.logger)
+		if err != nil {
+			instance.logger.Fatal("Failed to create OpenTelemetry module", "error", err)
+		}
+		instance.otelProvider = otelModule.Provider()
+
+		instance.logger.Info("Registering OpenTelemetry module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.OTelProvider { return instance.otelProvider }),
+			fx.Module(otelModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: otelModule.OnStart,
+						OnStop:  otelModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
 	// Add HTTP module if enabled
 	var httpModule *http.Module
 	if opt.WithHTTP {
@@ -366,13 +478,53 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, fx.Provide(provider))
 	}
 
-	// Add HTTP service injection BEFORE the HTTP server starts
+	// Add HTTP service injection and module routes BEFORE the HTTP server starts
 	if opt.WithHTTP {
 		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
+			fiberApp := httpModule.Provide().App()
+
 			// Set up service middleware immediately when all dependencies are available
 			// This ensures the middleware is registered before the HTTP server starts listening
-			httpModule.Provide().App().Use(http.CreateServiceMiddleware(provider))
-			instance.logger.Debug("HTTP middleware registered")
+			fiberApp.Use(http.CreateServiceMiddleware(provider))
+			instance.logger.Debug("HTTP service middleware registered")
+
+			// Register OpenTelemetry tracing middleware (first, to capture all requests)
+			if opt.WithOTel && otelModule != nil {
+				otelModule.RegisterMiddleware(fiberApp)
+				instance.logger.Debug("OpenTelemetry middleware registered")
+			}
+
+			// Register Prometheus metrics middleware
+			if opt.WithMetrics && metricsModule != nil {
+				metricsModule.RegisterMiddleware(fiberApp)
+				instance.logger.Debug("Metrics middleware registered")
+			}
+
+			// Register health check routes
+			if opt.WithHealth && healthModule != nil {
+				healthModule.RegisterRoutes(fiberApp)
+				instance.logger.Debug("Health routes registered")
+
+				// Auto-register health checkers for enabled modules
+				if opt.WithDB && instance.db != nil {
+					instance.healthManager.RegisterChecker(health.NewDatabaseChecker(instance.db.Instance()))
+				}
+				if opt.WithCache && instance.cacheManager != nil {
+					instance.healthManager.RegisterChecker(health.NewCacheChecker(instance.cacheManager.Store()))
+				}
+				if opt.WithMongoDB && instance.mongoDB != nil {
+					instance.healthManager.RegisterChecker(health.NewMongoDBChecker(instance.mongoDB))
+				}
+				if opt.WithEvent && instance.eventManager != nil {
+					instance.healthManager.RegisterChecker(health.NewEventChecker(instance.eventManager))
+				}
+			}
+
+			// Register metrics endpoint
+			if opt.WithMetrics && metricsModule != nil {
+				metricsModule.RegisterRoutes(fiberApp)
+				instance.logger.Debug("Metrics routes registered")
+			}
 		}))
 	}
 
@@ -612,6 +764,42 @@ func MongoDB() contract.MongoDB {
 // Mongo is a convenient alias for MongoDB() for shorter access
 func Mongo() contract.MongoDB {
 	return MongoDB()
+}
+
+// Health returns the global health manager instance
+func Health() contract.HealthManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.healthManager == nil {
+		panic("Health module not initialized. Set WithHealth: true in goe.New() options")
+	}
+
+	return instance.healthManager
+}
+
+// Metrics returns the global metrics manager instance
+func Metrics() contract.MetricsManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.metricsManager == nil {
+		panic("Metrics module not initialized. Set WithMetrics: true in goe.New() options")
+	}
+
+	return instance.metricsManager
+}
+
+// OTel returns the global OpenTelemetry provider instance
+func OTel() contract.OTelProvider {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.otelProvider == nil {
+		panic("OpenTelemetry module not initialized. Set WithOTel: true in goe.New() options")
+	}
+
+	return instance.otelProvider
 }
 
 // Lock returns the global lock manager instance.
