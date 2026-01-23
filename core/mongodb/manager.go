@@ -37,7 +37,8 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 	opt.ApplyURI(uri)
 	if dbm.customMonitor != nil {
 		opt.SetMonitor(dbm.customMonitor)
-	} else {
+	} else if dbm.config.GetBool(configPrefix+"DEBUG") || dbm.config.GetBool("MONGO_DEBUG") {
+		// Only enable command logging when debug is explicitly enabled
 		opt.SetMonitor(defaultMonitor(dbm.logger))
 	}
 
