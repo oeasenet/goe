@@ -150,6 +150,9 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	// Create fiber app
 	app := fiber.New(fiberConfig)
 
+	// Register default route constraints (uuid, uint, slug, email)
+	RegisterDefaultConstraints(app)
+
 	// Add default middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())

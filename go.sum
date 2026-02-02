@@ -105,8 +105,8 @@ github.com/go-sql-driver/mysql v1.9.3 h1:U/N249h2WzJ3Ukj8SowVFjdtZKfu9vlLZxjPXV1
 github.com/go-sql-driver/mysql v1.9.3/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI64Gl8i5p1WMU=
 github.com/gofiber/contrib/v3/zap v1.0.0-rc.1 h1:OVl1XPGfgllxVAXaupLNDTWlq/rl7eFNDsdKDygCsQw=
 github.com/gofiber/contrib/v3/zap v1.0.0-rc.1/go.mod h1:l7iP0YA3JPW6PHH48vmGh+q4uHUavpP9NA2fVUTrqNg=
-github.com/gofiber/fiber/v3 v3.0.0-rc.3 h1:h0KXuRHbivSslIpoHD1R/XjUsjcGwt+2vK0avFiYonA=
-github.com/gofiber/fiber/v3 v3.0.0-rc.3/go.mod h1:LNBPuS/rGoUFlOyy03fXsWAeWfdGoT1QytwjRVNSVWo=
+github.com/gofiber/fiber/v3 v3.0.0 h1:GPeCG8X60L42wLKrzgeewDHBr6pE6veAvwaXsqD3Xjk=
+github.com/gofiber/fiber/v3 v3.0.0/go.mod h1:kVZiO/AwyT5Pq6PgC8qRCJ+j/BHrMy5jNw1O9yH38aY=
 github.com/gofiber/schema v1.6.0 h1:rAgVDFwhndtC+hgV7Vu5ItQCn7eC2mBA4Eu1/ZTiEYY=
 github.com/gofiber/schema v1.6.0/go.mod h1:WNZWpQx8LlPSK7ZaX0OqOh+nQo/eW2OevsXs1VZfs/s=
 github.com/gofiber/storage/memory/v2 v2.1.1 h1:q0ZsCyUtdVh6dCPRhIHEIC5YCK8zKL2pKTBfPWJz71A=
@@ -121,8 +121,8 @@ github.com/gofiber/template/html/v2 v2.1.3 h1:n1LYBtmr9C0V/k/3qBblXyMxV5B0o/gpb6
 github.com/gofiber/template/html/v2 v2.1.3/go.mod h1:U5Fxgc5KpyujU9OqKzy6Kn6Qup6Tm7zdsISR+VpnHRE=
 github.com/gofiber/utils v1.2.0 h1:NCaqd+Efg3khhN++eeUUTyBz+byIxAsmIjpl8kKOMIc=
 github.com/gofiber/utils v1.2.0/go.mod h1:poZpsnhBykfnY1Mc0KeEa6mSHrS3dV0+oBWyeQmb2e0=
-github.com/gofiber/utils/v2 v2.0.0-rc.6 h1:pBAbppiFMR+BpdEwjnZDMpnH0rBreDUPWjolUVe6BVY=
-github.com/gofiber/utils/v2 v2.0.0-rc.6/go.mod h1:8PuWXERC3IoTmoD2Fp/X7amJntq928Fa2yTHI5Orj2M=
+github.com/gofiber/utils/v2 v2.0.0 h1:SCC3rpsEDWupFSHtc0RKxg/BKgV0s1qKfZg9Jv6D0sM=
+github.com/gofiber/utils/v2 v2.0.0/go.mod h1:xF9v89FfmbrYqI/bQUGN7gR8ZtXot2jxnZvmAUtiavE=
 github.com/golang-jwt/jwt/v5 v5.0.0/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
 github.com/golang-jwt/jwt/v5 v5.2.1/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
 github.com/golang-jwt/jwt/v5 v5.2.2/go.mod h1:pqrtFR0X4osieyHYxtmOUWsAWrfe1Q5UVIyoH402zdk=
@@ -246,8 +246,8 @@ github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0t
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/rs/xid v1.6.0 h1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=
 github.com/rs/xid v1.6.0/go.mod h1:7XoLgs4eV+QndskICGsho+ADou8ySMSjJKDIan90Nz0=
-github.com/shamaton/msgpack/v2 v2.4.0 h1:O5Z08MRmbo0lA9o2xnQ4TXx6teJbPqEurqcCOQ8Oi/4=
-github.com/shamaton/msgpack/v2 v2.4.0/go.mod h1:6khjYnkx73f7VQU7wjcFS9DFjs+59naVWJv1TB7qdOI=
+github.com/shamaton/msgpack/v3 v3.0.0 h1:xl40uxWkSpwBCSTvS5wyXvJRsC6AcVcYeox9PspKiZg=
+github.com/shamaton/msgpack/v3 v3.0.0/go.mod h1:DcQG8jrdrQCIxr3HlMYkiXdMhK+KfN2CitkyzsQV4uc=
 github.com/shirou/gopsutil/v4 v4.25.10 h1:at8lk/5T1OgtuCp+AwrDofFRjnvosn0nkN2OLQ6g8tA=
 github.com/shirou/gopsutil/v4 v4.25.10/go.mod h1:+kSwyC8DRUD9XXEHCAFjK+0nuArFJM0lva+StQAcskM=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=

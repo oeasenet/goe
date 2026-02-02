@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/sonic v1.15.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/gofiber/contrib/v3/zap v1.0.0-rc.1
-	github.com/gofiber/fiber/v3 v3.0.0-rc.3
+	github.com/gofiber/fiber/v3 v3.0.0
 	github.com/gofiber/storage/memory/v2 v2.1.1
 	github.com/gofiber/storage/redis/v3 v3.4.2
 	github.com/gofiber/template/html/v2 v2.1.3
@@ -52,7 +52,7 @@ require (
 	github.com/gofiber/schema v1.6.0 // indirect
 	github.com/gofiber/template v1.8.3 // indirect
 	github.com/gofiber/utils v1.2.0 // indirect
-	github.com/gofiber/utils/v2 v2.0.0-rc.6 // indirect
+	github.com/gofiber/utils/v2 v2.0.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.5 // indirect
