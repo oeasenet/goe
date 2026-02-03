@@ -264,49 +264,6 @@ GOE supports multiple MongoDB connections. The default connection uses `MONGO_*`
 
 ---
 
-## Event System (Redis Streams)
-
-The event system uses Redis Streams for pub/sub messaging with support for consumer groups, dead letter queues, and delayed messages.
-
-### Redis Connection
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EVENT_REDIS_URL` | string | - | Redis connection URL (priority over individual settings) |
-| `EVENT_REDIS_HOSTS` | []string | `localhost:6379` | Comma-separated Redis hosts |
-| `EVENT_REDIS_ADDR` | string | `localhost:6379` | Redis address (legacy, use `EVENT_REDIS_URL` or `EVENT_REDIS_HOSTS`) |
-| `EVENT_REDIS_USERNAME` | string | - | Redis username |
-| `EVENT_REDIS_PASSWORD` | string | - | Redis password |
-| `EVENT_REDIS_DB` | int | `0` | Redis database number |
-
-### Consumer Settings
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EVENT_CONSUMER_TIMEOUT` | duration | `30s` | Consumer read timeout |
-| `EVENT_MAX_RETRIES` | int | `3` | Maximum retry attempts for failed messages |
-| `EVENT_RETRY_BACKOFF` | duration | `1s` | Delay between retries |
-| `EVENT_DLQ_TTL` | duration | `24h` | Dead letter queue message TTL |
-| `EVENT_STALE_CONSUMER_TIMEOUT` | duration | `5m` | Timeout for stale consumer detection |
-
-### Performance Settings
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EVENT_BATCH_SIZE` | int | `10` | Number of messages to fetch per batch |
-| `EVENT_MAX_PENDING_MESSAGES` | int | `1000` | Maximum pending messages per consumer |
-| `EVENT_CLAIM_MIN_IDLE_TIME` | duration | `1m` | Minimum idle time before claiming messages |
-| `EVENT_CLAIM_INTERVAL` | duration | `30s` | Interval for checking claimable messages |
-
-### Delayed Queue
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EVENT_DELAYED_QUEUE_ENABLED` | bool | `true` | Enable delayed message queue |
-| `EVENT_DELAYED_QUEUE_CHECK_INTERVAL` | duration | `1s` | Interval for processing delayed messages |
-
----
-
 ## Lock System (Distributed Mutex)
 
 The lock system provides distributed locking using Redis with support for single instance, Sentinel, Cluster, and Redlock algorithms.

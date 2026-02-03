@@ -120,7 +120,7 @@ WithHTTP:    true, // HTTP server (Fiber)
 WithCache:   true, // Caching system
 WithDB:      true, // SQL database (GORM)
 WithMongoDB: true, // MongoDB
-WithEvent:   true,  // Event system (Redis Streams)
+WithJob:     true, // Background job processing (Redis)
 WithLock:    true, // Distributed locking
 })
 ```

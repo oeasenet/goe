@@ -41,9 +41,9 @@ features:
     -   icon: 🗄️
         title: GORM Database Integration
         details: Seamless integration with GORM for database operations, supporting MySQL, PostgreSQL, SQLite, and SQL Server.
-    -   icon: 🔄
-        title: Event System
-        details: Built-in event system using Redis Streams for publish-subscribe patterns, consumer groups, dead letter queues, and delayed message processing.
+    -   icon: 📋
+        title: Job System
+        details: Production-ready background job processing with human-friendly scheduling, delayed execution, retries with exponential backoff, and dead letter queues.
     -   icon: 🍃
         title: MongoDB Support
         details: Native MongoDB integration with connection pooling, multiple database support, and helper utilities for indexes and transactions.

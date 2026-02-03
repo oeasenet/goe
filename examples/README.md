@@ -68,30 +68,6 @@ curl http://localhost:3000/todos/stats/summary
 
 ---
 
-### [03-event-driven](./03-event-driven/)
-
-**Event system with Redis Streams** - Event-driven architecture demonstrating:
-- Publishing events to topics
-- Subscribing with consumer groups (fan-out pattern)
-- Typed event handlers for automatic payload unmarshaling
-- Dead letter queue handling for failed messages
-- Event system health checks and statistics
-
-```bash
-cd 03-event-driven && go run .
-
-# Create an order (publishes event)
-curl -X POST http://localhost:3000/orders -H "Content-Type: application/json" \
-  -d '{"customer_id":"cust_123","items":[{"product":"Widget","quantity":2,"price":29.99}]}'
-
-# Monitor event system
-curl http://localhost:3000/events/stats
-curl http://localhost:3000/events/health
-curl http://localhost:3000/events/dlq/orders
-```
-
----
-
 ### [04-custom-module](./04-custom-module/)
 
 **Custom modules with lifecycle hooks** - Advanced patterns demonstrating:
@@ -141,7 +117,7 @@ Handler (HTTP) → Service (Business Logic) → Repository (Data Access)
 ```
 
 - **Handlers**: Parse requests, validate input, call services, format responses
-- **Services**: Implement business logic, coordinate data access, publish events
+- **Services**: Implement business logic, coordinate data access
 - **Contracts**: Define interfaces for loose coupling and testability
 
 ### Module Pattern
@@ -169,22 +145,6 @@ cache.Set("key", value, time.Hour)
 cache.Get("key", &result)
 cache.Forget("key")
 cache.Forever("key", value)
-```
-
-### Event Patterns
-
-```go
-// Publish events
-event.PublishJSON(ctx, publisher, "orders", "order.created", payload)
-
-// Subscribe with consumer groups
-eventManager.Subscribe(ctx, "orders", "notification-service", handler)
-
-// Typed handlers for automatic unmarshaling
-event.CreateTypedEventHandler(func(ctx context.Context, e contract.Event, payload OrderEvent) error {
-    // payload is automatically unmarshaled
-    return nil
-})
 ```
 
 ---
@@ -222,10 +182,6 @@ MONGO_DB_NAME=myapp
 CACHE_STORE=redis
 CACHE_REDIS_URL=redis://localhost:6379/0
 CACHE_PREFIX=myapp:
-
-# Event System
-EVENT_REDIS_ADDR=localhost:6379
-EVENT_REDIS_DB=1
 ```
 
 ---
@@ -279,8 +235,8 @@ curl -s http://localhost:3000/todos | jq .
 
 1. **Start with 01-hello-world** - Understand basic GOE structure
 2. **Move to 02-todo-api** - Learn MongoDB, caching, and service patterns
-3. **Explore 03-event-driven** - Understand event-driven architecture
-4. **Study 04-custom-module** - Master module creation and lifecycle
+3. **Study 04-custom-module** - Master module creation and lifecycle
+4. **Explore 05-production-essentials** - Learn about health checks, metrics, and tracing
 
 ---
 
