@@ -1,0 +1,183 @@
+package migrate
+
+import (
+	"context"
+	"fmt"
+
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.oease.dev/goe/v2/contract"
+)
+
+// Module represents the migration module for Fx dependency injection
+type Module struct {
+	migrator *Migrator
+	logger   contract.Logger
+	config   contract.Config
+	mongodb  contract.MongoDB
+	cfg      *Config
+}
+
+// NewModule creates a new migration module
+func NewModule(config contract.Config, logger contract.Logger, mongodb contract.MongoDB) (*Module, error) {
+	// Load migration configuration
+	cfg := LoadConfig(config)
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid migration configuration: %w", err)
+	}
+
+	// Get the database
+	db := mongodb.DB()
+	if db == nil {
+		return nil, fmt.Errorf("mongodb database is nil")
+	}
+
+	// Create migrator
+	migrator := NewMigrator(db,
+		WithLogger(logger),
+		WithConfig(cfg),
+		WithDryRun(cfg.DryRunByDefault),
+	)
+
+	return &Module{
+		migrator: migrator,
+		logger:   logger,
+		config:   config,
+		mongodb:  mongodb,
+		cfg:      cfg,
+	}, nil
+}
+
+// Name returns the module name
+func (m *Module) Name() string {
+	return "mongodb_migrate"
+}
+
+// OnStart is called when the module starts
+func (m *Module) OnStart(ctx context.Context) error {
+	m.logger.Info("MongoDB migration module starting",
+		"collection", m.cfg.Collection,
+		"auto_migrate", m.cfg.AutoMigrate,
+		"verify_checksums", m.cfg.VerifyChecksums,
+	)
+
+	// Initialize the migrator (create collections, indexes)
+	if err := m.migrator.Init(ctx); err != nil {
+		m.logger.Error("Failed to initialize migrator", "error", err)
+		return err
+	}
+
+	// Verify checksums if enabled
+	if m.cfg.VerifyChecksums && HasMigrations() {
+		m.logger.Debug("Verifying migration checksums")
+		if err := m.migrator.VerifyChecksums(ctx); err != nil {
+			m.logger.Error("Migration checksum verification failed", "error", err)
+			return err
+		}
+		m.logger.Debug("Migration checksums verified")
+	}
+
+	// Run auto-migration if enabled
+	if m.cfg.AutoMigrate && HasMigrations() {
+		m.logger.Info("Running auto-migration")
+
+		result, err := m.migrator.Up(ctx)
+		if err != nil {
+			m.logger.Error("Auto-migration failed", "error", err)
+			return err
+		}
+
+		if len(result.Applied) > 0 {
+			m.logger.Info("Auto-migration completed",
+				"applied", len(result.Applied),
+				"skipped", len(result.Skipped),
+				"duration", result.Duration.String(),
+			)
+		} else {
+			m.logger.Info("No pending migrations to apply")
+		}
+	}
+
+	// Log current state
+	version, err := m.migrator.Version(ctx)
+	if err == nil {
+		m.logger.Info("Current migration version", "version", version)
+	}
+
+	pending, err := m.migrator.Pending(ctx)
+	if err == nil && len(pending) > 0 {
+		m.logger.Info("Pending migrations", "count", len(pending))
+	}
+
+	m.logger.Info("MongoDB migration module started")
+	return nil
+}
+
+// OnStop is called when the module stops
+func (m *Module) OnStop(ctx context.Context) error {
+	m.logger.Info("MongoDB migration module stopping")
+
+	// Release any held locks
+	if m.migrator.lock.IsHeld() {
+		if err := m.migrator.lock.Release(ctx); err != nil {
+			m.logger.Error("Failed to release migration lock", "error", err)
+		}
+	}
+
+	m.logger.Info("MongoDB migration module stopped")
+	return nil
+}
+
+// Provide returns the Migrator instance for Fx
+func (m *Module) Provide() *Migrator {
+	return m.migrator
+}
+
+// ProvideMigrator returns the Migrator instance (alias for Provide)
+func (m *Module) ProvideMigrator() *Migrator {
+	return m.migrator
+}
+
+// Migrator returns the underlying migrator
+func (m *Module) Migrator() *Migrator {
+	return m.migrator
+}
+
+// Config returns the migration configuration
+func (m *Module) Config() *Config {
+	return m.cfg
+}
+
+// --- Helper functions for creating modules with different configurations ---
+
+// NewModuleWithDB creates a migration module with a specific database
+func NewModuleWithDB(config contract.Config, logger contract.Logger, db *mongo.Database) (*Module, error) {
+	cfg := LoadConfig(config)
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid migration configuration: %w", err)
+	}
+
+	migrator := NewMigrator(db,
+		WithLogger(logger),
+		WithConfig(cfg),
+		WithDryRun(cfg.DryRunByDefault),
+	)
+
+	return &Module{
+		migrator: migrator,
+		logger:   logger,
+		config:   config,
+		cfg:      cfg,
+	}, nil
+}
+
+// NewModuleWithMigrator creates a module with a pre-configured migrator
+func NewModuleWithMigrator(migrator *Migrator, logger contract.Logger) *Module {
+	return &Module{
+		migrator: migrator,
+		logger:   logger,
+		cfg:      migrator.config,
+	}
+}

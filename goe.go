@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.oease.dev/goe/v2/core/mongodb"
+	"go.oease.dev/goe/v2/core/mongodb/migrate"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
@@ -37,6 +38,7 @@ var (
 		cacheManager    contract.CacheManager
 		db              contract.DB             // Database instance
 		mongoDB         contract.MongoDB        // MongoDB instance
+		migrator        *migrate.Migrator       // MongoDB migration instance
 		lockManager     contract.LockManager    // Lock manager instance
 		jobManager      contract.JobManager     // Job manager instance
 		healthManager   contract.HealthManager  // Health manager instance
@@ -56,6 +58,7 @@ type Options struct {
 	WithCache       bool           // Enable Cache module
 	WithDB          bool           // Enable DB module
 	WithMongoDB     bool           // Enable Mongo DB module
+	WithMigrate     bool           // Enable MongoDB Migration module (requires WithMongoDB)
 	WithLock        bool           // Enable Lock module (distributed mutex)
 	WithJob         bool           // Enable Job module (background job processing)
 	WithHealth      bool           // Enable Health module (health checks)
@@ -90,6 +93,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB
 		opt.WithMongoDB = o.WithMongoDB
+		opt.WithMigrate = o.WithMigrate
 		opt.WithLock = o.WithLock
 		opt.WithJob = o.WithJob
 		opt.WithHealth = o.WithHealth
@@ -189,6 +193,7 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
+	instance.logger.Info("WithMigrate flag", "enabled", opt.WithMigrate)
 	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
 	instance.logger.Info("WithJob flag", "enabled", opt.WithJob)
 	instance.logger.Info("WithHealth flag", "enabled", opt.WithHealth)
@@ -255,6 +260,35 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: mongodbModule.OnStart,
 						OnStop:  mongodbModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add MongoDB Migration module if enabled (requires WithMongoDB)
+	var migrateModule *migrate.Module
+	if opt.WithMigrate {
+		if !opt.WithMongoDB || instance.mongoDB == nil {
+			instance.logger.Fatal("Migration module requires MongoDB. Set WithMongoDB: true")
+		}
+
+		var err error
+		migrateModule, err = migrate.NewModule(instance.config, instance.logger, instance.mongoDB)
+		if err != nil {
+			instance.logger.Fatal("Failed to create migration module", "error", err)
+		}
+		instance.migrator = migrateModule.Provide()
+
+		instance.logger.Info("Registering MongoDB Migration module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() *migrate.Migrator { return instance.migrator }),
+			fx.Module(migrateModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: migrateModule.OnStart,
+						OnStop:  migrateModule.OnStop,
 					})
 				}),
 			),
@@ -574,16 +608,16 @@ func checkAndProvideServices(module contract.Module) []fx.Option {
 
 	// Common service provider method patterns used by GOE modules
 	serviceProviderMethods := []string{
-		"Provide",               // Generic service provider
-		"ProvideService",        // Generic service provider
-		"ProvideClient",         // For client modules (like gRPC, HTTP clients)
-		"ProvideManager",        // For manager services
-		"ProvideHandler",        // For handler services
-		"ProvideRepository",     // For data access modules
-		"ProvideCache",          // For cache services
-		"ProvideDB",             // For database services
-		"ProvideLogger", // For logger services
-		"ProvideConfig", // For config services
+		"Provide",           // Generic service provider
+		"ProvideService",    // Generic service provider
+		"ProvideClient",     // For client modules (like gRPC, HTTP clients)
+		"ProvideManager",    // For manager services
+		"ProvideHandler",    // For handler services
+		"ProvideRepository", // For data access modules
+		"ProvideCache",      // For cache services
+		"ProvideDB",         // For database services
+		"ProvideLogger",     // For logger services
+		"ProvideConfig",     // For config services
 	}
 
 	// Check each potential service provider method
@@ -732,6 +766,30 @@ func MongoDB() contract.MongoDB {
 // Mongo is a convenient alias for MongoDB() for shorter access
 func Mongo() contract.MongoDB {
 	return MongoDB()
+}
+
+// Migrate returns the global MongoDB migration instance.
+// Use this to run migrations, check status, or manage schema versions.
+//
+// Example:
+//
+//	// Run all pending migrations
+//	result, err := goe.Migrate().Up(ctx)
+//
+//	// Check migration status
+//	status, err := goe.Migrate().Status(ctx)
+//
+//	// Rollback last migration
+//	result, err := goe.Migrate().Down(ctx, 1)
+func Migrate() *migrate.Migrator {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.migrator == nil {
+		panic("Migration module not initialized. Set WithMigrate: true and WithMongoDB: true in goe.New() options")
+	}
+
+	return instance.migrator
 }
 
 // Health returns the global health manager instance
