@@ -183,6 +183,88 @@ GOE supports multiple MongoDB connections. The default connection uses `MONGO_*`
 
 ---
 
+## MongoDB Migrations
+
+MongoDB migrations provide schema versioning, distributed locking, and automatic document-level versioning. Enable with `WithMigrate: true` (requires `WithMongoDB: true`).
+
+### Migration Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `MONGODB_MIGRATE_COLLECTION` | string | `_goe_migrations` | Collection name for tracking migration state |
+| `MONGODB_MIGRATE_TIMEOUT` | duration | `5m` | Maximum duration for a single migration execution |
+| `MONGODB_MIGRATE_LOCK_TIMEOUT` | duration | `30m` | Maximum duration for distributed migration lock |
+| `MONGODB_MIGRATE_LOCK_HEARTBEAT` | duration | `30s` | Interval for lock heartbeat updates |
+| `MONGODB_MIGRATE_USE_TRANSACTIONS` | bool | `true` | Use transactions if MongoDB replica set is available |
+| `MONGODB_MIGRATE_VERIFY_CHECKSUMS` | bool | `true` | Verify migration checksums on startup to detect modifications |
+| `MONGODB_MIGRATE_AUTO` | bool | `false` | Automatically run pending migrations on application start |
+| `MONGODB_MIGRATE_VERSION_SCHEME` | string | `sequential` | Version scheme: `sequential` (1, 2, 3...) or `timestamp` |
+| `MONGODB_MIGRATE_SCHEMA_VERSION_FIELD` | string | `_goe_sv` | Field name for document-level schema versioning |
+| `MONGODB_MIGRATE_DRY_RUN` | bool | `false` | Enable dry-run mode by default (preview without applying) |
+
+---
+
+## Job System (Background Processing)
+
+The job system provides Redis-backed background job processing with scheduling, retries, and dead letter queues. Enable with `WithJob: true`.
+
+### Redis Connection
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_REDIS_URL` | string | - | Redis connection URL (e.g., `redis://localhost:6379/0`) |
+| `JOB_REDIS_HOSTS` | []string | `localhost:6379` | Comma-separated Redis hosts (fallback if URL not provided) |
+| `JOB_REDIS_USERNAME` | string | - | Redis username |
+| `JOB_REDIS_PASSWORD` | string | - | Redis password |
+| `JOB_REDIS_DB` | int | `0` | Redis database number |
+| `JOB_REDIS_POOL_SIZE` | int | `10` | Redis connection pool size |
+| `JOB_REDIS_ADDR` | string | - | **Deprecated**: Use `JOB_REDIS_URL` or `JOB_REDIS_HOSTS` |
+
+### Worker Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_CONCURRENCY` | int | `5` | Number of concurrent workers per queue |
+| `JOB_MAX_CONCURRENCY` | int | `100` | Maximum total concurrent workers |
+| `JOB_POLL_INTERVAL` | duration | `1s` | How often to poll for new jobs |
+| `JOB_SHUTDOWN_TIMEOUT` | duration | `30s` | Timeout for graceful shutdown |
+| `JOB_HEARTBEAT_INTERVAL` | duration | `15s` | Worker heartbeat interval |
+| `JOB_KEY_PREFIX` | string | `goe:job:` | Prefix for all job-related Redis keys |
+
+### Job Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_DEFAULT_QUEUE` | string | `default` | Default queue name |
+| `JOB_DEFAULT_MAX_ATTEMPTS` | int | `3` | Default maximum retry attempts |
+| `JOB_DEFAULT_TIMEOUT` | duration | `30m` | Default job execution timeout |
+| `JOB_RETRY_BACKOFF` | duration | `1s` | Initial retry backoff duration |
+| `JOB_MAX_RETRY_BACKOFF` | duration | `5m` | Maximum retry backoff duration |
+| `JOB_RETRY_BACKOFF_FACTOR` | float | `2.0` | Retry backoff multiplier |
+| `JOB_DEFAULT_UNIQUE_TTL` | duration | `1h` | Default TTL for job uniqueness |
+
+### Scheduler Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_SCHEDULER_ENABLED` | bool | `true` | Enable the job scheduler |
+| `JOB_SCHEDULER_INTERVAL` | duration | `1s` | How often to check for scheduled jobs |
+
+### Dead Letter Queue
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_DLQ_ENABLED` | bool | `true` | Enable dead letter queue for failed jobs |
+| `JOB_DLQ_TTL` | duration | `168h` | How long to keep jobs in DLQ (default: 7 days) |
+
+### Metrics
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JOB_METRICS_ENABLED` | bool | `true` | Enable job metrics collection |
+
+---
+
 ## Cache
 
 ### General Settings

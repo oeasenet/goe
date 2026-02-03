@@ -47,6 +47,9 @@ features:
     -   icon: 🍃
         title: MongoDB Support
         details: Native MongoDB integration with connection pooling, multiple database support, and helper utilities for indexes and transactions.
+    -   icon: 🔄
+        title: MongoDB Migrations
+        details: Fluent migration API for MongoDB with schema versioning, distributed locking, checksum verification, and powerful helper functions.
     -   icon: 🔐
         title: Distributed Locking
         details: Redis-based distributed mutex system with support for single instance, Sentinel, Cluster, and Redlock algorithms.

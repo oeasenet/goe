@@ -6,39 +6,56 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// Config holds the migration system configuration
+// Config holds the migration system configuration.
+// All fields can be configured via environment variables with the MONGODB_MIGRATE_ prefix.
 type Config struct {
-	// Collection is the name of the collection used to track migration state
+	// Collection is the name of the collection used to track migration state.
+	// Env: MONGODB_MIGRATE_COLLECTION (default: _goe_migrations)
 	Collection string
 
-	// Timeout is the maximum duration for a single migration
+	// Timeout is the maximum duration for a single migration execution.
+	// Env: MONGODB_MIGRATE_TIMEOUT (default: 5m)
 	Timeout time.Duration
 
-	// LockTimeout is the maximum duration to hold the migration lock
+	// LockTimeout is the maximum duration to hold the distributed migration lock.
+	// If a migration exceeds this duration, the lock may be stolen by another instance.
+	// Env: MONGODB_MIGRATE_LOCK_TIMEOUT (default: 30m)
 	LockTimeout time.Duration
 
-	// LockHeartbeat is the interval for lock heartbeat updates
+	// LockHeartbeat is the interval for lock heartbeat updates.
+	// The heartbeat extends the lock expiration to prevent premature release.
+	// Env: MONGODB_MIGRATE_LOCK_HEARTBEAT (default: 30s)
 	LockHeartbeat time.Duration
 
-	// UseTransactions enables transaction support for migrations
-	// Requires MongoDB replica set
+	// UseTransactions enables transaction support for migrations.
+	// Requires MongoDB replica set. When enabled, migrations run within transactions.
+	// Env: MONGODB_MIGRATE_USE_TRANSACTIONS (default: true)
 	UseTransactions bool
 
-	// VerifyChecksums enables checksum verification on startup
+	// VerifyChecksums enables checksum verification on startup.
+	// Detects if migration code has been modified after being applied.
+	// Env: MONGODB_MIGRATE_VERIFY_CHECKSUMS (default: true)
 	VerifyChecksums bool
 
-	// AutoMigrate enables automatic migration on application start
+	// AutoMigrate enables automatic migration on application start.
+	// When true, pending migrations are applied automatically during OnStart.
+	// Env: MONGODB_MIGRATE_AUTO (default: false)
 	AutoMigrate bool
 
-	// VersionScheme determines how versions are generated
-	// "sequential" - 1, 2, 3... (default)
-	// "timestamp" - Unix timestamp based
+	// VersionScheme determines how migration versions are interpreted.
+	// "sequential" - versions are sequential integers: 1, 2, 3... (default)
+	// "timestamp" - versions are Unix timestamps for ordering
+	// Env: MONGODB_MIGRATE_VERSION_SCHEME (default: sequential)
 	VersionScheme string
 
-	// SchemaVersionField is the field name for document-level schema versioning
+	// SchemaVersionField is the field name for document-level schema versioning.
+	// This field is automatically updated by schema-changing helpers like AddField.
+	// Env: MONGODB_MIGRATE_SCHEMA_VERSION_FIELD (default: _goe_sv)
 	SchemaVersionField string
 
-	// DryRunByDefault enables dry-run mode by default
+	// DryRunByDefault enables dry-run mode by default.
+	// When true, migrations will only preview changes without applying them.
+	// Env: MONGODB_MIGRATE_DRY_RUN (default: false)
 	DryRunByDefault bool
 }
 
@@ -58,7 +75,19 @@ func DefaultConfig() *Config {
 	}
 }
 
-// LoadConfig loads configuration from GOE config
+// LoadConfig loads configuration from GOE config using MONGODB_MIGRATE_* settings.
+//
+// Environment variables:
+//   - MONGODB_MIGRATE_COLLECTION: State collection name (default: _goe_migrations)
+//   - MONGODB_MIGRATE_TIMEOUT: Per-migration timeout (default: 5m)
+//   - MONGODB_MIGRATE_LOCK_TIMEOUT: Distributed lock timeout (default: 30m)
+//   - MONGODB_MIGRATE_LOCK_HEARTBEAT: Lock heartbeat interval (default: 30s)
+//   - MONGODB_MIGRATE_USE_TRANSACTIONS: Use transactions if available (default: true)
+//   - MONGODB_MIGRATE_VERIFY_CHECKSUMS: Verify checksums on startup (default: true)
+//   - MONGODB_MIGRATE_AUTO: Auto-run pending migrations on app start (default: false)
+//   - MONGODB_MIGRATE_VERSION_SCHEME: Version scheme - sequential or timestamp (default: sequential)
+//   - MONGODB_MIGRATE_SCHEMA_VERSION_FIELD: Document schema version field (default: _goe_sv)
+//   - MONGODB_MIGRATE_DRY_RUN: Enable dry-run mode by default (default: false)
 func LoadConfig(config contract.Config) *Config {
 	cfg := DefaultConfig()
 

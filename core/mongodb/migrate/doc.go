@@ -70,13 +70,16 @@
 //
 // Configure via environment variables:
 //
-//	MONGODB_MIGRATE_COLLECTION=_goe_migrations  # State collection name
-//	MONGODB_MIGRATE_TIMEOUT=5m                  # Per-migration timeout
-//	MONGODB_MIGRATE_LOCK_TIMEOUT=30m            # Distributed lock timeout
-//	MONGODB_MIGRATE_USE_TRANSACTIONS=true       # Use transactions if available
-//	MONGODB_MIGRATE_VERIFY_CHECKSUMS=true       # Verify checksums on startup
-//	MONGODB_MIGRATE_AUTO=false                  # Auto-run on app start
-//	MONGODB_MIGRATE_VERSION_SCHEME=sequential   # sequential or timestamp
+//	MONGODB_MIGRATE_COLLECTION=_goe_migrations   # State collection name (default: _goe_migrations)
+//	MONGODB_MIGRATE_TIMEOUT=5m                   # Per-migration timeout (default: 5m)
+//	MONGODB_MIGRATE_LOCK_TIMEOUT=30m             # Distributed lock timeout (default: 30m)
+//	MONGODB_MIGRATE_LOCK_HEARTBEAT=30s           # Lock heartbeat interval (default: 30s)
+//	MONGODB_MIGRATE_USE_TRANSACTIONS=true        # Use transactions if replica set available (default: true)
+//	MONGODB_MIGRATE_VERIFY_CHECKSUMS=true        # Verify checksums on startup (default: true)
+//	MONGODB_MIGRATE_AUTO=false                   # Auto-run pending migrations on app start (default: false)
+//	MONGODB_MIGRATE_VERSION_SCHEME=sequential    # Version scheme: sequential or timestamp (default: sequential)
+//	MONGODB_MIGRATE_SCHEMA_VERSION_FIELD=_goe_sv # Document schema version field name (default: _goe_sv)
+//	MONGODB_MIGRATE_DRY_RUN=false                # Enable dry-run mode by default (default: false)
 //
 // # Migration Helpers
 //
