@@ -17,7 +17,6 @@ func TestCircularDependencies(t *testing.T) {
 			WithHTTP:    true,
 			WithCache:   true,
 			WithDB:      false, // Skip DB to avoid connection requirements
-			WithEvent:   false, // Skip Event to avoid Redis requirements
 			WithMongoDB: false, // Skip MongoDB to avoid connection requirements
 		})
 

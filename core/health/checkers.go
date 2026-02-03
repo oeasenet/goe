@@ -162,45 +162,6 @@ func (c *MongoDBChecker) Check(ctx context.Context) contract.HealthCheckResult {
 	}
 }
 
-// EventChecker checks the health of the event system
-type EventChecker struct {
-	name  string
-	event contract.EventManager
-}
-
-// NewEventChecker creates a new event system health checker
-func NewEventChecker(event contract.EventManager) *EventChecker {
-	return &EventChecker{
-		name:  "event",
-		event: event,
-	}
-}
-
-// Name returns the checker name
-func (c *EventChecker) Name() string {
-	return c.name
-}
-
-// Check performs the event system health check
-func (c *EventChecker) Check(ctx context.Context) contract.HealthCheckResult {
-	start := time.Now()
-
-	if err := c.event.Health(ctx); err != nil {
-		return contract.HealthCheckResult{
-			Status:    contract.HealthStatusDown,
-			Latency:   time.Since(start),
-			Message:   "health check failed: " + err.Error(),
-			Timestamp: time.Now(),
-		}
-	}
-
-	return contract.HealthCheckResult{
-		Status:    contract.HealthStatusUp,
-		Latency:   time.Since(start),
-		Timestamp: time.Now(),
-	}
-}
-
 // JobChecker checks the health of the job system
 type JobChecker struct {
 	name string

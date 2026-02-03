@@ -14,7 +14,6 @@ import (
 	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
 	"go.oease.dev/goe/v2/core/db"
-	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/health"
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/job"
@@ -38,7 +37,6 @@ var (
 		cacheManager    contract.CacheManager
 		db              contract.DB             // Database instance
 		mongoDB         contract.MongoDB        // MongoDB instance
-		eventManager    contract.EventManager   // Event manager instance
 		lockManager     contract.LockManager    // Lock manager instance
 		jobManager      contract.JobManager     // Job manager instance
 		healthManager   contract.HealthManager  // Health manager instance
@@ -58,7 +56,6 @@ type Options struct {
 	WithCache       bool           // Enable Cache module
 	WithDB          bool           // Enable DB module
 	WithMongoDB     bool           // Enable Mongo DB module
-	WithEvent       bool           // Enable Event module
 	WithLock        bool           // Enable Lock module (distributed mutex)
 	WithJob         bool           // Enable Job module (background job processing)
 	WithHealth      bool           // Enable Health module (health checks)
@@ -93,7 +90,6 @@ func New(opts ...Options) contract.Application {
 		opt.WithCache = o.WithCache
 		opt.WithDB = o.WithDB
 		opt.WithMongoDB = o.WithMongoDB
-		opt.WithEvent = o.WithEvent
 		opt.WithLock = o.WithLock
 		opt.WithJob = o.WithJob
 		opt.WithHealth = o.WithHealth
@@ -192,7 +188,6 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithHTTP flag", "enabled", opt.WithHTTP)
 	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
 	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
-	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
 	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
 	instance.logger.Info("WithJob flag", "enabled", opt.WithJob)
@@ -237,34 +232,6 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: dbModule.OnStart,
 						OnStop:  dbModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add Event module if enabled
-	var eventModule *event.Module
-	if opt.WithEvent {
-		var err error
-		eventModule, err = event.NewModule(instance.config, instance.logger)
-		if err != nil {
-			instance.logger.Fatal("Failed to create event module", "error", err)
-		}
-		instance.eventManager = eventModule.Provide()
-
-		instance.logger.Info("Registering Event module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.EventManager { return instance.eventManager }),
-			fx.Provide(func() contract.EventPublisher { return eventModule.ProvideEventPublisher() }),
-			fx.Provide(func() contract.EventConsumer { return eventModule.ProvideEventConsumer() }),
-			fx.Provide(func() contract.DeadLetterQueueManager { return eventModule.ProvideDeadLetterQueue() }),
-			fx.Module(eventModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: eventModule.OnStart,
-						OnStop:  eventModule.OnStop,
 					})
 				}),
 			),
@@ -545,9 +512,6 @@ func New(opts ...Options) contract.Application {
 				if opt.WithMongoDB && instance.mongoDB != nil {
 					instance.healthManager.RegisterChecker(health.NewMongoDBChecker(instance.mongoDB))
 				}
-				if opt.WithEvent && instance.eventManager != nil {
-					instance.healthManager.RegisterChecker(health.NewEventChecker(instance.eventManager))
-				}
 				if opt.WithJob && instance.jobManager != nil {
 					instance.healthManager.RegisterChecker(health.NewJobChecker(instance.jobManager))
 				}
@@ -618,10 +582,8 @@ func checkAndProvideServices(module contract.Module) []fx.Option {
 		"ProvideRepository",     // For data access modules
 		"ProvideCache",          // For cache services
 		"ProvideDB",             // For database services
-		"ProvideLogger",         // For logger services
-		"ProvideConfig",         // For config services
-		"ProvideEventPublisher", // For event services
-		"ProvideEventConsumer",  // For event services
+		"ProvideLogger", // For logger services
+		"ProvideConfig", // For config services
 	}
 
 	// Check each potential service provider method
@@ -753,33 +715,6 @@ func DB() contract.DB {
 	}
 
 	return instance.db
-}
-
-// EventManager returns the global event manager instance
-func EventManager() contract.EventManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.eventManager == nil {
-		panic("Event module not initialized. Set WithEvent: true in goe.New() options")
-	}
-
-	return instance.eventManager
-}
-
-// EventPublisher returns the global event publisher instance
-func EventPublisher() contract.EventPublisher {
-	return EventManager()
-}
-
-// EventConsumer returns the global event consumer instance
-func EventConsumer() contract.EventConsumer {
-	return EventManager()
-}
-
-// DeadLetterQueue returns the global dead letter queue manager instance
-func DeadLetterQueue() contract.DeadLetterQueueManager {
-	return EventManager().GetDeadLetterQueue()
 }
 
 // MongoDB returns the global MongoDB instance
