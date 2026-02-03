@@ -17,6 +17,7 @@ import (
 	"go.oease.dev/goe/v2/core/event"
 	"go.oease.dev/goe/v2/core/health"
 	"go.oease.dev/goe/v2/core/http"
+	"go.oease.dev/goe/v2/core/job"
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
 	"go.oease.dev/goe/v2/core/metrics"
@@ -39,6 +40,7 @@ var (
 		mongoDB         contract.MongoDB        // MongoDB instance
 		eventManager    contract.EventManager   // Event manager instance
 		lockManager     contract.LockManager    // Lock manager instance
+		jobManager      contract.JobManager     // Job manager instance
 		healthManager   contract.HealthManager  // Health manager instance
 		metricsManager  contract.MetricsManager // Metrics manager instance
 		otelProvider    contract.OTelProvider   // OpenTelemetry provider instance
@@ -58,6 +60,7 @@ type Options struct {
 	WithMongoDB     bool           // Enable Mongo DB module
 	WithEvent       bool           // Enable Event module
 	WithLock        bool           // Enable Lock module (distributed mutex)
+	WithJob         bool           // Enable Job module (background job processing)
 	WithHealth      bool           // Enable Health module (health checks)
 	WithMetrics     bool           // Enable Metrics module (Prometheus metrics)
 	WithOTel        bool           // Enable OpenTelemetry module (distributed tracing)
@@ -92,6 +95,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithMongoDB = o.WithMongoDB
 		opt.WithEvent = o.WithEvent
 		opt.WithLock = o.WithLock
+		opt.WithJob = o.WithJob
 		opt.WithHealth = o.WithHealth
 		opt.WithMetrics = o.WithMetrics
 		opt.WithOTel = o.WithOTel
@@ -191,6 +195,7 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithEvent flag", "enabled", opt.WithEvent)
 	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
 	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
+	instance.logger.Info("WithJob flag", "enabled", opt.WithJob)
 	instance.logger.Info("WithHealth flag", "enabled", opt.WithHealth)
 	instance.logger.Info("WithMetrics flag", "enabled", opt.WithMetrics)
 	instance.logger.Info("WithOTel flag", "enabled", opt.WithOTel)
@@ -308,6 +313,31 @@ func New(opts ...Options) contract.Application {
 					lc.Append(fx.Hook{
 						OnStart: lockModule.OnStart,
 						OnStop:  lockModule.OnStop,
+					})
+				}),
+			),
+		)
+	}
+
+	// Add Job module if enabled
+	var jobModule *job.Module
+	if opt.WithJob {
+		var err error
+		jobModule, err = job.NewModule(instance.config, instance.logger)
+		if err != nil {
+			instance.logger.Fatal("Failed to create job module", "error", err)
+		}
+		instance.jobManager = jobModule.Provide()
+
+		instance.logger.Info("Registering Job module")
+
+		fxOptions = append(fxOptions,
+			fx.Provide(func() contract.JobManager { return instance.jobManager }),
+			fx.Module(jobModule.Name(),
+				fx.Invoke(func(lc fx.Lifecycle) {
+					lc.Append(fx.Hook{
+						OnStart: jobModule.OnStart,
+						OnStop:  jobModule.OnStop,
 					})
 				}),
 			),
@@ -517,6 +547,9 @@ func New(opts ...Options) contract.Application {
 				}
 				if opt.WithEvent && instance.eventManager != nil {
 					instance.healthManager.RegisterChecker(health.NewEventChecker(instance.eventManager))
+				}
+				if opt.WithJob && instance.jobManager != nil {
+					instance.healthManager.RegisterChecker(health.NewJobChecker(instance.jobManager))
 				}
 			}
 
@@ -823,6 +856,43 @@ func Lock() contract.LockManager {
 	}
 
 	return instance.lockManager
+}
+
+// Job returns the global job manager instance.
+// Use this to dispatch background jobs, register handlers, and manage job schedules.
+//
+// Example - Dispatching a job:
+//
+//	job := contract.NewJobDefinition("send-email", map[string]string{
+//	    "to": "user@example.com",
+//	    "subject": "Welcome!",
+//	})
+//	jobID, err := goe.Job().Dispatch(ctx, job)
+//
+// Example - Registering a handler:
+//
+//	goe.Job().RegisterHandler("send-email", contract.JobHandlerFunc(func(ctx context.Context, job contract.Job) error {
+//	    payload := job.Payload().(map[string]string)
+//	    // Send the email...
+//	    return nil
+//	}))
+//
+// Example - Scheduling a recurring job:
+//
+//	goe.Job().RegisterSchedule(&contract.ScheduledJob{
+//	    Name:     "cleanup-expired",
+//	    Schedule: job.Daily(),
+//	    Handler:  myCleanupHandler,
+//	})
+func Job() contract.JobManager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.jobManager == nil {
+		panic("Job module not initialized. Set WithJob: true in goe.New() options")
+	}
+
+	return instance.jobManager
 }
 
 // AddModule adds a module to the global application instance

@@ -201,6 +201,45 @@ func (c *EventChecker) Check(ctx context.Context) contract.HealthCheckResult {
 	}
 }
 
+// JobChecker checks the health of the job system
+type JobChecker struct {
+	name string
+	job  contract.JobManager
+}
+
+// NewJobChecker creates a new job system health checker
+func NewJobChecker(job contract.JobManager) *JobChecker {
+	return &JobChecker{
+		name: "job",
+		job:  job,
+	}
+}
+
+// Name returns the checker name
+func (c *JobChecker) Name() string {
+	return c.name
+}
+
+// Check performs the job system health check
+func (c *JobChecker) Check(ctx context.Context) contract.HealthCheckResult {
+	start := time.Now()
+
+	if err := c.job.Health(ctx); err != nil {
+		return contract.HealthCheckResult{
+			Status:    contract.HealthStatusDown,
+			Latency:   time.Since(start),
+			Message:   "health check failed: " + err.Error(),
+			Timestamp: time.Now(),
+		}
+	}
+
+	return contract.HealthCheckResult{
+		Status:    contract.HealthStatusUp,
+		Latency:   time.Since(start),
+		Timestamp: time.Now(),
+	}
+}
+
 // CustomChecker is a helper for creating custom health checkers
 type CustomChecker struct {
 	name      string
