@@ -161,6 +161,11 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 
 	//Add request logging middleware using fiber's official middleware
 	fiberZap := fiberzap.New(fiberzap.Config{
+		SkipURIs: []string{
+			"/.well-known/liveness",
+			"/.well-known/readiness",
+			"/.well-known/health",
+		},
 		Logger: logger.GetLogger().Desugar(),
 		Fields: []string{"ip", "latency", "status", "method", "request_id", "url"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
