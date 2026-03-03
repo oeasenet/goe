@@ -1,0 +1,302 @@
+{
+  "repo_notes": [
+    {
+      "content": ""
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce the goe framework, summarise its architecture, list its major capabilities, and explain how the key subsystems relate to each other",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Getting Started",
+      "purpose": "Guide a new user from zero to a running goe application, covering prerequisites and the minimal setup path",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Installation",
+      "purpose": "Explain the go get command, Go version requirement, module path, and any build-time prerequisites",
+      "parent": "Getting Started",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Quick Start Tutorial",
+      "purpose": "Walk through a minimal working application using goe.New and goe.Run with HTTP, configuration, and logging enabled",
+      "parent": "Getting Started",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Project Structure",
+      "purpose": "Describe the conventional layout of a goe project, the purpose of the core/, contract/, webresult/, and modules/ directories, and where user code lives",
+      "parent": "Getting Started",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Concepts",
+      "purpose": "Explain the foundational design principles of goe: dependency injection, the module contract, configuration loading, and the global accessor pattern",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Application Bootstrap",
+      "purpose": "Detail the goe.New(Options) constructor, every field of the Options struct, the goe.Run() call, global accessor functions, and how the singleton instance is managed",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Dependency Injection with Fx",
+      "purpose": "Explain how go.uber.org/fx powers the DI container, how Providers and Invokers are declared and resolved, and how the framework-provided contract interfaces are injected",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Module System and Lifecycle",
+      "purpose": "Describe the contract.Module interface (Name, OnStart, OnStop, ValidateConfig, Provide), how built-in modules are registered, and the startup and shutdown ordering guarantee",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Configuration Hierarchy",
+      "purpose": "Explain how config is loaded from .env, .local.env, .{GOE_ENV}.env and system environment variables, the priority order, typed accessors (GetString, GetInt, GetBool, GetDuration), hot-reload, and the ConfigSource extension point",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Logging with Zap",
+      "purpose": "Cover the contract.Logger interface, the zap-backed implementation, log levels, JSON vs console format, file and stdout outputs, structured fields (With, WithContext, WithError), and the log.Module Fx integration",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "HTTP Server",
+      "purpose": "Overview of the HTTP subsystem built on Fiber, listing the capabilities covered in sub-pages",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "HTTP Kernel Overview",
+      "purpose": "Describe the contract.HTTPKernel interface, the HTTPConfig struct fields, server startup/shutdown lifecycle, default middleware registration, and RegisterDefaultConstraints",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Routing and Handlers",
+      "purpose": "Explain how to register routes on fiber.App, use the Group wrapper, the RouteRegistrar DI pattern, RegisterRoutes helper, and the HandlerParams injection struct",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Dependency Injection in Handlers",
+      "purpose": "Document the Services struct, InjectServices middleware, GetServices/GetConfig/GetLogger/GetCache/GetApp helpers, the AsHandler generic, and the Group DI routing methods",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Middleware System",
+      "purpose": "Cover the default request-logger and recover middleware, how to add custom middleware, SetupServiceMiddleware, and the available optional middleware (OIDC, CacheControl)",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Request Validation",
+      "purpose": "Explain the HTTPValidator interface, struct validation via go-playground/validator, built-in route constraints (uuid, uint, slug, email), and how validators are injected into handlers",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Response Utilities",
+      "purpose": "Document the webresult package in full: the WebResult struct, Map and List type aliases, SendSucceed, SendFailed, and the fiber.Error generators (InvalidParam, Unauthorized, Forbidden, NotFound, SystemBusy)",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Error Handling",
+      "purpose": "Cover the default Fiber error handler, the embedded error page HTML template and its data fields (Title, Code, Message, HomeLink), and how to customise error responses",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "SPA and Static File Serving",
+      "purpose": "Document the spa middleware (Root, Index, NotFoundFile, MaxAge, Browse, Compress, ByteRange), the CacheControl middleware and CacheRule patterns, and how to serve a frontend app alongside an API",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Data Persistence",
+      "purpose": "Overview of the SQL, MongoDB, and migration modules, and how they fit into the application lifecycle",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "SQL Database with GORM",
+      "purpose": "Cover DatabaseModule setup, supported drivers (MySQL, PostgreSQL, SQLite, SQL Server), multi-connection configuration, DSN construction, connection pooling, auto-migration, RegisterModelsForMigration, and the contract.DB interface",
+      "parent": "Data Persistence",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "MongoDB Integration",
+      "purpose": "Describe the MongoDB DatabaseModule, default and named connections, pool settings (MIN_POOL_SIZE, MAX_POOL_SIZE, MAX_CONN_IDLE_TIME), debug command monitoring, the contract.MongoDB interface, and the utility functions for indexes, transactions, and bulk writes",
+      "parent": "Data Persistence",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "MongoDB Migrations",
+      "purpose": "Document the Migrator, Migration definition (New, Up, Down, Register), the contract.Migrator interface methods (Up, Down, Reset, Redo, Status, DryRun, VerifyChecksums), distributed locking via MongoLock, checksum verification, and the full set of migration helper functions",
+      "parent": "Data Persistence",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Caching",
+      "purpose": "Overview of the caching subsystem, its driver model, and contract interfaces",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Cache Module and Drivers",
+      "purpose": "Explain the CacheManager, supported built-in drivers (memory, Redis, Memcache, database backends), the Extend method for custom drivers, and all relevant configuration keys (CACHE_STORE, CACHE_DRIVER, CACHE_PREFIX, CACHE_TTL, per-store settings)",
+      "parent": "Caching",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Cache Operations",
+      "purpose": "Document every method on contract.Cache: Get, GetWithDefault, Set, Forever, Forget, Flush, Has, Remember, RememberForever, Pull, Add, Increment, Decrement, and the typed cache wrapper",
+      "parent": "Caching",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Background Jobs",
+      "purpose": "Overview of the Redis-backed background job processing system and how it differs from the event system",
+      "page_notes": [
+        {
+          "content": "Eventing system has been removed since 2.0.2 release. Job system took over what we implemented in the eventing system."
+        }
+      ]
+    },
+    {
+      "title": "Job System Architecture",
+      "purpose": "Describe the Manager, Redis storage model, job state machine (pending→running→completed/failed/cancelled), the worker pool, the Promoter goroutine, the DLQ, and all configuration parameters",
+      "parent": "Background Jobs",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Dispatching Jobs",
+      "purpose": "Cover JobDefinition, the JobBuilder fluent API (NewJob, OnQueue, WithDelay, WithSchedule, Unique, MaxAttempts, Timeout), Dispatch, DispatchMany, Cancel, and uniqueness deduplication",
+      "parent": "Background Jobs",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
