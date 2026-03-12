@@ -269,7 +269,7 @@ func New(opts ...Options) contract.Application {
 	// Add MongoDB Migration module if enabled (requires WithMongoDB)
 	var migrateModule *migrate.Module
 	if opt.WithMigrate {
-		if !opt.WithMongoDB || instance.mongoDB == nil {
+		if !opt.WithMongoDB {
 			instance.logger.Fatal("Migration module requires MongoDB. Set WithMongoDB: true")
 		}
 
@@ -278,17 +278,27 @@ func New(opts ...Options) contract.Application {
 		if err != nil {
 			instance.logger.Fatal("Failed to create migration module", "error", err)
 		}
-		instance.migrator = migrateModule.Provide()
 
 		instance.logger.Info("Registering MongoDB Migration module")
 
 		fxOptions = append(fxOptions,
-			fx.Provide(func() *migrate.Migrator { return instance.migrator }),
 			fx.Module(migrateModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
+				// Declare explicit Fx dependency on contract.MongoDB to guarantee
+				// MongoDB's OnStart (which establishes connections) runs before
+				// the migration module's OnStart (which needs the DB connection).
+				fx.Invoke(func(lc fx.Lifecycle, _ contract.MongoDB) {
 					lc.Append(fx.Hook{
-						OnStart: migrateModule.OnStart,
-						OnStop:  migrateModule.OnStop,
+						OnStart: func(ctx context.Context) error {
+							if err := migrateModule.OnStart(ctx); err != nil {
+								return err
+							}
+							// Set instance.migrator after OnStart creates the migrator
+							// (migrator is created in OnStart because MongoDB connections
+							// are only available after MongoDB module's OnStart)
+							instance.migrator = migrateModule.Provide()
+							return nil
+						},
+						OnStop: migrateModule.OnStop,
 					})
 				}),
 			),

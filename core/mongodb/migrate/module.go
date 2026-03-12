@@ -17,7 +17,10 @@ type Module struct {
 	cfg      *Config
 }
 
-// NewModule creates a new migration module
+// NewModule creates a new migration module.
+// The migrator is not created here because MongoDB connections are established
+// during the Fx OnStart lifecycle phase. The migrator is created in OnStart
+// after the MongoDB connection is available.
 func NewModule(config contract.Config, logger contract.Logger, mongodb contract.MongoDB) (*Module, error) {
 	// Load migration configuration
 	cfg := LoadConfig(config)
@@ -27,25 +30,11 @@ func NewModule(config contract.Config, logger contract.Logger, mongodb contract.
 		return nil, fmt.Errorf("invalid migration configuration: %w", err)
 	}
 
-	// Get the database
-	db := mongodb.DB()
-	if db == nil {
-		return nil, fmt.Errorf("mongodb database is nil")
-	}
-
-	// Create migrator
-	migrator := NewMigrator(db,
-		WithLogger(logger),
-		WithConfig(cfg),
-		WithDryRun(cfg.DryRunByDefault),
-	)
-
 	return &Module{
-		migrator: migrator,
-		logger:   logger,
-		config:   config,
-		mongodb:  mongodb,
-		cfg:      cfg,
+		logger:  logger,
+		config:  config,
+		mongodb: mongodb,
+		cfg:     cfg,
 	}, nil
 }
 
@@ -54,12 +43,27 @@ func (m *Module) Name() string {
 	return "mongodb_migrate"
 }
 
-// OnStart is called when the module starts
+// OnStart is called when the module starts.
+// The migrator is created here because MongoDB connections are only available
+// after the MongoDB module's OnStart has completed.
 func (m *Module) OnStart(ctx context.Context) error {
 	m.logger.Info("MongoDB migration module starting",
 		"collection", m.cfg.Collection,
 		"auto_migrate", m.cfg.AutoMigrate,
 		"verify_checksums", m.cfg.VerifyChecksums,
+	)
+
+	// Get the database - now available because MongoDB OnStart has already run
+	db := m.mongodb.DB()
+	if db == nil {
+		return fmt.Errorf("mongodb database is nil - ensure MongoDB module is started and connected")
+	}
+
+	// Create migrator now that DB is available
+	m.migrator = NewMigrator(db,
+		WithLogger(m.logger),
+		WithConfig(m.cfg),
+		WithDryRun(m.cfg.DryRunByDefault),
 	)
 
 	// Initialize the migrator (create collections, indexes)
@@ -118,8 +122,8 @@ func (m *Module) OnStart(ctx context.Context) error {
 func (m *Module) OnStop(ctx context.Context) error {
 	m.logger.Info("MongoDB migration module stopping")
 
-	// Release any held locks
-	if m.migrator.lock.IsHeld() {
+	// Release any held locks (migrator may be nil if OnStart failed)
+	if m.migrator != nil && m.migrator.lock.IsHeld() {
 		if err := m.migrator.lock.Release(ctx); err != nil {
 			m.logger.Error("Failed to release migration lock", "error", err)
 		}

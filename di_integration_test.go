@@ -264,4 +264,11 @@ func resetGlobalInstance() {
 	instance.cacheManager = nil
 	instance.db = nil
 	instance.mongoDB = nil
+	instance.migrator = nil
+	instance.lockManager = nil
+	instance.jobManager = nil
+	instance.healthManager = nil
+	instance.metricsManager = nil
+	instance.otelProvider = nil
+	instance.shutdownManager = nil
 }
