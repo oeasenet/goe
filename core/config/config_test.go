@@ -11,17 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Helper function to create a temporary .env file
-func createTempEnvFile(t *testing.T, filename, content string) string {
-	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, filename)
-
-	err := os.WriteFile(filePath, []byte(content), 0644)
-	require.NoError(t, err)
-
-	return filePath
-}
-
 // Helper function to change to a temporary directory for testing
 func changeToTempDir(t *testing.T) string {
 	tempDir := t.TempDir()
@@ -32,7 +21,7 @@ func changeToTempDir(t *testing.T) string {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		os.Chdir(originalDir)
+		_ = os.Chdir(originalDir)
 	})
 
 	return tempDir
@@ -50,11 +39,11 @@ PORT=8080`
 	require.NoError(t, err)
 
 	// Set some system environment variables
-	os.Setenv("GOE_ENV", "test")
-	os.Setenv("SYSTEM_VAR", "system_value")
+	_ = os.Setenv("GOE_ENV", "test")
+	_ = os.Setenv("SYSTEM_VAR", "system_value")
 	defer func() {
-		os.Unsetenv("GOE_ENV")
-		os.Unsetenv("SYSTEM_VAR")
+		_ = os.Unsetenv("GOE_ENV")
+		_ = os.Unsetenv("SYSTEM_VAR")
 	}()
 
 	cfg := New()
@@ -363,8 +352,8 @@ PORT=8080`
 	require.NoError(t, err)
 
 	// Set GOE_ENV and create environment-specific file
-	os.Setenv("GOE_ENV", "test")
-	defer os.Unsetenv("GOE_ENV")
+	_ = os.Setenv("GOE_ENV", "test")
+	defer func() { _ = os.Unsetenv("GOE_ENV") }()
 
 	testEnvContent := `APP_NAME=from_test
 HOST=test.local`
@@ -372,8 +361,8 @@ HOST=test.local`
 	require.NoError(t, err)
 
 	// Set system environment variable (should have highest priority)
-	os.Setenv("APP_NAME", "from_system")
-	defer os.Unsetenv("APP_NAME")
+	_ = os.Setenv("APP_NAME", "from_system")
+	defer func() { _ = os.Unsetenv("APP_NAME") }()
 
 	cfg := New()
 
@@ -474,7 +463,7 @@ func TestConfig_ConcurrentAccess(t *testing.T) {
 
 	// Writer goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			cfg.Set("CONCURRENT_KEY", i)
 		}
 		done <- true
@@ -482,7 +471,7 @@ func TestConfig_ConcurrentAccess(t *testing.T) {
 
 	// Reader goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			cfg.Get("CONCURRENT_KEY")
 		}
 		done <- true
@@ -500,7 +489,7 @@ func TestConfig_DefaultGOEEnv(t *testing.T) {
 	tempDir := changeToTempDir(t)
 
 	// Make sure GOE_ENV is not set
-	os.Unsetenv("GOE_ENV")
+	_ = os.Unsetenv("GOE_ENV")
 
 	// Create .dev.env file (default environment)
 	devEnvContent := `DEV_VAR=from_dev`

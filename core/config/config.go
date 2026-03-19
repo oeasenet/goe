@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -62,7 +63,7 @@ func (c *config) loadEnvFile(filename string) {
 	if err != nil {
 		return // File doesn't exist, skip
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -107,22 +108,22 @@ func (c *config) Get(key string) any {
 		c.mu.RUnlock()
 		return val
 	}
+	c.mu.RUnlock()
 
-	// Check data
+	// Acquire write lock to populate cache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double-check cache in case another goroutine populated it
+	if cachedVal, exists := c.cache[key]; exists {
+		return cachedVal
+	}
+
+	// Read from data under the write lock to avoid stale reads
 	if val, ok := c.data[key]; ok {
-		c.mu.RUnlock()
-		// Need to acquire write lock to update cache
-		c.mu.Lock()
-		// Double-check cache in case another goroutine updated it
-		if cachedVal, exists := c.cache[key]; exists {
-			c.mu.Unlock()
-			return cachedVal
-		}
 		c.cache[key] = val
-		c.mu.Unlock()
 		return val
 	}
-	c.mu.RUnlock()
 
 	return nil
 }
@@ -226,8 +227,8 @@ func (c *config) GetStringMap(key string) map[string]any {
 	prefix := key + "."
 
 	for k, v := range c.data {
-		if strings.HasPrefix(k, prefix) {
-			mapKey := strings.TrimPrefix(k, prefix)
+		if after, ok := strings.CutPrefix(k, prefix); ok {
+			mapKey := after
 			result[mapKey] = v
 		}
 	}
@@ -259,9 +260,7 @@ func (c *config) All() map[string]any {
 	defer c.mu.RUnlock()
 
 	result := make(map[string]any)
-	for k, v := range c.data {
-		result[k] = v
-	}
+	maps.Copy(result, c.data)
 
 	return result
 }
@@ -290,9 +289,7 @@ func (c *config) Reload() error {
 			return err
 		}
 
-		for k, v := range data {
-			c.data[k] = v
-		}
+		maps.Copy(c.data, data)
 	}
 
 	return nil

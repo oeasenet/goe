@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"testing"
 	"time"
 )
@@ -119,9 +120,7 @@ func (m *mockConfig) Has(key string) bool {
 
 func (m *mockConfig) All() map[string]any {
 	result := make(map[string]any)
-	for k, v := range m.data {
-		result[k] = v
-	}
+	maps.Copy(result, m.data)
 	return result
 }
 

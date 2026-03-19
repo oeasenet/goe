@@ -1,6 +1,8 @@
 package config
 
 import (
+	"maps"
+	"strconv"
 	"sync"
 	"time"
 
@@ -51,11 +53,11 @@ func (w *ConfigWrapper) GetString(key string) string {
 	case string:
 		return v
 	case int:
-		return string(rune(v))
+		return strconv.Itoa(v)
 	case int64:
-		return string(rune(v))
+		return strconv.FormatInt(v, 10)
 	case float64:
-		return string(rune(int(v)))
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	case bool:
 		if v {
 			return "true"
@@ -226,9 +228,7 @@ func (w *ConfigWrapper) All() map[string]any {
 	result := w.base.All()
 
 	// Apply overrides
-	for key, value := range w.overrides {
-		result[key] = value
-	}
+	maps.Copy(result, w.overrides)
 
 	return result
 }
@@ -252,8 +252,6 @@ func (w *ConfigWrapper) GetOverrides() map[string]any {
 	defer w.mu.RUnlock()
 
 	result := make(map[string]any)
-	for key, value := range w.overrides {
-		result[key] = value
-	}
+	maps.Copy(result, w.overrides)
 	return result
 }
