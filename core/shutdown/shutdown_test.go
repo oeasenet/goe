@@ -212,7 +212,7 @@ func TestManager_ShutdownWithError(t *testing.T) {
 
 	ctx := context.Background()
 	err := manager.Shutdown(ctx)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 }
 
 func TestManager_ShutdownContinuesAfterError(t *testing.T) {

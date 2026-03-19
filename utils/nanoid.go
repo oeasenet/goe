@@ -49,7 +49,7 @@ func GenerateNanoId(length ...int) string {
 			if err != nil {
 				return "", err
 			}
-			for i := 0; i < step; i++ {
+			for i := range step {
 				currByte := bytes[i] & byte(mask)
 				if currByte < byte(len(chars)) {
 					id[j] = chars[currByte]

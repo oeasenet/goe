@@ -106,12 +106,12 @@ func (l *testLogger) GetLogger() *zap.SugaredLogger {
 
 // testConfig is a simple test config implementation
 type testConfig struct {
-	values map[string]interface{}
+	values map[string]any
 }
 
 func newTestConfig() *testConfig {
 	return &testConfig{
-		values: map[string]interface{}{
+		values: map[string]any{
 			"APP_NAME": "test-app",
 		},
 	}
@@ -249,7 +249,7 @@ func TestConfig_ServiceName(t *testing.T) {
 	assert.Equal(t, "otel-service", config2.ServiceName())
 
 	// Default when both are empty
-	cfg2 := &testConfig{values: map[string]interface{}{}}
+	cfg2 := &testConfig{values: map[string]any{}}
 	config3 := NewConfig(cfg2)
 	assert.Equal(t, "goe-app", config3.ServiceName())
 }

@@ -91,9 +91,10 @@ func (m *Module) readinessHandler(c fiber.Ctx) error {
 // sendHealthResponse sends the health report as JSON with appropriate status code
 func (m *Module) sendHealthResponse(c fiber.Ctx, report contract.HealthReport) error {
 	statusCode := http.StatusOK
-	if report.Status == contract.HealthStatusDown {
+	switch report.Status {
+	case contract.HealthStatusDown:
 		statusCode = http.StatusServiceUnavailable
-	} else if report.Status == contract.HealthStatusDegraded {
+	case contract.HealthStatusDegraded:
 		statusCode = http.StatusOK // Still return 200 for degraded, just different status in body
 	}
 

@@ -4,6 +4,7 @@ package shutdown
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -123,7 +124,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		"timeout", m.timeout.String(),
 	)
 
-	var errors []error
+	var errs []error
 	for _, entry := range hooks {
 		m.logger.Debug("Executing shutdown hook", "name", entry.name, "priority", entry.priority)
 
@@ -132,14 +133,14 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 				"name", entry.name,
 				"error", err,
 			)
-			errors = append(errors, err)
+			errs = append(errs, err)
 			// Continue with other hooks even if one fails
 		}
 	}
 
-	if len(errors) > 0 {
-		m.logger.Warn("Graceful shutdown completed with errors", "errors", len(errors))
-		return errors[0] // Return first error
+	if len(errs) > 0 {
+		m.logger.Warn("Graceful shutdown completed with errors", "errors", len(errs))
+		return errors.Join(errs...)
 	}
 
 	m.logger.Info("Graceful shutdown completed successfully")

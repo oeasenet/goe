@@ -540,8 +540,8 @@ func testConvertFields(fields []interface {
 func testConvertFieldsToArgs(fields []interface {
 	Key() string
 	Value() any
-}) []interface{} {
-	args := make([]interface{}, 0, len(fields)*2)
+}) []any {
+	args := make([]any, 0, len(fields)*2)
 	for _, f := range fields {
 		args = append(args, f.Key(), f.Value())
 	}

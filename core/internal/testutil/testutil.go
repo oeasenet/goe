@@ -51,15 +51,13 @@ func NewConcurrentRunner(bufferSize int) *ConcurrentRunner {
 
 // Run executes the given function concurrently.
 func (r *ConcurrentRunner) Run(fn func() error) {
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
+	r.wg.Go(func() {
 		if err := fn(); err != nil {
 			r.mu.Lock()
 			r.errors = append(r.errors, err)
 			r.mu.Unlock()
 		}
-	}()
+	})
 }
 
 // Wait waits for all goroutines to complete and returns any errors.
@@ -82,7 +80,7 @@ func (r *ConcurrentRunner) RequireNoErrors(t *testing.T) {
 }
 
 // AssertEventually asserts that a condition eventually becomes true within the timeout.
-func AssertEventually(t *testing.T, condition func() bool, timeout time.Duration, msgAndArgs ...interface{}) bool {
+func AssertEventually(t *testing.T, condition func() bool, timeout time.Duration, msgAndArgs ...any) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -100,7 +98,7 @@ func AssertEventually(t *testing.T, condition func() bool, timeout time.Duration
 }
 
 // AssertNever asserts that a condition never becomes true within the duration.
-func AssertNever(t *testing.T, condition func() bool, duration time.Duration, msgAndArgs ...interface{}) bool {
+func AssertNever(t *testing.T, condition func() bool, duration time.Duration, msgAndArgs ...any) bool {
 	t.Helper()
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
@@ -122,7 +120,7 @@ func RetryOperation(t *testing.T, maxAttempts int, baseDelay time.Duration, op f
 	t.Helper()
 	var lastErr error
 	delay := baseDelay
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		if err := op(); err != nil {
 			lastErr = err
 			time.Sleep(delay)
@@ -151,6 +149,6 @@ func GetFreePort(t *testing.T) int {
 		t.Fatalf("Failed to get free port: %v", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	_ = ln.Close()
 	return port
 }

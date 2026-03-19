@@ -62,7 +62,7 @@ func TestGenerateNanoIdUniqueness(t *testing.T) {
 	const numIDs = 10000000
 	ids := make(map[string]bool, numIDs)
 
-	for i := 0; i < numIDs; i++ {
+	for range numIDs {
 		id := GenerateNanoId()
 		if ids[id] {
 			t.Errorf("Collision detected: duplicate ID %s generated", id)
@@ -79,7 +79,7 @@ func TestGenerateNanoIdCharacterSet(t *testing.T) {
 	// Test that generated IDs only contain valid characters
 	validChars := regexp.MustCompile(`^[0-9a-zA-Z]+$`)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		id := GenerateNanoId()
 		if !validChars.MatchString(id) {
 			t.Errorf("Generated ID contains invalid characters: %s", id)

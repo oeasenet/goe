@@ -71,7 +71,7 @@ func BenchmarkGenerateNanoId_ParallelLength21(b *testing.B) {
 // Batch generation benchmarks for NanoID
 func BenchmarkGenerateNanoId_Batch100(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 100; j++ {
+		for range 100 {
 			GenerateNanoId()
 		}
 	}
@@ -79,7 +79,7 @@ func BenchmarkGenerateNanoId_Batch100(b *testing.B) {
 
 func BenchmarkGenerateNanoId_Batch1000(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 1000; j++ {
+		for range 1000 {
 			GenerateNanoId()
 		}
 	}

@@ -1,7 +1,6 @@
 package configvalidator
 
 import (
-	"os"
 	"testing"
 
 	"go.oease.dev/goe/v2/contract"
@@ -12,7 +11,7 @@ func TestConfigValidationFramework(t *testing.T) {
 
 	// Mock config
 	config := &mockConfig{
-		values: map[string]interface{}{
+		values: map[string]any{
 			"VALID_KEY":    "value",
 			"EMPTY_KEY":    "",
 			"INVALID_PORT": "99999",
@@ -66,21 +65,3 @@ func TestConfigValidationFramework(t *testing.T) {
 	}
 }
 
-func createTempConfigFile(t *testing.T, content string) string {
-	t.Helper()
-
-	tmpFile, err := os.CreateTemp("", "test-config-*.env")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-
-	if _, err := tmpFile.WriteString(content); err != nil {
-		t.Fatalf("Failed to write to temp file: %v", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		t.Fatalf("Failed to close temp file: %v", err)
-	}
-
-	return tmpFile.Name()
-}

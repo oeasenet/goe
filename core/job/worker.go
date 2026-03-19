@@ -91,7 +91,7 @@ func (w *worker) processJob(ctx context.Context, job *jobImpl) {
 	job.status = contract.JobStatusRunning
 	job.startedAt = time.Now()
 	job.attempts++
-	w.manager.saveJob(ctx, job)
+	_ = w.manager.saveJob(ctx, job)
 
 	// Track active jobs
 	w.manager.activeJobs.Add(1)
@@ -203,7 +203,7 @@ func (w *worker) handleFailure(ctx context.Context, job *jobImpl, err error) {
 		scheduledKey := w.manager.scheduledKey(job.queue)
 		w.manager.redis.ZAdd(ctx, scheduledKey, struct {
 			Score  float64
-			Member interface{}
+			Member any
 		}{
 			Score:  float64(job.scheduledAt.UnixMilli()),
 			Member: job.id,

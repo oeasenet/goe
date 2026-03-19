@@ -123,9 +123,9 @@ func TestCopyIOZeroAlloc_ConcurrentAccess(t *testing.T) {
 
 	done := make(chan bool, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				data := strings.Repeat("test", id+1)
 				reader := strings.NewReader(data)
 				var writer bytes.Buffer
@@ -141,7 +141,7 @@ func TestCopyIOZeroAlloc_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for all goroutines to complete
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		<-done
 	}
 }

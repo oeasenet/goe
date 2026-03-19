@@ -274,7 +274,7 @@ func TestArrContainsStr_DuplicateStrings(t *testing.T) {
 func TestArrContainsStr_LargeArray(t *testing.T) {
 	// Test with a large array to ensure performance is reasonable
 	largeArray := make([]string, 10000)
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		largeArray[i] = "item" + string(rune(i))
 	}
 
@@ -458,7 +458,7 @@ func BenchmarkArrContainsStr_SmallArray(b *testing.B) {
 
 func BenchmarkArrContainsStr_MediumArray(b *testing.B) {
 	array := make([]string, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		array[i] = "item" + string(rune(i))
 	}
 	str := "item50"
@@ -471,7 +471,7 @@ func BenchmarkArrContainsStr_MediumArray(b *testing.B) {
 
 func BenchmarkArrContainsStr_LargeArray(b *testing.B) {
 	array := make([]string, 10000)
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		array[i] = "item" + string(rune(i))
 	}
 	str := "item5000"
@@ -484,7 +484,7 @@ func BenchmarkArrContainsStr_LargeArray(b *testing.B) {
 
 func BenchmarkArrContainsStr_NotFound(b *testing.B) {
 	array := make([]string, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		array[i] = "item" + string(rune(i))
 	}
 	str := "notfound"
@@ -497,7 +497,7 @@ func BenchmarkArrContainsStr_NotFound(b *testing.B) {
 
 func BenchmarkArrContainsStr_DuplicateStrings(b *testing.B) {
 	array := make([]string, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		array[i] = "duplicate"
 	}
 	str := "duplicate"

@@ -107,12 +107,12 @@ func (l *testLogger) GetLogger() *zap.SugaredLogger {
 
 // testConfig is a simple test config implementation
 type testConfig struct {
-	values map[string]interface{}
+	values map[string]any
 }
 
 func newTestConfig() *testConfig {
 	return &testConfig{
-		values: make(map[string]interface{}),
+		values: make(map[string]any),
 	}
 }
 

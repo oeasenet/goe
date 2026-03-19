@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -183,9 +184,10 @@ func (m *Manager) Registry() *prometheus.Registry {
 
 // metricKey creates a unique key for a metric
 func (m *Manager) metricKey(name string, labels []string) string {
-	key := name
+	var key strings.Builder
+	key.WriteString(name)
 	for _, label := range labels {
-		key += "_" + label
+		key.WriteString("_" + label)
 	}
-	return key
+	return key.String()
 }

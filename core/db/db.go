@@ -22,7 +22,7 @@ type DatabaseModule struct {
 	// gormConfig *gorm.Config // To be added later for more GORM specific configs
 
 	// Migration registration storage
-	registeredModels map[string][]interface{} // connectionName -> models slice
+	registeredModels map[string][]any // connectionName -> models slice
 }
 
 // NewDBModule creates a new DatabaseModule instance
@@ -31,7 +31,7 @@ func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule
 		config:           config,
 		logger:           logger,
 		connections:      make(map[string]*gorm.DB),
-		registeredModels: make(map[string][]interface{}),
+		registeredModels: make(map[string][]any),
 	}
 }
 
@@ -109,8 +109,8 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	connectionsList := dbm.config.GetString("DB_CONNECTIONS")
 	if connectionsList != "" {
 		// Split the comma-separated list of connection names
-		connectionNames := strings.Split(connectionsList, ",")
-		for _, connName := range connectionNames {
+		connectionNames := strings.SplitSeq(connectionsList, ",")
+		for connName := range connectionNames {
 			connName = strings.TrimSpace(connName)
 
 			// Skip if it's the default connection (already connected)
@@ -242,7 +242,7 @@ func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
 
 // AutoMigrate performs auto migration for the given GORM models on the default connection
 // Use RegisterModelsForMigration() for fully automated migration unless you want to do everything manually after the app successfully started.
-func (dbm *DatabaseModule) AutoMigrate(dst ...interface{}) error {
+func (dbm *DatabaseModule) AutoMigrate(dst ...any) error {
 	defaultDB := dbm.Instance() // This already resolves the default connection name
 	if defaultDB == nil {
 		defaultConnName := dbm.config.GetString("DB_CONNECTION")
@@ -255,7 +255,7 @@ func (dbm *DatabaseModule) AutoMigrate(dst ...interface{}) error {
 }
 
 // AutoMigrateOnConnection performs auto migration for the given GORM models on a specific connection
-func (dbm *DatabaseModule) AutoMigrateOnConnection(connectionName string, dst ...interface{}) error {
+func (dbm *DatabaseModule) AutoMigrateOnConnection(connectionName string, dst ...any) error {
 	conn, err := dbm.Connection(connectionName)
 	if err != nil {
 		return err
@@ -264,7 +264,7 @@ func (dbm *DatabaseModule) AutoMigrateOnConnection(connectionName string, dst ..
 }
 
 // RegisterModelsForMigration pre-registers models for automatic migration on the default connection
-func (dbm *DatabaseModule) RegisterModelsForMigration(dst ...interface{}) {
+func (dbm *DatabaseModule) RegisterModelsForMigration(dst ...any) {
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
@@ -281,7 +281,7 @@ func (dbm *DatabaseModule) RegisterModelsForMigration(dst ...interface{}) {
 }
 
 // RegisterModelsForMigrationOnConnection pre-registers models for automatic migration on a specific connection
-func (dbm *DatabaseModule) RegisterModelsForMigrationOnConnection(connectionName string, dst ...interface{}) {
+func (dbm *DatabaseModule) RegisterModelsForMigrationOnConnection(connectionName string, dst ...any) {
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
@@ -339,8 +339,8 @@ func (dbm *DatabaseModule) ValidateConfig() error {
 	// Check additional connections if specified
 	connectionsList := dbm.config.GetString("DB_CONNECTIONS")
 	if connectionsList != "" {
-		connections := strings.Split(connectionsList, ",")
-		for _, connName := range connections {
+		connections := strings.SplitSeq(connectionsList, ",")
+		for connName := range connections {
 			connName = strings.TrimSpace(connName)
 			if connName == "" || connName == defaultConnectionName {
 				continue

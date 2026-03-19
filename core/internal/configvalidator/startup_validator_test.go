@@ -148,7 +148,7 @@ func TestStartupValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset config for each test
-			testCfg := &mockConfig{values: make(map[string]interface{})}
+			testCfg := &mockConfig{values: make(map[string]any)}
 			testLogger := &mockLogger{}
 
 			// Set disable flag for the specific test
@@ -182,7 +182,7 @@ func TestStartupValidator(t *testing.T) {
 }
 
 func TestStartupValidatorSpecificModule(t *testing.T) {
-	cfg := &mockConfig{values: make(map[string]interface{})}
+	cfg := &mockConfig{values: make(map[string]any)}
 	logger := &mockLogger{}
 
 	v := NewStartupValidator(cfg, logger)

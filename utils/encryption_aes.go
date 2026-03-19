@@ -6,21 +6,28 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 )
 
+// DataEncryptionUtils provides AES encryption and decryption utilities.
 type DataEncryptionUtils struct {
 	key []byte
 }
 
-func UseAesEncryption(key string) *DataEncryptionUtils {
+// UseAesEncryption creates a new AES encryption utility with the given key.
+// The key must be 16, 24, or 32 bytes long for AES-128, AES-192, or AES-256 respectively.
+// An empty key is not permitted.
+func UseAesEncryption(key string) (*DataEncryptionUtils, error) {
 	if key == "" {
-		// default key, has to be 32 characters
-		// key = "OEASE$GOE@2024"
-		key = "bda0b4de2fc68638dcac98a6603f6d2f"
+		return nil, errors.New("encryption key must not be empty")
 	}
-	return &DataEncryptionUtils{key: []byte(key)}
+	keyLen := len(key)
+	if keyLen != 16 && keyLen != 24 && keyLen != 32 {
+		return nil, fmt.Errorf("encryption key must be 16, 24, or 32 bytes for AES-128/192/256, got %d", keyLen)
+	}
+	return &DataEncryptionUtils{key: []byte(key)}, nil
 }
 
 func (deu *DataEncryptionUtils) Encrypt(data []byte) (string, error) {
@@ -34,7 +41,7 @@ func (deu *DataEncryptionUtils) Encrypt(data []byte) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		return "", err
 	}
-	stream := cipher.NewCFBEncrypter(block, iv)
+	stream := cipher.NewCFBEncrypter(block, iv) //nolint:staticcheck // CFB kept for backward compatibility with existing encrypted data
 	stream.XORKeyStream(cipherText[aes.BlockSize:], data)
 	return strings.TrimRight(base64.URLEncoding.EncodeToString(cipherText), "="), nil
 }
@@ -64,7 +71,7 @@ func (deu *DataEncryptionUtils) Decrypt(data string) ([]byte, error) {
 	iv := cipherText[:aes.BlockSize]
 	cipherText = cipherText[aes.BlockSize:]
 
-	stream := cipher.NewCFBDecrypter(block, iv)
+	stream := cipher.NewCFBDecrypter(block, iv) //nolint:staticcheck // CFB kept for backward compatibility with existing encrypted data
 	stream.XORKeyStream(cipherText, cipherText)
 
 	return cipherText, nil

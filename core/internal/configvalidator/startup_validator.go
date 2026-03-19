@@ -2,6 +2,7 @@ package configvalidator
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.oease.dev/goe/v2/contract"
@@ -46,13 +47,7 @@ func (v *StartupValidator) ValidateAll() error {
 
 		// Some modules are always enabled (like config, log)
 		alwaysEnabled := []string{"config", "log"}
-		isAlwaysEnabled := false
-		for _, m := range alwaysEnabled {
-			if name == m {
-				isAlwaysEnabled = true
-				break
-			}
-		}
+		isAlwaysEnabled := slices.Contains(alwaysEnabled, name)
 
 		// Skip validation if module is explicitly disabled
 		if !isAlwaysEnabled && v.config.Has(enabledKey) && !v.config.GetBool(enabledKey) {

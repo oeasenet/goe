@@ -446,7 +446,7 @@ func TestDatabaseModule_IntegrationWithSQLite(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Clean up
-		os.Remove(tempFile)
+		_ = os.Remove(tempFile)
 	})
 }
 
@@ -653,14 +653,14 @@ func TestDatabaseModule_ConcurrentAccess(t *testing.T) {
 
 		done := make(chan bool)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				dbModule.RegisterModelsForMigration(&TestModel{})
 				done <- true
 			}()
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-done
 		}
 

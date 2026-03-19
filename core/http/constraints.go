@@ -8,6 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	slugRegex  = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+)
+
 // Custom route constraints for GoFiber v3
 // These constraints can be used in route definitions like:
 //   app.Get("/users/:id<uuid>", handler)
@@ -64,10 +69,7 @@ func (*SlugConstraint) Execute(param string, args ...string) bool {
 	if param == "" {
 		return false
 	}
-	// Slug pattern: lowercase letters, numbers, and hyphens
-	// Cannot start or end with hyphen, no consecutive hyphens
-	matched, _ := regexp.MatchString(`^[a-z0-9]+(?:-[a-z0-9]+)*$`, param)
-	return matched
+	return slugRegex.MatchString(param)
 }
 
 // EmailConstraint validates that a route parameter looks like an email
@@ -85,9 +87,7 @@ func (*EmailConstraint) Execute(param string, args ...string) bool {
 	if param == "" {
 		return false
 	}
-	// Simple email validation pattern
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`, param)
-	return matched
+	return emailRegex.MatchString(param)
 }
 
 // RegisterDefaultConstraints registers all default GOE constraints with the Fiber app

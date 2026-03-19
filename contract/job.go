@@ -253,42 +253,42 @@ type SchedulerStats struct {
 // JobOption configures a job dispatch
 type JobOption func(*JobDefinition)
 
-// WithQueue sets the queue for the job
+// WithJobQueue sets the queue for the job.
 func WithJobQueue(queue string) JobOption {
 	return func(j *JobDefinition) {
 		j.Queue = queue
 	}
 }
 
-// WithDelay sets the delay for the job
+// WithJobDelay sets the delay for the job.
 func WithJobDelay(delay time.Duration) JobOption {
 	return func(j *JobDefinition) {
 		j.Delay = delay
 	}
 }
 
-// WithScheduledAt sets the scheduled execution time
+// WithJobScheduledAt sets the scheduled execution time.
 func WithJobScheduledAt(t time.Time) JobOption {
 	return func(j *JobDefinition) {
 		j.ScheduledAt = t
 	}
 }
 
-// WithMaxAttempts sets the maximum retry attempts
+// WithJobMaxAttempts sets the maximum retry attempts.
 func WithJobMaxAttempts(attempts int) JobOption {
 	return func(j *JobDefinition) {
 		j.MaxAttempts = attempts
 	}
 }
 
-// WithTimeout sets the job timeout
+// WithJobTimeout sets the job timeout.
 func WithJobTimeout(timeout time.Duration) JobOption {
 	return func(j *JobDefinition) {
 		j.Timeout = timeout
 	}
 }
 
-// WithUniqueKey sets the unique key for deduplication
+// WithJobUniqueKey sets the unique key for deduplication.
 func WithJobUniqueKey(key string, duration time.Duration) JobOption {
 	return func(j *JobDefinition) {
 		j.UniqueKey = key
@@ -296,14 +296,14 @@ func WithJobUniqueKey(key string, duration time.Duration) JobOption {
 	}
 }
 
-// WithTags sets the job tags
+// WithJobTags sets the job tags.
 func WithJobTags(tags map[string]string) JobOption {
 	return func(j *JobDefinition) {
 		j.Tags = tags
 	}
 }
 
-// NewJobDefinition creates a new job definition with options
+// NewJobDefinition creates a new job definition with options.
 func NewJobDefinition(name string, payload any, opts ...JobOption) *JobDefinition {
 	j := &JobDefinition{
 		Name:        name,

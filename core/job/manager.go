@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,8 +61,6 @@ type managerStats struct {
 }
 
 type queueStatsInternal struct {
-	pending   atomic.Int64
-	scheduled atomic.Int64
 	running   atomic.Int64
 	completed atomic.Int64
 	failed    atomic.Int64
@@ -241,7 +240,7 @@ func (m *Manager) Dispatch(ctx context.Context, def *contract.JobDefinition) (st
 	}
 
 	// Track queue
-	m.trackQueue(def.Queue)
+	m.trackQueue(def.Queue) //nolint:contextcheck // trackQueue starts long-lived worker goroutines that must outlive the request context
 
 	m.logger.Debug("Dispatched job",
 		"id", job.id,
@@ -367,19 +366,15 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	// Start scheduler if enabled
 	if m.config.SchedulerEnabled {
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
+		m.wg.Go(func() {
 			m.runScheduler(ctx)
-		}()
+		})
 	}
 
 	// Start scheduled job promoter
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		m.runPromoter(ctx)
-	}()
+	})
 
 	m.logger.Info("Job manager started",
 		"queues", m.totalQueues,
@@ -590,7 +585,7 @@ func (m *Manager) runPromoter(ctx context.Context) {
 					job, err := m.getJobInternal(ctx, jobID)
 					if err == nil {
 						job.status = contract.JobStatusPending
-						m.saveJob(ctx, job)
+						_ = m.saveJob(ctx, job)
 					}
 				}
 			}
@@ -603,10 +598,8 @@ func (m *Manager) trackQueue(queue string) {
 	m.workersMu.Lock()
 	defer m.workersMu.Unlock()
 
-	for _, q := range m.totalQueues {
-		if q == queue {
-			return
-		}
+	if slices.Contains(m.totalQueues, queue) {
+		return
 	}
 
 	m.totalQueues = append(m.totalQueues, queue)
@@ -706,7 +699,7 @@ func (m *Manager) moveToDLQ(ctx context.Context, job *jobImpl) error {
 	dlqKey := m.dlqKey(job.queue)
 
 	// Store job data with DLQ metadata
-	dlqData := map[string]interface{}{
+	dlqData := map[string]any{
 		"job_id":    job.id,
 		"name":      job.name,
 		"queue":     job.queue,

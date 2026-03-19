@@ -139,7 +139,7 @@ func getTestPool(t *testing.T) Pool {
 // For testing, we use the same server to verify the algorithm logic
 func getTestPools(t *testing.T, count int) []Pool {
 	pools := make([]Pool, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		client := redis.NewClient(&redis.Options{
 			Addr: testRedisAddr,
 			DB:   i % 16, // Use different DBs to simulate independence
@@ -192,7 +192,7 @@ func cleanupPoolKeys(t *testing.T, pools []Pool, pattern string) {
 
 func TestMutex_Lock(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -228,7 +228,7 @@ func TestMutex_Lock(t *testing.T) {
 
 func TestMutex_TryLock(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -271,7 +271,7 @@ func TestMutex_TryLock(t *testing.T) {
 
 func TestMutex_Extend(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -311,7 +311,7 @@ func TestMutex_Extend(t *testing.T) {
 
 func TestMutex_ExtendWithoutLock(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	logger := &testLogger{t: t}
 
@@ -326,7 +326,7 @@ func TestMutex_ExtendWithoutLock(t *testing.T) {
 
 func TestMutex_UnlockWithoutLock(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	logger := &testLogger{t: t}
 
@@ -341,7 +341,7 @@ func TestMutex_UnlockWithoutLock(t *testing.T) {
 
 func TestMutex_ConcurrentAccess(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -355,12 +355,10 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 	var counter int64
 	var wg sync.WaitGroup
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				mutex := NewMutex("test:lock:concurrent", []Pool{pool}, logger,
 					contract.WithExpiry(5*time.Second),
 					contract.WithTries(50),
@@ -383,7 +381,7 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 					t.Logf("Unlock failed: %v", err)
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -394,7 +392,7 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 
 func TestMutex_ContextCancellation(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -432,7 +430,7 @@ func TestMutex_ContextCancellation(t *testing.T) {
 
 func TestMutex_Name(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	logger := &testLogger{t: t}
 
@@ -442,7 +440,7 @@ func TestMutex_Name(t *testing.T) {
 
 func TestMutex_CustomValue(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -472,7 +470,7 @@ func TestMutex_CustomValue(t *testing.T) {
 
 func TestMutex_TTL(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -508,7 +506,7 @@ func TestMutex_TTL(t *testing.T) {
 
 func TestMutex_LockExpiry(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -610,7 +608,7 @@ func TestMutex_MultiPool(t *testing.T) {
 // TestMutex_RetryDelay tests the exponential backoff with jitter
 func TestMutex_RetryDelay(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	logger := &testLogger{t: t}
 
@@ -636,7 +634,7 @@ func TestMutex_RetryDelay(t *testing.T) {
 // TestMutex_ClockDrift tests clock drift compensation
 func TestMutex_ClockDrift(t *testing.T) {
 	pool := getTestPool(t)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	client := pool.(*ClientPool).Client()
 	logger := &testLogger{t: t}
@@ -672,7 +670,7 @@ func BenchmarkMutex_Lock(b *testing.B) {
 		Addr: testRedisAddr,
 		DB:   0,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -701,7 +699,7 @@ func BenchmarkMutex_TryLock(b *testing.B) {
 		Addr: testRedisAddr,
 		DB:   0,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -729,7 +727,7 @@ func BenchmarkMutex_Extend(b *testing.B) {
 		Addr: testRedisAddr,
 		DB:   0,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -746,7 +744,7 @@ func BenchmarkMutex_Extend(b *testing.B) {
 	if err := mutex.Lock(ctx); err != nil {
 		b.Fatalf("Failed to acquire lock: %v", err)
 	}
-	defer mutex.Unlock(ctx)
+	defer func() { _ = mutex.Unlock(ctx) }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -762,7 +760,7 @@ func BenchmarkMutex_LockUnlock_Parallel(b *testing.B) {
 		DB:       0,
 		PoolSize: 50,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -797,7 +795,7 @@ func BenchmarkMutex_Contention(b *testing.B) {
 		DB:       0,
 		PoolSize: 50,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -843,7 +841,7 @@ func BenchmarkMutex_ValueGeneration(b *testing.B) {
 func BenchmarkMutex_MultiPool(b *testing.B) {
 	// Create 3 pools (using different DBs to simulate independence)
 	pools := make([]Pool, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		client := redis.NewClient(&redis.Options{
 			Addr: testRedisAddr,
 			DB:   i,

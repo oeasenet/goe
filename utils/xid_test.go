@@ -39,7 +39,7 @@ func TestGenerateXid_Uniqueness(t *testing.T) {
 	xids := make(map[string]bool)
 	const numXIDs = 1000
 
-	for i := 0; i < numXIDs; i++ {
+	for range numXIDs {
 		xid := GenerateXid()
 
 		// Check that XID is not empty
@@ -56,7 +56,7 @@ func TestGenerateXid_Uniqueness(t *testing.T) {
 
 func TestGenerateXid_ConsistentLength(t *testing.T) {
 	// Generate multiple XIDs and ensure they all have the same length
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		xid := GenerateXid()
 		assert.Len(t, xid, 20, "All XIDs should have length 20")
 	}
@@ -66,7 +66,7 @@ func TestGenerateXid_Base32Only(t *testing.T) {
 	// Generate multiple XIDs and ensure they only contain base32 characters
 	base32Pattern := regexp.MustCompile("^[0-9a-v]+$")
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		xid := GenerateXid()
 		assert.True(t, base32Pattern.MatchString(xid), "XID should contain only base32 characters: %s", xid)
 	}
@@ -76,7 +76,7 @@ func TestGenerateXid_NoUpperCase(t *testing.T) {
 	// Ensure XIDs are in lowercase
 	upperCasePattern := regexp.MustCompile("[A-Z]")
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		xid := GenerateXid()
 		assert.False(t, upperCasePattern.MatchString(xid), "XID should not contain uppercase letters: %s", xid)
 	}
@@ -88,7 +88,7 @@ func TestGenerateXid_TimeOrdering(t *testing.T) {
 	// but should generally hold true over a larger sample
 
 	xids := make([]string, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		xids[i] = GenerateXid()
 	}
 
@@ -113,10 +113,10 @@ func TestGenerateXid_PerformanceConsistency(t *testing.T) {
 	done := make(chan []string, numGoroutines)
 
 	// Generate XIDs concurrently
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			xids := make([]string, xidsPerGoroutine)
-			for j := 0; j < xidsPerGoroutine; j++ {
+			for j := range xidsPerGoroutine {
 				xids[j] = GenerateXid()
 			}
 			done <- xids
@@ -125,7 +125,7 @@ func TestGenerateXid_PerformanceConsistency(t *testing.T) {
 
 	// Collect all XIDs
 	allXIDs := make(map[string]bool)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		xids := <-done
 		for _, xid := range xids {
 			// Check format
@@ -183,7 +183,7 @@ func TestGenerateXid_MultipleCallsDistribution(t *testing.T) {
 	const numXIDs = 1000
 	xids := make([]string, numXIDs)
 
-	for i := 0; i < numXIDs; i++ {
+	for i := range numXIDs {
 		xids[i] = GenerateXid()
 	}
 
@@ -231,7 +231,7 @@ func TestGenerateXid_RapidGeneration(t *testing.T) {
 	xids := make([]string, numRapidXIDs)
 
 	// Generate XIDs as quickly as possible
-	for i := 0; i < numRapidXIDs; i++ {
+	for i := range numRapidXIDs {
 		xids[i] = GenerateXid()
 	}
 

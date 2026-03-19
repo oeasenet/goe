@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
 
@@ -521,8 +520,3 @@ func TestConvertFieldsWithContractField(t *testing.T) {
 	assert.Equal(t, "key2", zapFields[1].Key)
 }
 
-// Helper to create a zap logger with a specific level
-func createLoggerWithLevel(level zapcore.Level) (*zap.Logger, *observer.ObservedLogs) {
-	core, logs := observer.New(level)
-	return zap.New(core), logs
-}

@@ -3,6 +3,7 @@ package spa
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -78,16 +79,15 @@ func New(config ...Config) fiber.Handler {
 			// Try to serve as static file first
 			// We'll check if the file exists before serving
 			fullPath := filepath.Join(cfg.Root, path)
+			// Prevent path traversal outside the root directory
+			if !strings.HasPrefix(filepath.Clean(fullPath), filepath.Clean(cfg.Root)) {
+				return c.Next()
+			}
 			if fileExists(fullPath) {
 				return serveStatic(c, fullPath)
 			}
 
-			// If Browse is enabled and it's a directory, list directory contents
-			if cfg.Browse && isDirectory(fullPath) {
-				// For simplicity, we'll just continue to the index file
-				// In a full implementation, you'd list directory contents
 			}
-		}
 
 		// For SPA routing, serve the index file for all non-file routes
 		// This allows client-side routing to work
@@ -145,10 +145,8 @@ func mightBeFile(path string) bool {
 	if len(segments) > 0 {
 		firstSegment := segments[0]
 		staticDirs := []string{"assets", "static", "public", "dist", "img", "images", "js", "css", "fonts"}
-		for _, dir := range staticDirs {
-			if firstSegment == dir {
-				return true
-			}
+		if slices.Contains(staticDirs, firstSegment) {
+			return true
 		}
 	}
 
@@ -164,11 +162,3 @@ func fileExists(path string) bool {
 	return !info.IsDir()
 }
 
-// isDirectory checks if a path is a directory
-func isDirectory(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return info.IsDir()
-}

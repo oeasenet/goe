@@ -232,7 +232,7 @@ type GoeGormLogger struct {
 	goeLogger contract.Logger
 }
 
-func (l *GoeGormLogger) Printf(s string, i ...interface{}) {
+func (l *GoeGormLogger) Printf(s string, i ...any) {
 	var message string
 	if i != nil {
 		message = fmt.Sprintf(s, i...)
@@ -270,22 +270,22 @@ func (l *GoeGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface 
 }
 
 // Info prints info messages
-func (l *GoeGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	args := []interface{}{"module", "gorm"}
+func (l *GoeGormLogger) Info(ctx context.Context, msg string, data ...any) {
+	args := []any{"module", "gorm"}
 	args = append(args, convertGormLogDataToArgs(data)...)
 	l.goeLogger.Debug(msg, args...)
 }
 
 // Warn prints warning messages
-func (l *GoeGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	args := []interface{}{"module", "gorm"}
+func (l *GoeGormLogger) Warn(ctx context.Context, msg string, data ...any) {
+	args := []any{"module", "gorm"}
 	args = append(args, convertGormLogDataToArgs(data)...)
 	l.goeLogger.Warn(msg, args...)
 }
 
 // Error prints error messages
-func (l *GoeGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	args := []interface{}{"module", "gorm"}
+func (l *GoeGormLogger) Error(ctx context.Context, msg string, data ...any) {
+	args := []any{"module", "gorm"}
 	args = append(args, convertGormLogDataToArgs(data)...)
 	l.goeLogger.Error(msg, args...)
 }
@@ -329,7 +329,7 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 }
 
 // convertGormLogDataToArgs converts GORM's variadic data to key-value pairs
-func convertGormLogDataToArgs(data []interface{}) []any {
+func convertGormLogDataToArgs(data []any) []any {
 	args := make([]any, 0, len(data))
 	for i := 0; i < len(data); i += 2 {
 		key, ok := data[i].(string)

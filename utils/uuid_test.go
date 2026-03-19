@@ -34,7 +34,7 @@ func TestGenerateUUIDv7_Uniqueness(t *testing.T) {
 	uuids := make(map[string]bool)
 	const numUUIDs = 1000
 
-	for i := 0; i < numUUIDs; i++ {
+	for range numUUIDs {
 		uuid := GenerateUUIDv7()
 
 		// Check that UUID is not empty
@@ -62,7 +62,7 @@ func TestGenerateUUIDv7_Format(t *testing.T) {
 
 func TestGenerateUUIDv7_ConsistentLength(t *testing.T) {
 	// Generate multiple UUIDs and ensure they all have the same length
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		uuid := GenerateUUIDv7()
 		assert.Len(t, uuid, 32, "All UUIDs should have length 32")
 	}
@@ -72,7 +72,7 @@ func TestGenerateUUIDv7_HexadecimalOnly(t *testing.T) {
 	// Generate multiple UUIDs and ensure they only contain hexadecimal characters
 	hexPattern := regexp.MustCompile("^[0-9a-f]+$")
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		uuid := GenerateUUIDv7()
 		assert.True(t, hexPattern.MatchString(uuid), "UUID should contain only hexadecimal characters: %s", uuid)
 	}
@@ -82,7 +82,7 @@ func TestGenerateUUIDv7_NoUpperCase(t *testing.T) {
 	// Ensure UUIDs are in lowercase
 	upperCasePattern := regexp.MustCompile("[A-F]")
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		uuid := GenerateUUIDv7()
 		assert.False(t, upperCasePattern.MatchString(uuid), "UUID should not contain uppercase letters: %s", uuid)
 	}
@@ -94,7 +94,7 @@ func TestGenerateUUIDv7_TimeOrdering(t *testing.T) {
 	// but should generally hold true over a larger sample
 
 	uuids := make([]string, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		uuids[i] = GenerateUUIDv7()
 	}
 
@@ -119,10 +119,10 @@ func TestGenerateUUIDv7_PerformanceConsistency(t *testing.T) {
 	done := make(chan []string, numGoroutines)
 
 	// Generate UUIDs concurrently
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			uuids := make([]string, uuidsPerGoroutine)
-			for j := 0; j < uuidsPerGoroutine; j++ {
+			for j := range uuidsPerGoroutine {
 				uuids[j] = GenerateUUIDv7()
 			}
 			done <- uuids
@@ -131,7 +131,7 @@ func TestGenerateUUIDv7_PerformanceConsistency(t *testing.T) {
 
 	// Collect all UUIDs
 	allUUIDs := make(map[string]bool)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		uuids := <-done
 		for _, uuid := range uuids {
 			// Check format
@@ -179,7 +179,7 @@ func TestGenerateUUIDv7_MultipleCallsDistribution(t *testing.T) {
 	const numUUIDs = 1000
 	uuids := make([]string, numUUIDs)
 
-	for i := 0; i < numUUIDs; i++ {
+	for i := range numUUIDs {
 		uuids[i] = GenerateUUIDv7()
 	}
 

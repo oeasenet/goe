@@ -50,7 +50,7 @@ func TestConcurrentRunner(t *testing.T) {
 		runner := NewConcurrentRunner(10)
 		var counter int32
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			runner.Run(func() error {
 				atomic.AddInt32(&counter, 1)
 				return nil

@@ -104,7 +104,7 @@ func (s *TodoService) List(ctx context.Context) ([]Todo, error) {
 		s.logger.Errorw("Failed to list todos", "error", err)
 		return nil, err
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var todos []Todo
 	if err := cursor.All(ctx, &todos); err != nil {

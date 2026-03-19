@@ -22,7 +22,7 @@ func getFreePort(t *testing.T) int {
 		t.Fatalf("Failed to get free port: %v", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	_ = ln.Close()
 	return port
 }
 

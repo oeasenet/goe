@@ -2,6 +2,7 @@ package job
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -83,11 +84,9 @@ func (s *weeklySchedule) Next(after time.Time) time.Time {
 	}
 
 	// Find the next matching weekday
-	for i := 0; i < 8; i++ {
-		for _, wd := range s.weekdays {
-			if next.Weekday() == wd {
-				return next
-			}
+	for range 8 {
+		if slices.Contains(s.weekdays, next.Weekday()) {
+			return next
 		}
 		next = next.AddDate(0, 0, 1)
 	}
@@ -121,7 +120,7 @@ type monthlySchedule struct {
 func (s *monthlySchedule) Next(after time.Time) time.Time {
 	next := time.Date(after.Year(), after.Month(), 1, s.hour, s.minute, 0, 0, after.Location())
 
-	for i := 0; i < 13; i++ { // Check up to 13 months ahead
+	for range 13 { // Check up to 13 months ahead
 		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, next.Location()).Day()
 
 		for _, day := range s.days {
@@ -172,10 +171,7 @@ func (s *monthlySchedule) Cron() string {
 // =============================================================================
 
 // ScheduleBuilder provides a fluent API for creating schedules
-type ScheduleBuilder struct {
-	err      error
-	schedule contract.Schedule
-}
+type ScheduleBuilder struct{}
 
 // Every creates a schedule that runs at fixed intervals
 //
@@ -430,7 +426,7 @@ type betweenSchedule struct {
 }
 
 func (s *betweenSchedule) Next(after time.Time) time.Time {
-	for i := 0; i < 366; i++ { // Check up to a year
+	for range 366 { // Check up to a year
 		next := s.inner.Next(after)
 		hour := next.Hour()
 		if hour >= s.startHour && hour < s.endHour {
@@ -469,15 +465,9 @@ type skipDaysSchedule struct {
 }
 
 func (s *skipDaysSchedule) Next(after time.Time) time.Time {
-	for i := 0; i < 366; i++ {
+	for range 366 {
 		next := s.inner.Next(after)
-		skip := false
-		for _, day := range s.skipDays {
-			if next.Weekday() == day {
-				skip = true
-				break
-			}
-		}
+		skip := slices.Contains(s.skipDays, next.Weekday())
 		if !skip {
 			return next
 		}

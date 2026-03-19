@@ -142,7 +142,7 @@ func (m *Mutex) Lock(ctx context.Context) error {
 	expiry := m.options.Expiry
 	tries := m.options.Tries
 
-	for i := 0; i < tries; i++ {
+	for i := range tries {
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
@@ -381,13 +381,7 @@ func (m *Mutex) acquireOnPools(ctx context.Context, expiry time.Duration) (int, 
 	for _, pool := range m.pools {
 		go func(p Pool) {
 			// Use a short timeout per instance
-			timeout := time.Duration(float64(expiry) * 0.1)
-			if timeout < 5*time.Millisecond {
-				timeout = 5 * time.Millisecond
-			}
-			if timeout > 50*time.Millisecond {
-				timeout = 50 * time.Millisecond
-			}
+			timeout := min(max(time.Duration(float64(expiry)*0.1), 5*time.Millisecond), 50*time.Millisecond)
 
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -511,10 +505,7 @@ func (m *Mutex) calculateRetryDelay(attempt int) time.Duration {
 	}
 
 	// Add exponential backoff with cap
-	delay := time.Duration(float64(baseDelay) * math.Pow(1.5, float64(attempt)))
-	if delay > DefaultRetryDelayMax {
-		delay = DefaultRetryDelayMax
-	}
+	delay := min(time.Duration(float64(baseDelay)*math.Pow(1.5, float64(attempt))), DefaultRetryDelayMax)
 
 	// Add random jitter (±25%)
 	jitter := time.Duration(mrand.Int63n(int64(delay / 2)))

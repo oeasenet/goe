@@ -13,7 +13,7 @@ func TestNewClientPool(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	pool := NewClientPool(client)
 
@@ -37,7 +37,7 @@ func TestClientPool_Name(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := redis.NewClient(&redis.Options{Addr: tt.addr})
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			pool := NewClientPool(client)
 			assert.Equal(t, tt.expected, pool.Name())
@@ -62,7 +62,7 @@ func TestNewClusterPool(t *testing.T) {
 	client := redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs: []string{"localhost:7000", "localhost:7001", "localhost:7002"},
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	pool := NewClusterPool(client)
 
@@ -90,7 +90,7 @@ func TestNewFailoverPool(t *testing.T) {
 		MasterName:    "mymaster",
 		SentinelAddrs: []string{"localhost:26379"},
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	pool := NewFailoverPool(client, "mymaster")
 
@@ -117,7 +117,7 @@ func TestFailoverPool_Name(t *testing.T) {
 				MasterName:    tt.masterName,
 				SentinelAddrs: []string{"localhost:26379"},
 			})
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			pool := NewFailoverPool(client, tt.masterName)
 			assert.Equal(t, tt.expected, pool.Name())
@@ -142,7 +142,7 @@ func TestPoolImplementsInterface(t *testing.T) {
 	// Verify all pool types implement the Pool interface
 	t.Run("ClientPool implements Pool", func(t *testing.T) {
 		client := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		var pool Pool = NewClientPool(client)
 		assert.NotNil(t, pool)
@@ -152,7 +152,7 @@ func TestPoolImplementsInterface(t *testing.T) {
 		client := redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs: []string{"localhost:7000"},
 		})
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		var pool Pool = NewClusterPool(client)
 		assert.NotNil(t, pool)
@@ -163,7 +163,7 @@ func TestPoolImplementsInterface(t *testing.T) {
 			MasterName:    "mymaster",
 			SentinelAddrs: []string{"localhost:26379"},
 		})
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		var pool Pool = NewFailoverPool(client, "mymaster")
 		assert.NotNil(t, pool)

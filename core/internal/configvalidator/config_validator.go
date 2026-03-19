@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"go.oease.dev/goe/v2/contract"
@@ -192,10 +193,8 @@ func ValidateDatabaseDriver(value any) error {
 	validDrivers := []string{"mysql", "postgres", "postgresql", "pgsql", "sqlite", "sqlite3", "sqlserver", "mssql"}
 	driver := strings.ToLower(str)
 
-	for _, valid := range validDrivers {
-		if driver == valid {
-			return nil
-		}
+	if slices.Contains(validDrivers, driver) {
+		return nil
 	}
 
 	return fmt.Errorf("unsupported database driver: %s (valid options: %s)", str, strings.Join(validDrivers, ", "))
@@ -225,10 +224,8 @@ func ValidateOneOf(options ...string) func(value any) error {
 			return fmt.Errorf("expected string value")
 		}
 
-		for _, option := range options {
-			if str == option {
-				return nil
-			}
+		if slices.Contains(options, str) {
+			return nil
 		}
 
 		return fmt.Errorf("value must be one of: %s", strings.Join(options, ", "))

@@ -269,27 +269,9 @@ func (l *zapLogger) WithError(err error) contract.Logger {
 	}
 }
 
-// convertFields converts contract.Field to zap.Field
-func convertFields(fields []contract.Field) []zap.Field {
-	zapFields := make([]zap.Field, len(fields))
-	for i, f := range fields {
-		zapFields[i] = zap.Any(f.Key(), f.Value())
-	}
-	return zapFields
-}
-
-// convertFieldsToArgs converts fields to args for sugared logger
-func convertFieldsToArgs(fields []contract.Field) []interface{} {
-	args := make([]interface{}, 0, len(fields)*2)
-	for _, f := range fields {
-		args = append(args, f.Key(), f.Value())
-	}
-	return args
-}
-
 // fieldsToArgs converts zap fields to args
-func fieldsToArgs(fields []zap.Field) []interface{} {
-	args := make([]interface{}, 0, len(fields)*2)
+func fieldsToArgs(fields []zap.Field) []any {
+	args := make([]any, 0, len(fields)*2)
 	for _, f := range fields {
 		args = append(args, f.Key, f.Interface)
 	}
@@ -399,17 +381,6 @@ func (m *Module) ValidateConfig() error {
 	if m.config.Has("LOG_FORMAT") {
 		validFormats := []string{"json", "console"}
 		v.Optional("LOG_FORMAT", "Log format", configvalidator.ValidateOneOf(validFormats...))
-	}
-
-	// Log output validation
-	if m.config.Has("LOG_OUTPUT") {
-		outputs := m.config.GetStringSlice("LOG_OUTPUT")
-		for _, output := range outputs {
-			if output != "console" && output != "stdout" && output != "stderr" {
-				// It's a file path, no specific validation needed
-				// File will be created if it doesn't exist
-			}
-		}
 	}
 
 	return v.Validate()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -409,13 +410,10 @@ func (m *Module) ValidateConfig() error {
 	if k.config.GetBool("FIBER_TRUST_PROXY") && k.config.Has("FIBER_TRUST_PROXIES") {
 		// Validate each proxy in the list
 		proxies := k.config.GetStringSlice("FIBER_TRUST_PROXIES")
-		for _, proxy := range proxies {
-			// Simple validation - could be IP or CIDR
-			if proxy == "" {
-				return &contract.ConfigValidationError{
-					Module:      "http",
-					InvalidKeys: map[string]string{"FIBER_TRUST_PROXIES": "proxy address cannot be empty"},
-				}
+		if slices.Contains(proxies, "") {
+			return &contract.ConfigValidationError{
+				Module:      "http",
+				InvalidKeys: map[string]string{"FIBER_TRUST_PROXIES": "proxy address cannot be empty"},
 			}
 		}
 	}

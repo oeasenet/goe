@@ -15,10 +15,10 @@ type Pool interface {
 	SetNX(ctx context.Context, key, value string, expiry time.Duration) (bool, error)
 
 	// Eval executes a Lua script.
-	Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error)
+	Eval(ctx context.Context, script string, keys []string, args ...any) (any, error)
 
 	// EvalSha executes a Lua script by SHA.
-	EvalSha(ctx context.Context, sha string, keys []string, args ...interface{}) (interface{}, error)
+	EvalSha(ctx context.Context, sha string, keys []string, args ...any) (any, error)
 
 	// ScriptLoad loads a Lua script into Redis.
 	ScriptLoad(ctx context.Context, script string) (string, error)
@@ -48,14 +48,21 @@ func NewClientPool(client *redis.Client) *ClientPool {
 }
 
 func (p *ClientPool) SetNX(ctx context.Context, key, value string, expiry time.Duration) (bool, error) {
-	return p.client.SetNX(ctx, key, value, expiry).Result()
+	result := p.client.SetArgs(ctx, key, value, redis.SetArgs{Mode: "NX", TTL: expiry})
+	if err := result.Err(); err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
-func (p *ClientPool) Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *ClientPool) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
 	return p.client.Eval(ctx, script, keys, args...).Result()
 }
 
-func (p *ClientPool) EvalSha(ctx context.Context, sha string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *ClientPool) EvalSha(ctx context.Context, sha string, keys []string, args ...any) (any, error) {
 	return p.client.EvalSha(ctx, sha, keys, args...).Result()
 }
 
@@ -95,14 +102,21 @@ func NewClusterPool(client *redis.ClusterClient) *ClusterPool {
 }
 
 func (p *ClusterPool) SetNX(ctx context.Context, key, value string, expiry time.Duration) (bool, error) {
-	return p.client.SetNX(ctx, key, value, expiry).Result()
+	result := p.client.SetArgs(ctx, key, value, redis.SetArgs{Mode: "NX", TTL: expiry})
+	if err := result.Err(); err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
-func (p *ClusterPool) Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *ClusterPool) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
 	return p.client.Eval(ctx, script, keys, args...).Result()
 }
 
-func (p *ClusterPool) EvalSha(ctx context.Context, sha string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *ClusterPool) EvalSha(ctx context.Context, sha string, keys []string, args ...any) (any, error) {
 	return p.client.EvalSha(ctx, sha, keys, args...).Result()
 }
 
@@ -143,14 +157,21 @@ func NewFailoverPool(client *redis.Client, masterName string) *FailoverPool {
 }
 
 func (p *FailoverPool) SetNX(ctx context.Context, key, value string, expiry time.Duration) (bool, error) {
-	return p.client.SetNX(ctx, key, value, expiry).Result()
+	result := p.client.SetArgs(ctx, key, value, redis.SetArgs{Mode: "NX", TTL: expiry})
+	if err := result.Err(); err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
-func (p *FailoverPool) Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *FailoverPool) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
 	return p.client.Eval(ctx, script, keys, args...).Result()
 }
 
-func (p *FailoverPool) EvalSha(ctx context.Context, sha string, keys []string, args ...interface{}) (interface{}, error) {
+func (p *FailoverPool) EvalSha(ctx context.Context, sha string, keys []string, args ...any) (any, error) {
 	return p.client.EvalSha(ctx, sha, keys, args...).Result()
 }
 

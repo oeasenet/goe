@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -79,9 +80,7 @@ func (m *Manager) GetCheckers() []contract.HealthChecker {
 func (m *Manager) runChecks(ctx context.Context) contract.HealthReport {
 	m.mu.RLock()
 	checkers := make(map[string]contract.HealthChecker, len(m.checkers))
-	for name, checker := range m.checkers {
-		checkers[name] = checker
-	}
+	maps.Copy(checkers, m.checkers)
 	m.mu.RUnlock()
 
 	// If no checkers registered, return up status

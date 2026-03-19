@@ -63,11 +63,14 @@ var units = []string{"B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"}
 // The units slice contains the available unit prefixes: ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"].
 // Note: The function assumes that the given size is a positive integer.
 func ConvertBytesToHumanReadableSize(bytes int) string {
-	if bytes == 0 {
+	if bytes <= 0 {
 		return "0B"
 	}
 
 	i := int(math.Floor(math.Log(float64(bytes)) / math.Log(1000)))
+	if i >= len(units) {
+		i = len(units) - 1
+	}
 	suffix := units[i]
 	value := float64(bytes) / math.Pow(1000, float64(i))
 

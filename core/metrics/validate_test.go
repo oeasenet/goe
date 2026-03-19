@@ -38,7 +38,7 @@ func (l *validateLogger) GetLogger() *zap.SugaredLogger                   { retu
 
 // validateConfig implements contract.Config for validation
 type validateConfig struct {
-	values map[string]interface{}
+	values map[string]any
 }
 
 func (c *validateConfig) Get(key string) any                     { return c.values[key] }
@@ -56,7 +56,7 @@ func (c *validateConfig) All() map[string]any                    { return c.valu
 func (c *validateConfig) Reload() error                          { return nil }
 
 func TestMetricsValidation_FullOutput(t *testing.T) {
-	cfg := &validateConfig{values: map[string]interface{}{"APP_NAME": "test-app"}}
+	cfg := &validateConfig{values: map[string]any{"APP_NAME": "test-app"}}
 	logger := &validateLogger{}
 	config := NewConfig(cfg)
 	manager := NewManager(config, logger)
@@ -132,7 +132,7 @@ func TestMetricsValidation_FullOutput(t *testing.T) {
 }
 
 func TestMetricsValidation_GoRuntimeMetrics(t *testing.T) {
-	cfg := &validateConfig{values: map[string]interface{}{
+	cfg := &validateConfig{values: map[string]any{
 		"METRICS_GO_ENABLED":      true,
 		"METRICS_PROCESS_ENABLED": true,
 	}}

@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
@@ -67,15 +66,6 @@ func (m *Module) RegisterRoutes(app *fiber.App) {
 // RegisterMiddleware registers the HTTP metrics middleware
 func (m *Module) RegisterMiddleware(app *fiber.App) {
 	app.Use(Middleware(m.manager))
-}
-
-// adaptHandler adapts an http.Handler to a Fiber handler
-func adaptHandler(h http.Handler) fiber.Handler {
-	fastHandler := fasthttpadaptor.NewFastHTTPHandler(h)
-	return func(c fiber.Ctx) error {
-		fastHandler(c.RequestCtx())
-		return nil
-	}
 }
 
 // ModuleParams contains dependencies for the metrics module

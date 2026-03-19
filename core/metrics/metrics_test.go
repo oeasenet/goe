@@ -109,12 +109,12 @@ func (l *testLogger) GetLogger() *zap.SugaredLogger {
 
 // testConfig is a simple test config implementation
 type testConfig struct {
-	values map[string]interface{}
+	values map[string]any
 }
 
 func newTestConfig() *testConfig {
 	return &testConfig{
-		values: map[string]interface{}{
+		values: map[string]any{
 			"APP_NAME": "test-app",
 		},
 	}

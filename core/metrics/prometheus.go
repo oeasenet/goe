@@ -9,7 +9,6 @@ import (
 type prometheusCounter struct {
 	counter    prometheus.Counter
 	counterVec *prometheus.CounterVec
-	labels     []string
 }
 
 // Inc increments the counter by 1

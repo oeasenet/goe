@@ -130,7 +130,7 @@ func createRedlockPools(config *Config) ([]Pool, string, error) {
 			for _, p := range pool {
 				_ = p.Close()
 			}
-			return nil, "", fmt.Errorf("Redlock mode requires redis:// or rediss:// URLs, got %s", mode)
+			return nil, "", fmt.Errorf("redlock mode requires redis:// or rediss:// URLs, got %s", mode)
 		}
 
 		pools = append(pools, pool...)
@@ -140,25 +140,32 @@ func createRedlockPools(config *Config) ([]Pool, string, error) {
 }
 
 // createPoolFromURL creates pool(s) from a single URL with auto-detection.
+// The scheme is detected manually because sentinel and cluster URLs contain commas
+// in the host portion, which Go 1.26+'s stricter url.Parse rejects.
 func createPoolFromURL(rawURL string, config *Config) ([]Pool, string, error) {
 	if rawURL == "" {
 		rawURL = "redis://localhost:6379/0"
 	}
 
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, "", fmt.Errorf("invalid Redis URL: %w", err)
+	// Detect scheme manually to handle sentinel/cluster URLs with commas in host
+	scheme, _, ok := strings.Cut(rawURL, "://")
+	if !ok {
+		return nil, "", fmt.Errorf("invalid Redis URL: missing scheme separator")
 	}
 
-	switch u.Scheme {
+	switch scheme {
 	case schemeRedis, schemeRedisTLS:
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid Redis URL: %w", err)
+		}
 		return createSinglePool(u, config)
 	case schemeSentinel:
-		return createSentinelPool(u, config)
+		return createSentinelPool(rawURL, config)
 	case schemeCluster:
-		return createClusterPool(u, config)
+		return createClusterPool(rawURL, config)
 	default:
-		return nil, "", fmt.Errorf("unsupported URL scheme: %s (supported: redis, rediss, redis-sentinel, redis-cluster)", u.Scheme)
+		return nil, "", fmt.Errorf("unsupported URL scheme: %s (supported: redis, rediss, redis-sentinel, redis-cluster)", scheme)
 	}
 }
 
@@ -208,10 +215,37 @@ func createSinglePool(u *url.URL, config *Config) ([]Pool, string, error) {
 
 // createSentinelPool creates a Redis Sentinel failover pool.
 // URL format: redis-sentinel://[user:pass@]master@sentinel1:port,sentinel2:port[/db]
-func createSentinelPool(u *url.URL, config *Config) ([]Pool, string, error) {
-	// Parse master name from URL
-	// Format: master@sentinel1:port,sentinel2:port
-	hostPart := u.Host
+// Parses the URL manually because sentinel URLs contain commas in the host
+// portion, which Go 1.26+'s stricter url.Parse rejects.
+func createSentinelPool(rawURL string, config *Config) ([]Pool, string, error) {
+	// Remove scheme prefix
+	rest := strings.TrimPrefix(rawURL, schemeSentinel+"://")
+
+	// Extract path (database number) from the end
+	var dbPath string
+	if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
+		dbPath = rest[slashIdx+1:]
+		rest = rest[:slashIdx]
+	}
+
+	// Extract userinfo if present.
+	// Sentinel URLs may have: user:pass@master@hosts or just master@hosts.
+	// If there are 2+ @ signs, the first segment (containing ":") is userinfo.
+	var username, password string
+	if atCount := strings.Count(rest, "@"); atCount >= 2 {
+		firstAt := strings.Index(rest, "@")
+		userinfo := rest[:firstAt]
+		rest = rest[firstAt+1:]
+		if colonIdx := strings.Index(userinfo, ":"); colonIdx != -1 {
+			username = userinfo[:colonIdx]
+			password = userinfo[colonIdx+1:]
+		} else {
+			username = userinfo
+		}
+	}
+
+	// Parse master name from remaining: master@sentinel1:port,sentinel2:port
+	hostPart := rest
 	masterName := ""
 
 	if atIdx := strings.Index(hostPart, "@"); atIdx != -1 {
@@ -239,20 +273,13 @@ func createSentinelPool(u *url.URL, config *Config) ([]Pool, string, error) {
 	opts := &redis.FailoverOptions{
 		MasterName:    masterName,
 		SentinelAddrs: sentinelAddrs,
-	}
-
-	// Extract credentials
-	if u.User != nil {
-		opts.Username = u.User.Username()
-		if password, ok := u.User.Password(); ok {
-			opts.Password = password
-		}
+		Username:      username,
+		Password:      password,
 	}
 
 	// Extract database number
-	if u.Path != "" && u.Path != "/" {
-		dbStr := strings.TrimPrefix(u.Path, "/")
-		if db, err := strconv.Atoi(dbStr); err == nil {
+	if dbPath != "" {
+		if db, err := strconv.Atoi(dbPath); err == nil {
 			opts.DB = db
 		}
 	}
@@ -275,9 +302,32 @@ func createSentinelPool(u *url.URL, config *Config) ([]Pool, string, error) {
 
 // createClusterPool creates a Redis Cluster pool.
 // URL format: redis-cluster://[user:pass@]node1:port,node2:port
-func createClusterPool(u *url.URL, config *Config) ([]Pool, string, error) {
+// Parses the URL manually because cluster URLs contain commas in the host
+// portion, which Go 1.26+'s stricter url.Parse rejects.
+func createClusterPool(rawURL string, config *Config) ([]Pool, string, error) {
+	// Remove scheme prefix
+	rest := strings.TrimPrefix(rawURL, schemeCluster+"://")
+
+	// Extract path (not typically used for cluster, but strip it)
+	if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
+		rest = rest[:slashIdx]
+	}
+
+	// Extract userinfo if present (user:pass@hosts)
+	var username, password string
+	if atIdx := strings.Index(rest, "@"); atIdx != -1 {
+		userinfo := rest[:atIdx]
+		rest = rest[atIdx+1:]
+		if colonIdx := strings.Index(userinfo, ":"); colonIdx != -1 {
+			username = userinfo[:colonIdx]
+			password = userinfo[colonIdx+1:]
+		} else {
+			username = userinfo
+		}
+	}
+
 	// Parse cluster node addresses
-	addrs := strings.Split(u.Host, ",")
+	addrs := strings.Split(rest, ",")
 	if len(addrs) == 0 {
 		return nil, "", fmt.Errorf("no cluster addresses provided")
 	}
@@ -290,15 +340,9 @@ func createClusterPool(u *url.URL, config *Config) ([]Pool, string, error) {
 	}
 
 	opts := &redis.ClusterOptions{
-		Addrs: addrs,
-	}
-
-	// Extract credentials
-	if u.User != nil {
-		opts.Username = u.User.Username()
-		if password, ok := u.User.Password(); ok {
-			opts.Password = password
-		}
+		Addrs:    addrs,
+		Username: username,
+		Password: password,
 	}
 
 	// Apply pool size

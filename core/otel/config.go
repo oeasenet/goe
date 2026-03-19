@@ -129,8 +129,8 @@ func (c *Config) OTLPHeaders() map[string]string {
 	}
 
 	result := make(map[string]string)
-	pairs := strings.Split(headers, ",")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(headers, ",")
+	for pair := range pairs {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) == 2 {
 			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
@@ -156,8 +156,8 @@ func (c *Config) ResourceAttributes() map[string]string {
 	}
 
 	result := make(map[string]string)
-	pairs := strings.Split(attrs, ",")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(attrs, ",")
+	for pair := range pairs {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) == 2 {
 			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])

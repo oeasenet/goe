@@ -15,7 +15,7 @@ func TestFilePathToIOReader_Success(t *testing.T) {
 	// Create a temporary file
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testContent := "Hello, World!\nThis is a test file.\n"
 	testFile := filepath.Join(tmpDir, "test.txt")
@@ -35,7 +35,7 @@ func TestFilePathToIOReader_Success(t *testing.T) {
 
 	// Close the file (reader should be a *os.File)
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -43,7 +43,7 @@ func TestFilePathToIOReader_EmptyFile(t *testing.T) {
 	// Create a temporary empty file
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testFile := filepath.Join(tmpDir, "empty.txt")
 	err = os.WriteFile(testFile, []byte(""), 0644)
@@ -61,7 +61,7 @@ func TestFilePathToIOReader_EmptyFile(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -69,7 +69,7 @@ func TestFilePathToIOReader_LargeFile(t *testing.T) {
 	// Create a temporary large file
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a large content (1MB)
 	largeContent := strings.Repeat("This is a line of text for testing large files.\n", 20000)
@@ -90,7 +90,7 @@ func TestFilePathToIOReader_LargeFile(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -98,7 +98,7 @@ func TestFilePathToIOReader_BinaryFile(t *testing.T) {
 	// Create a temporary binary file
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create binary content
 	binaryContent := make([]byte, 256)
@@ -122,7 +122,7 @@ func TestFilePathToIOReader_BinaryFile(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -140,7 +140,7 @@ func TestFilePathToIOReader_Directory(t *testing.T) {
 	// Test with a directory instead of a file
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	reader, err := FilePathToIOReader(tmpDir)
 	// Note: On some systems, opening a directory might succeed but fail when reading
@@ -151,7 +151,7 @@ func TestFilePathToIOReader_Directory(t *testing.T) {
 		assert.NotNil(t, reader)
 		// Close it if it's a file
 		if file, ok := reader.(*os.File); ok {
-			file.Close()
+			_ = file.Close()
 		}
 	}
 }
@@ -165,7 +165,7 @@ func TestFilePathToIOReader_PermissionDenied(t *testing.T) {
 	// Create a temporary file with no read permissions
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testFile := filepath.Join(tmpDir, "no-read.txt")
 	err = os.WriteFile(testFile, []byte("test content"), 0644)
@@ -176,7 +176,7 @@ func TestFilePathToIOReader_PermissionDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	// Restore permissions after test for cleanup
-	defer os.Chmod(testFile, 0644)
+	defer func() { _ = os.Chmod(testFile, 0644) }()
 
 	reader, err := FilePathToIOReader(testFile)
 	assert.Error(t, err)
@@ -194,7 +194,7 @@ func TestFilePathToIOReader_ReaderIsFile(t *testing.T) {
 	// Test that the returned reader is actually a *os.File
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testFile := filepath.Join(tmpDir, "test.txt")
 	err = os.WriteFile(testFile, []byte("test"), 0644)
@@ -215,14 +215,14 @@ func TestFilePathToIOReader_ReaderIsFile(t *testing.T) {
 	assert.Equal(t, "test.txt", stat.Name())
 	assert.Equal(t, int64(4), stat.Size())
 
-	file.Close()
+	_ = file.Close()
 }
 
 func TestFilePathToIOReader_MultipleReads(t *testing.T) {
 	// Test that the reader can be used for multiple reads
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testContent := "Line 1\nLine 2\nLine 3\n"
 	testFile := filepath.Join(tmpDir, "multiread.txt")
@@ -254,7 +254,7 @@ func TestFilePathToIOReader_MultipleReads(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -262,7 +262,7 @@ func TestFilePathToIOReader_ReadAtEOF(t *testing.T) {
 	// Test reading at EOF
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testFile := filepath.Join(tmpDir, "eof.txt")
 	err = os.WriteFile(testFile, []byte("test"), 0644)
@@ -285,7 +285,7 @@ func TestFilePathToIOReader_ReadAtEOF(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -293,7 +293,7 @@ func TestFilePathToIOReader_AbsolutePath(t *testing.T) {
 	// Test with absolute path
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testFile := filepath.Join(tmpDir, "absolute.txt")
 	err = os.WriteFile(testFile, []byte("absolute path test"), 0644)
@@ -313,7 +313,7 @@ func TestFilePathToIOReader_AbsolutePath(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -321,12 +321,12 @@ func TestFilePathToIOReader_RelativePath(t *testing.T) {
 	// Test with relative path
 	tmpDir, err := os.MkdirTemp("", "file-io-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Change to temp directory
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	err = os.Chdir(tmpDir)
 	require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestFilePathToIOReader_RelativePath(t *testing.T) {
 
 	// Close the file
 	if file, ok := reader.(*os.File); ok {
-		file.Close()
+		_ = file.Close()
 	}
 }
 
@@ -353,7 +353,7 @@ func BenchmarkFilePathToIOReader(b *testing.B) {
 	// Create a temporary file
 	tmpDir, err := os.MkdirTemp("", "file-io-benchmark-*")
 	require.NoError(b, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testContent := strings.Repeat("benchmark test data\n", 1000)
 	testFile := filepath.Join(tmpDir, "benchmark.txt")
@@ -376,7 +376,7 @@ func BenchmarkFilePathToIOReader(b *testing.B) {
 
 		// Close the file
 		if file, ok := reader.(*os.File); ok {
-			file.Close()
+			_ = file.Close()
 		}
 	}
 }

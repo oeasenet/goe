@@ -7,8 +7,8 @@ import (
 
 func TestConfigOverride_UnitTests(t *testing.T) {
 	// Clean up any existing env vars
-	os.Unsetenv("HTTP_PORT")
-	os.Unsetenv("TEST_VAR")
+	_ = os.Unsetenv("HTTP_PORT")
+	_ = os.Unsetenv("TEST_VAR")
 
 	t.Run("HTTPPort_override_config_only", func(t *testing.T) {
 		// Test just the config override without starting HTTP server
@@ -94,8 +94,8 @@ func TestConfigOverride_UnitTests(t *testing.T) {
 
 	t.Run("fallback_to_env_vars", func(t *testing.T) {
 		// Set an env var to test fallback
-		os.Setenv("HTTP_PORT", "8888")
-		defer os.Unsetenv("HTTP_PORT")
+		_ = os.Setenv("HTTP_PORT", "8888")
+		defer func() { _ = os.Unsetenv("HTTP_PORT") }()
 
 		// Test with no overrides - should use env var
 		_ = New(Options{})
@@ -114,8 +114,8 @@ func TestConfigOverride_UnitTests(t *testing.T) {
 
 	t.Run("override_takes_precedence_over_env_vars", func(t *testing.T) {
 		// Set an env var
-		os.Setenv("HTTP_PORT", "7777")
-		defer os.Unsetenv("HTTP_PORT")
+		_ = os.Setenv("HTTP_PORT", "7777")
+		defer func() { _ = os.Unsetenv("HTTP_PORT") }()
 
 		// Test with override - should use override not env var
 		_ = New(Options{

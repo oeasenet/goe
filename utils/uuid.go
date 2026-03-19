@@ -12,6 +12,6 @@ func GenerateUUIDv7() string {
 	if err != nil {
 		return ""
 	}
-	uuidWithoutDashes := strings.Replace(uuidWithDashes.String(), "-", "", -1)
+	uuidWithoutDashes := strings.ReplaceAll(uuidWithDashes.String(), "-", "")
 	return uuidWithoutDashes
 }

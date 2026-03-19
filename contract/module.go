@@ -15,7 +15,7 @@ type Module interface {
 }
 
 // Provider represents a function that provides dependencies
-type Provider interface{}
+type Provider any
 
 // Invoker represents a function that should be invoked after dependencies are provided
-type Invoker interface{}
+type Invoker any

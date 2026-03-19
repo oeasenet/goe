@@ -1,5 +1,7 @@
 package contract
 
+import "strings"
+
 import "fmt"
 
 // ConfigValidator defines the interface for configuration validation
@@ -25,20 +27,21 @@ type ConfigValidationError struct {
 }
 
 func (e *ConfigValidationError) Error() string {
-	msg := fmt.Sprintf("Configuration validation failed for module '%s'", e.Module)
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "Configuration validation failed for module '%s'", e.Module)
 
 	if len(e.MissingKeys) > 0 {
-		msg += fmt.Sprintf("\n  Missing required configuration keys: %v", e.MissingKeys)
+		fmt.Fprintf(&msg, "\n  Missing required configuration keys: %v", e.MissingKeys)
 	}
 
 	if len(e.InvalidKeys) > 0 {
-		msg += "\n  Invalid configuration values:"
+		msg.WriteString("\n  Invalid configuration values:")
 		for key, err := range e.InvalidKeys {
-			msg += fmt.Sprintf("\n    - %s: %s", key, err)
+			fmt.Fprintf(&msg, "\n    - %s: %s", key, err)
 		}
 	}
 
-	return msg
+	return msg.String()
 }
 
 // ModuleWithValidator represents a module that supports configuration validation

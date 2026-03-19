@@ -27,7 +27,7 @@ func TestNewManager(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	// Manager should be created successfully
 	assert.NotNil(t, manager)
@@ -51,7 +51,7 @@ func TestManager_Health(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	ctx := context.Background()
 	err = manager.Health(ctx)
@@ -74,7 +74,7 @@ func TestManager_NewMutex(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	// Clean up using the pool
 	pool := manager.Pools()[0]
@@ -116,7 +116,7 @@ func TestManager_NewMutexWithOptions(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	// Clean up using the pool
 	pool := manager.Pools()[0]
@@ -162,7 +162,7 @@ func TestManager_Stats(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	// Clean up using the pool
 	pool := manager.Pools()[0]
@@ -265,7 +265,7 @@ func TestManager_RedlockMode(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	// Should have 3 pools (Redlock mode)
 	assert.Len(t, manager.Pools(), 3)
@@ -316,7 +316,7 @@ func TestManager_SinglePoolLock(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	ctx := context.Background()
 
@@ -445,7 +445,7 @@ func TestCreatePoolFromURL_RedlockWithNonSingleURL(t *testing.T) {
 
 	_, _, err := createPools(config)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Redlock mode requires redis:// or rediss:// URLs")
+	assert.Contains(t, err.Error(), "redlock mode requires redis:// or rediss:// URLs")
 }
 
 func TestManager_PoolsMethod(t *testing.T) {
@@ -464,7 +464,7 @@ func TestManager_PoolsMethod(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	pools := manager.Pools()
 	assert.NotEmpty(t, pools)
@@ -488,7 +488,7 @@ func TestManager_ModeMethod(t *testing.T) {
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 	}
-	defer manager.Close(context.Background())
+	defer func() { _ = manager.Close(context.Background()) }()
 
 	assert.Equal(t, "single", manager.Mode())
 }

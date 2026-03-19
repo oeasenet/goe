@@ -9,19 +9,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUseAesEncryption_DefaultKey(t *testing.T) {
-	encryptor := UseAesEncryption("")
+// testDefaultKey is a 32-byte key used as default in tests.
+const testDefaultKey = "bda0b4de2fc68638dcac98a6603f6d2f"
 
-	assert.NotNil(t, encryptor)
-	assert.Equal(t, "bda0b4de2fc68638dcac98a6603f6d2f", string(encryptor.key))
+func TestUseAesEncryption_EmptyKey(t *testing.T) {
+	_, err := UseAesEncryption("")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "encryption key must not be empty")
 }
 
-func TestUseAesEncryption_CustomKey(t *testing.T) {
-	customKey := "my-custom-32-byte-key-for-aes!"
-	encryptor := UseAesEncryption(customKey)
+func TestUseAesEncryption_InvalidKeyLength(t *testing.T) {
+	invalidKeys := []struct {
+		name string
+		key  string
+	}{
+		{"5 bytes", "short"},
+		{"too long", "this-key-is-too-long-for-aes-256-encryption!!"},
+		{"31 bytes", "exactly-31-bytes-long-key!!!!!"},
+	}
 
-	assert.NotNil(t, encryptor)
-	assert.Equal(t, customKey, string(encryptor.key))
+	for _, tt := range invalidKeys {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := UseAesEncryption(tt.key)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "encryption key must be 16, 24, or 32 bytes")
+		})
+	}
+}
+
+func TestUseAesEncryption_ValidKeyLengths(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"AES-128 (16 bytes)", "16-byte-key-here"},
+		{"AES-192 (24 bytes)", "24-byte-key-here-exactly"},
+		{"AES-256 (32 bytes)", "this-is-exactly-32-bytes-long!!!"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encryptor, err := UseAesEncryption(tt.key)
+			require.NoError(t, err)
+			assert.NotNil(t, encryptor)
+			assert.Equal(t, tt.key, string(encryptor.key))
+		})
+	}
 }
 
 func TestDataEncryptionUtils_EncryptDecrypt_Success(t *testing.T) {
@@ -31,29 +64,29 @@ func TestDataEncryptionUtils_EncryptDecrypt_Success(t *testing.T) {
 		key  string
 	}{
 		{
-			name: "short string with default key",
+			name: "short string",
 			data: "hello",
-			key:  "",
+			key:  testDefaultKey,
 		},
 		{
-			name: "empty string with default key",
+			name: "empty string",
 			data: "",
-			key:  "",
+			key:  testDefaultKey,
 		},
 		{
-			name: "long string with default key",
+			name: "long string",
 			data: strings.Repeat("test data ", 1000),
-			key:  "",
+			key:  testDefaultKey,
 		},
 		{
-			name: "unicode string with default key",
+			name: "unicode string",
 			data: "Hello, 世界! 🌍",
-			key:  "",
+			key:  testDefaultKey,
 		},
 		{
-			name: "special characters with default key",
+			name: "special characters",
 			data: "!@#$%^&*()_+-=[]{}|;:,.<>?",
-			key:  "",
+			key:  testDefaultKey,
 		},
 		{
 			name: "short string with custom key",
@@ -69,7 +102,8 @@ func TestDataEncryptionUtils_EncryptDecrypt_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encryptor := UseAesEncryption(tt.key)
+			encryptor, err := UseAesEncryption(tt.key)
+			require.NoError(t, err)
 
 			// Encrypt
 			encrypted, err := encryptor.Encrypt([]byte(tt.data))
@@ -86,13 +120,13 @@ func TestDataEncryptionUtils_EncryptDecrypt_Success(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_EncryptDecrypt_BinaryData(t *testing.T) {
-	// Test with binary data
 	binaryData := make([]byte, 256)
 	for i := range binaryData {
 		binaryData[i] = byte(i)
 	}
 
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 
 	encrypted, err := encryptor.Encrypt(binaryData)
 	require.NoError(t, err)
@@ -104,8 +138,8 @@ func TestDataEncryptionUtils_EncryptDecrypt_BinaryData(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_Encrypt_RandomIV(t *testing.T) {
-	// Test that each encryption produces different ciphertext due to random IV
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 	data := []byte("test data")
 
 	encrypted1, err := encryptor.Encrypt(data)
@@ -127,26 +161,9 @@ func TestDataEncryptionUtils_Encrypt_RandomIV(t *testing.T) {
 	assert.Equal(t, data, decrypted2)
 }
 
-func TestDataEncryptionUtils_Encrypt_InvalidKey(t *testing.T) {
-	// Test with invalid key length
-	invalidKeys := []string{
-		"short", // too short
-		"this-key-is-too-long-for-aes-256-encryption", // too long
-		"exactly-31-bytes-long-key!",                  // 31 bytes (should be 32 for AES-256)
-	}
-
-	for _, key := range invalidKeys {
-		t.Run("key length "+string(rune(len(key))), func(t *testing.T) {
-			encryptor := UseAesEncryption(key)
-
-			_, err := encryptor.Encrypt([]byte("test"))
-			assert.Error(t, err)
-		})
-	}
-}
-
 func TestDataEncryptionUtils_Decrypt_InvalidData(t *testing.T) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -179,22 +196,23 @@ func TestDataEncryptionUtils_Decrypt_InvalidData(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_Decrypt_Base64Padding(t *testing.T) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 	data := []byte("test data for padding")
 
 	encrypted, err := encryptor.Encrypt(data)
 	require.NoError(t, err)
 
-	// The encrypt function removes padding, so decrypt should handle it
 	decrypted, err := encryptor.Decrypt(encrypted)
 	require.NoError(t, err)
 	assert.Equal(t, data, decrypted)
 }
 
 func TestDataEncryptionUtils_Decrypt_WrongKey(t *testing.T) {
-	// Encrypt with one key, try to decrypt with another
-	encryptor1 := UseAesEncryption("key1-32-bytes-long-for-aes-256!!")
-	encryptor2 := UseAesEncryption("key2-32-bytes-long-for-aes-256!!")
+	encryptor1, err := UseAesEncryption("key1-32-bytes-long-for-aes-256!!")
+	require.NoError(t, err)
+	encryptor2, err := UseAesEncryption("key2-32-bytes-long-for-aes-256!!")
+	require.NoError(t, err)
 
 	data := []byte("sensitive data")
 
@@ -208,11 +226,12 @@ func TestDataEncryptionUtils_Decrypt_WrongKey(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_LargeData(t *testing.T) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 
 	// Test with large data (1MB)
 	largeData := make([]byte, 1024*1024)
-	_, err := rand.Read(largeData)
+	_, err = rand.Read(largeData)
 	require.NoError(t, err)
 
 	encrypted, err := encryptor.Encrypt(largeData)
@@ -225,16 +244,17 @@ func TestDataEncryptionUtils_LargeData(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_ConcurrentUsage(t *testing.T) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	require.NoError(t, err)
 
 	const numGoroutines = 10
 	const iterations = 100
 
 	done := make(chan bool, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				data := []byte(strings.Repeat("test", id+1))
 
 				encrypted, err := encryptor.Encrypt(data)
@@ -249,18 +269,17 @@ func TestDataEncryptionUtils_ConcurrentUsage(t *testing.T) {
 		}(i)
 	}
 
-	// Wait for all goroutines to complete
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		<-done
 	}
 }
 
 func TestDataEncryptionUtils_KeyLength32Bytes(t *testing.T) {
-	// Test that 32-byte keys work correctly (AES-256)
 	key32 := "this-is-exactly-32-bytes-long!!!"
 	assert.Equal(t, 32, len(key32))
 
-	encryptor := UseAesEncryption(key32)
+	encryptor, err := UseAesEncryption(key32)
+	require.NoError(t, err)
 	data := []byte("test data")
 
 	encrypted, err := encryptor.Encrypt(data)
@@ -273,11 +292,11 @@ func TestDataEncryptionUtils_KeyLength32Bytes(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_KeyLength16Bytes(t *testing.T) {
-	// Test that 16-byte keys work correctly (AES-128)
 	key16 := "16-byte-key-here"
 	assert.Equal(t, 16, len(key16))
 
-	encryptor := UseAesEncryption(key16)
+	encryptor, err := UseAesEncryption(key16)
+	require.NoError(t, err)
 	data := []byte("test data")
 
 	encrypted, err := encryptor.Encrypt(data)
@@ -290,11 +309,11 @@ func TestDataEncryptionUtils_KeyLength16Bytes(t *testing.T) {
 }
 
 func TestDataEncryptionUtils_KeyLength24Bytes(t *testing.T) {
-	// Test that 24-byte keys work correctly (AES-192)
 	key24 := "24-byte-key-here-exactly"
 	assert.Equal(t, 24, len(key24))
 
-	encryptor := UseAesEncryption(key24)
+	encryptor, err := UseAesEncryption(key24)
+	require.NoError(t, err)
 	data := []byte("test data")
 
 	encrypted, err := encryptor.Encrypt(data)
@@ -307,7 +326,10 @@ func TestDataEncryptionUtils_KeyLength24Bytes(t *testing.T) {
 }
 
 func BenchmarkDataEncryptionUtils_Encrypt(b *testing.B) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	if err != nil {
+		b.Fatal(err)
+	}
 	data := []byte("benchmark test data")
 
 	b.ResetTimer()
@@ -320,7 +342,10 @@ func BenchmarkDataEncryptionUtils_Encrypt(b *testing.B) {
 }
 
 func BenchmarkDataEncryptionUtils_Decrypt(b *testing.B) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	if err != nil {
+		b.Fatal(err)
+	}
 	data := []byte("benchmark test data")
 
 	encrypted, err := encryptor.Encrypt(data)
@@ -338,7 +363,10 @@ func BenchmarkDataEncryptionUtils_Decrypt(b *testing.B) {
 }
 
 func BenchmarkDataEncryptionUtils_EncryptDecrypt(b *testing.B) {
-	encryptor := UseAesEncryption("")
+	encryptor, err := UseAesEncryption(testDefaultKey)
+	if err != nil {
+		b.Fatal(err)
+	}
 	data := []byte("benchmark test data")
 
 	b.ResetTimer()

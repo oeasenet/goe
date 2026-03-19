@@ -14,7 +14,7 @@ import (
 // Test helper to create temporary SPA directory structure
 func createTestSPAStructure(t interface {
 	Helper()
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 	FailNow()
 }) string {
 	t.Helper()
@@ -68,7 +68,7 @@ func Test_New_PanicOnEmptyRoot(t *testing.T) {
 
 func Test_SPA_Default(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -87,7 +87,7 @@ func Test_SPA_Default(t *testing.T) {
 
 func Test_SPA_StaticFiles(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -119,7 +119,7 @@ func Test_SPA_StaticFiles(t *testing.T) {
 
 func Test_SPA_ClientRouting(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -150,7 +150,7 @@ func Test_SPA_ClientRouting(t *testing.T) {
 
 func Test_SPA_NotFoundFile(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -170,7 +170,7 @@ func Test_SPA_NotFoundFile(t *testing.T) {
 
 func Test_SPA_CustomIndex(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create custom index file
 	customIndex := `<!DOCTYPE html><html><body>Custom App</body></html>`
@@ -194,7 +194,7 @@ func Test_SPA_CustomIndex(t *testing.T) {
 
 func Test_SPA_MaxAge(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -211,7 +211,7 @@ func Test_SPA_MaxAge(t *testing.T) {
 
 func Test_SPA_Next(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 
@@ -250,10 +250,10 @@ func Test_SPA_Next(t *testing.T) {
 
 func Test_SPA_MissingIndexFile(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Remove index.html
-	os.Remove(filepath.Join(tmpDir, "index.html"))
+	_ = os.Remove(filepath.Join(tmpDir, "index.html"))
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -273,7 +273,7 @@ func Test_SPA_MissingIndexFile(t *testing.T) {
 
 func Test_SPA_Browse(t *testing.T) {
 	tmpDir := createTestSPAStructure(t)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -316,7 +316,7 @@ func Test_MightBeFile(t *testing.T) {
 // Benchmark tests
 func Benchmark_SPA_Index(b *testing.B) {
 	tmpDir := createTestSPAStructure(b)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -338,7 +338,7 @@ func Benchmark_SPA_Index(b *testing.B) {
 
 func Benchmark_SPA_Static(b *testing.B) {
 	tmpDir := createTestSPAStructure(b)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{
@@ -360,7 +360,7 @@ func Benchmark_SPA_Static(b *testing.B) {
 
 func Benchmark_SPA_WithNext(b *testing.B) {
 	tmpDir := createTestSPAStructure(b)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	app := fiber.New()
 	app.Use(New(Config{

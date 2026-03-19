@@ -134,27 +134,3 @@ func (c *headerCarrier) Keys() []string {
 	return keys
 }
 
-// responseHeaderCarrier adapts Fiber response headers to TextMapCarrier interface
-type responseHeaderCarrier struct {
-	ctx fiber.Ctx
-}
-
-// Get returns the value for a given key from the response headers
-func (c *responseHeaderCarrier) Get(key string) string {
-	return string(c.ctx.Response().Header.Peek(key))
-}
-
-// Set sets a key-value pair in the response headers
-func (c *responseHeaderCarrier) Set(key, value string) {
-	c.ctx.Response().Header.Set(key, value)
-}
-
-// Keys returns all keys in the carrier
-func (c *responseHeaderCarrier) Keys() []string {
-	headers := c.ctx.GetRespHeaders()
-	keys := make([]string, 0, len(headers))
-	for key := range headers {
-		keys = append(keys, key)
-	}
-	return keys
-}
