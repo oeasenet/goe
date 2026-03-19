@@ -128,7 +128,7 @@ func (s *MongoStateStore) GetApplied(ctx context.Context) ([]MigrationRecord, er
 	if err != nil {
 		return nil, NewStateError("get_applied", 0, err)
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var records []MigrationRecord
 	if err := cursor.All(ctx, &records); err != nil {
@@ -331,7 +331,7 @@ func (s *MongoStateStore) GetLastBatchMigrations(ctx context.Context) ([]Migrati
 	if err != nil {
 		return nil, NewStateError("get_last_batch", 0, err)
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var records []MigrationRecord
 	if err := cursor.All(ctx, &records); err != nil {

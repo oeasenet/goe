@@ -127,7 +127,7 @@ func (l *MongoLock) Acquire(ctx context.Context) error {
 
 	// Start heartbeat goroutine with WaitGroup tracking
 	l.wg.Add(1)
-	go l.runHeartbeat()
+	go l.runHeartbeat() //nolint:contextcheck // heartbeat uses stopChan for cancellation, independent of caller context
 
 	return nil
 }

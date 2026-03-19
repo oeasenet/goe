@@ -110,8 +110,8 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	connectionsList := dbm.config.GetString("MONGO_CONNECTIONS")
 	if connectionsList != "" {
 		// Split the comma-separated list of connection names
-		connectionNames := strings.Split(connectionsList, ",")
-		for _, connName := range connectionNames {
+		connectionNames := strings.SplitSeq(connectionsList, ",")
+		for connName := range connectionNames {
 			connName = strings.TrimSpace(connName)
 
 			// Skip if it's the default connection (already connected)

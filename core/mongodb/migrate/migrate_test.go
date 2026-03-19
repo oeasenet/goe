@@ -181,7 +181,7 @@ func TestMustRegisterPanics(t *testing.T) {
 func TestGetMigrationsAfter(t *testing.T) {
 	Clear()
 
-	Register(
+	_ = Register(
 		New(1, "first").Up(NoOp()),
 		New(2, "second").Up(NoOp()),
 		New(3, "third").Up(NoOp()),
@@ -203,7 +203,7 @@ func TestGetMigrationsAfter(t *testing.T) {
 func TestGetMigrationsInRange(t *testing.T) {
 	Clear()
 
-	Register(
+	_ = Register(
 		New(1, "first").Up(NoOp()),
 		New(2, "second").Up(NoOp()),
 		New(3, "third").Up(NoOp()),
@@ -225,7 +225,7 @@ func TestGetLatestVersion(t *testing.T) {
 		t.Error("expected 0 for empty registry")
 	}
 
-	Register(
+	_ = Register(
 		New(5, "five").Up(NoOp()),
 		New(2, "two").Up(NoOp()),
 		New(10, "ten").Up(NoOp()),

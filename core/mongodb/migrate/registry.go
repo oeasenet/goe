@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 )
@@ -192,9 +193,7 @@ func Versions() []int64 {
 		versions = append(versions, version)
 	}
 
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i] < versions[j]
-	})
+	slices.Sort(versions)
 
 	return versions
 }

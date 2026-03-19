@@ -247,9 +247,7 @@ func RemoveValidation(collection string) MigrationFunc {
 
 // fieldOperationConfig holds configuration for field operations
 type fieldOperationConfig struct {
-	noVersionBump bool
-	schemaVersion int64
-	filter        bson.M
+	filter bson.M
 }
 
 // FieldOption configures field operations
@@ -260,30 +258,6 @@ func WithFilter(filter bson.M) FieldOption {
 	return func(c *fieldOperationConfig) {
 		c.filter = filter
 	}
-}
-
-// buildFieldConfig builds a fieldOperationConfig from IndexOptions and FieldOptions
-func buildFieldConfig(indexOpts []IndexOption, fieldOpts []FieldOption) *fieldOperationConfig {
-	cfg := &fieldOperationConfig{}
-
-	// Process IndexOptions for NoVersionBump and SchemaVersion
-	for _, opt := range indexOpts {
-		iCfg := &indexConfig{}
-		opt(iCfg)
-		if iCfg.noVersionBump {
-			cfg.noVersionBump = true
-		}
-		if iCfg.schemaVersion > 0 {
-			cfg.schemaVersion = iCfg.schemaVersion
-		}
-	}
-
-	// Process FieldOptions
-	for _, opt := range fieldOpts {
-		opt(cfg)
-	}
-
-	return cfg
 }
 
 // AddField returns a MigrationFunc that adds a field with a default value
@@ -358,7 +332,7 @@ func ConvertFieldType(collection, field string, transformer func(any) any, opts 
 		if err != nil {
 			return err
 		}
-		defer cursor.Close(ctx)
+		defer func() { _ = cursor.Close(ctx) }()
 
 		// Process each document
 		for cursor.Next(ctx) {
@@ -410,7 +384,7 @@ func BumpSchemaVersion(collection string, fromVersion, toVersion int64, transfor
 		if err != nil {
 			return err
 		}
-		defer cursor.Close(ctx)
+		defer func() { _ = cursor.Close(ctx) }()
 
 		// Process each document
 		for cursor.Next(ctx) {
@@ -482,7 +456,7 @@ func UpdateManyWithProgress(collection string, filter, update bson.M, callback P
 		if err != nil {
 			return err
 		}
-		defer cursor.Close(ctx)
+		defer func() { _ = cursor.Close(ctx) }()
 
 		var batch []any
 		for cursor.Next(ctx) {

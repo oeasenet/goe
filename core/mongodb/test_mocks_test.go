@@ -97,7 +97,7 @@ func TestTestMockConfig(t *testing.T) {
 func TestTestMockLogger(t *testing.T) {
 	t.Run("Info", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Info", "test message", []interface{}{"key", "value"}).Return()
+		mock.On("Info", "test message", []any{"key", "value"}).Return()
 
 		mock.Info("test message", "key", "value")
 		mock.AssertExpectations(t)
@@ -105,7 +105,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Debug", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Debug", "debug message", []interface{}(nil)).Return()
+		mock.On("Debug", "debug message", []any(nil)).Return()
 
 		mock.Debug("debug message")
 		mock.AssertExpectations(t)
@@ -113,7 +113,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Warn", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Warn", "warn message", []interface{}(nil)).Return()
+		mock.On("Warn", "warn message", []any(nil)).Return()
 
 		mock.Warn("warn message")
 		mock.AssertExpectations(t)
@@ -121,7 +121,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Error", "error message", []interface{}(nil)).Return()
+		mock.On("Error", "error message", []any(nil)).Return()
 
 		mock.Error("error message")
 		mock.AssertExpectations(t)
@@ -129,7 +129,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Fatal", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Fatal", "fatal message", []interface{}(nil)).Return()
+		mock.On("Fatal", "fatal message", []any(nil)).Return()
 
 		mock.Fatal("fatal message")
 		mock.AssertExpectations(t)
@@ -137,7 +137,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Panic", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Panic", "panic message", []interface{}(nil)).Return()
+		mock.On("Panic", "panic message", []any(nil)).Return()
 
 		mock.Panic("panic message")
 		mock.AssertExpectations(t)
@@ -145,7 +145,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Panicf", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Panicf", "panic %s", []interface{}{"formatted"}).Return()
+		mock.On("Panicf", "panic %s", []any{"formatted"}).Return()
 
 		mock.Panicf("panic %s", "formatted")
 		mock.AssertExpectations(t)
@@ -153,7 +153,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Debugf", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Debugf", "debug %s", []interface{}{"formatted"}).Return()
+		mock.On("Debugf", "debug %s", []any{"formatted"}).Return()
 
 		mock.Debugf("debug %s", "formatted")
 		mock.AssertExpectations(t)
@@ -161,7 +161,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Infof", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Infof", "info %s", []interface{}{"formatted"}).Return()
+		mock.On("Infof", "info %s", []any{"formatted"}).Return()
 
 		mock.Infof("info %s", "formatted")
 		mock.AssertExpectations(t)
@@ -169,7 +169,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Warnf", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Warnf", "warn %s", []interface{}{"formatted"}).Return()
+		mock.On("Warnf", "warn %s", []any{"formatted"}).Return()
 
 		mock.Warnf("warn %s", "formatted")
 		mock.AssertExpectations(t)
@@ -177,7 +177,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Errorf", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Errorf", "error %s", []interface{}{"formatted"}).Return()
+		mock.On("Errorf", "error %s", []any{"formatted"}).Return()
 
 		mock.Errorf("error %s", "formatted")
 		mock.AssertExpectations(t)
@@ -185,7 +185,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Fatalf", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Fatalf", "fatal %s", []interface{}{"formatted"}).Return()
+		mock.On("Fatalf", "fatal %s", []any{"formatted"}).Return()
 
 		mock.Fatalf("fatal %s", "formatted")
 		mock.AssertExpectations(t)
@@ -193,7 +193,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Debugw", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Debugw", "debug structured", []interface{}{"key", "value"}).Return()
+		mock.On("Debugw", "debug structured", []any{"key", "value"}).Return()
 
 		mock.Debugw("debug structured", "key", "value")
 		mock.AssertExpectations(t)
@@ -201,7 +201,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Infow", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Infow", "info structured", []interface{}{"key", "value"}).Return()
+		mock.On("Infow", "info structured", []any{"key", "value"}).Return()
 
 		mock.Infow("info structured", "key", "value")
 		mock.AssertExpectations(t)
@@ -209,7 +209,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Warnw", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Warnw", "warn structured", []interface{}{"key", "value"}).Return()
+		mock.On("Warnw", "warn structured", []any{"key", "value"}).Return()
 
 		mock.Warnw("warn structured", "key", "value")
 		mock.AssertExpectations(t)
@@ -217,7 +217,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Errorw", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Errorw", "error structured", []interface{}{"key", "value"}).Return()
+		mock.On("Errorw", "error structured", []any{"key", "value"}).Return()
 
 		mock.Errorw("error structured", "key", "value")
 		mock.AssertExpectations(t)
@@ -225,7 +225,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("Fatalw", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("Fatalw", "fatal structured", []interface{}{"key", "value"}).Return()
+		mock.On("Fatalw", "fatal structured", []any{"key", "value"}).Return()
 
 		mock.Fatalw("fatal structured", "key", "value")
 		mock.AssertExpectations(t)
@@ -233,7 +233,7 @@ func TestTestMockLogger(t *testing.T) {
 
 	t.Run("With", func(t *testing.T) {
 		mock := &TestMockLogger{}
-		mock.On("With", []interface{}{"key", "value"}).Return(mock)
+		mock.On("With", []any{"key", "value"}).Return(mock)
 
 		result := mock.With("key", "value")
 		assert.Equal(t, mock, result)

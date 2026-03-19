@@ -124,8 +124,7 @@ func IsNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// This is a simplified check - in practice you'd want more sophisticated detection
-	return false
+	return mongo.IsNetworkError(err)
 }
 
 // IsTimeout checks if the error is a timeout error
@@ -162,15 +161,19 @@ func WithTransaction(ctx context.Context, client *mongo.Client, fn func(sessCtx 
 	return session.CommitTransaction(sessionCtx)
 }
 
-// WithTransactionOptions executes a function within a transaction with options
-func WithTransactionOptions(ctx context.Context, client *mongo.Client, opts *options.TransactionOptions, fn func(sessCtx context.Context) error) error {
+// WithTransactionOptions executes a function within a transaction with options.
+// Options should be built using the v2 builder pattern, e.g.:
+//
+//	opts := options.Transaction().SetReadConcern(readconcern.Majority())
+//	err := WithTransactionOptions(ctx, client, fn, opts)
+func WithTransactionOptions(ctx context.Context, client *mongo.Client, fn func(sessCtx context.Context) error, opts ...options.Lister[options.TransactionOptions]) error {
 	session, err := client.StartSession()
 	if err != nil {
 		return err
 	}
 	defer session.EndSession(ctx)
 
-	if err := session.StartTransaction(); err != nil {
+	if err := session.StartTransaction(opts...); err != nil {
 		return err
 	}
 
@@ -205,21 +208,21 @@ func DropIndex(ctx context.Context, collection *mongo.Collection, indexName stri
 // Bulk operation utilities
 
 // CreateInsertOneModel creates an insert one model for bulk operations
-func CreateInsertOneModel(document interface{}) mongo.WriteModel {
+func CreateInsertOneModel(document any) mongo.WriteModel {
 	return mongo.NewInsertOneModel().SetDocument(document)
 }
 
 // CreateUpdateOneModel creates an update one model for bulk operations
-func CreateUpdateOneModel(filter, update interface{}) mongo.WriteModel {
+func CreateUpdateOneModel(filter, update any) mongo.WriteModel {
 	return mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update)
 }
 
 // CreateUpsertModel creates an upsert model (replace one with upsert) for bulk operations
-func CreateUpsertModel(filter, replacement interface{}) mongo.WriteModel {
+func CreateUpsertModel(filter, replacement any) mongo.WriteModel {
 	return mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(replacement).SetUpsert(true)
 }
 
 // CreateDeleteOneModel creates a delete one model for bulk operations
-func CreateDeleteOneModel(filter interface{}) mongo.WriteModel {
+func CreateDeleteOneModel(filter any) mongo.WriteModel {
 	return mongo.NewDeleteOneModel().SetFilter(filter)
 }

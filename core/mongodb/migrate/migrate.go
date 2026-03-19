@@ -102,7 +102,7 @@ func (m *Migration) updateChecksum() {
 	h := sha256.New()
 
 	// Write version and name
-	h.Write([]byte(fmt.Sprintf("%d:%s:", m.Version, m.Name)))
+	h.Write(fmt.Appendf(nil, "%d:%s:", m.Version, m.Name))
 
 	// Add function pointer info to checksum
 	if m.up != nil {

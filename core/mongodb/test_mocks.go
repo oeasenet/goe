@@ -65,75 +65,75 @@ type TestMockLogger struct {
 	mock.Mock
 }
 
-func (m *TestMockLogger) Info(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Info(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Debug(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Debug(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Warn(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Warn(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Error(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Error(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Fatal(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Fatal(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Panic(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Panic(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Panicf(template string, args ...interface{}) {
+func (m *TestMockLogger) Panicf(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Debugf(template string, args ...interface{}) {
+func (m *TestMockLogger) Debugf(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Infof(template string, args ...interface{}) {
+func (m *TestMockLogger) Infof(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Warnf(template string, args ...interface{}) {
+func (m *TestMockLogger) Warnf(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Errorf(template string, args ...interface{}) {
+func (m *TestMockLogger) Errorf(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Fatalf(template string, args ...interface{}) {
+func (m *TestMockLogger) Fatalf(template string, args ...any) {
 	m.Called(template, args)
 }
 
-func (m *TestMockLogger) Debugw(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Debugw(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Infow(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Infow(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Warnw(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Warnw(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Errorw(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Errorw(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) Fatalw(msg string, keysAndValues ...interface{}) {
+func (m *TestMockLogger) Fatalw(msg string, keysAndValues ...any) {
 	m.Called(msg, keysAndValues)
 }
 
-func (m *TestMockLogger) With(keysAndValues ...interface{}) contract.Logger {
+func (m *TestMockLogger) With(keysAndValues ...any) contract.Logger {
 	args := m.Called(keysAndValues)
 	return args.Get(0).(contract.Logger)
 }

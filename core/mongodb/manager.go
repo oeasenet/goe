@@ -63,10 +63,6 @@ func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
 		}
 	}
 
-	dbm.logger.Info("MONGO Database connection established successfully",
-		"name", name,
-	)
-
 	client, err := mongo.Connect(opt)
 	if err != nil {
 		return nil, err
@@ -98,7 +94,7 @@ func defaultMonitor(logger contract.Logger) *event.CommandMonitor {
 			)
 		},
 		Failed: func(ctx context.Context, evt *event.CommandFailedEvent) {
-			logger.Debug("[MONGO FAILED]",
+			logger.Error("[MONGO FAILED]",
 				"command", evt.CommandName,
 				"error", evt.Failure.Error(),
 			)

@@ -197,7 +197,7 @@ func TestBuildCompoundIndex(t *testing.T) {
 
 		// Check that all expected fields are present by converting to bson.D
 		if keys, ok := model.Keys.(bson.D); ok {
-			keyMap := make(map[string]interface{})
+			keyMap := make(map[string]any)
 			for _, elem := range keys {
 				keyMap[elem.Key] = elem.Value
 			}

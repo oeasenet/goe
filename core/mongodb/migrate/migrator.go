@@ -128,7 +128,7 @@ func (m *Migrator) upTo(ctx context.Context, targetVersion int64) (*MigrationRes
 		if err := m.lock.Acquire(ctx); err != nil {
 			return nil, err
 		}
-		defer m.lock.Release(ctx)
+		defer func() { _ = m.lock.Release(ctx) }()
 	}
 
 	// Check for dirty state
@@ -191,7 +191,7 @@ func (m *Migrator) upTo(ctx context.Context, targetVersion int64) (*MigrationRes
 		// Run the migration
 		if err := m.runMigration(ctx, mig, DirectionUp, batch); err != nil {
 			// Mark as failed
-			m.state.MarkFailed(ctx, mig.Version, mig.Name, err, time.Since(migStart).Milliseconds())
+			_ = m.state.MarkFailed(ctx, mig.Version, mig.Name, err, time.Since(migStart).Milliseconds())
 			return result, NewMigrationError(mig.Version, mig.Name, DirectionUp, err)
 		}
 
@@ -216,7 +216,7 @@ func (m *Migrator) Down(ctx context.Context, steps int) (*MigrationResult, error
 		if err := m.lock.Acquire(ctx); err != nil {
 			return nil, err
 		}
-		defer m.lock.Release(ctx)
+		defer func() { _ = m.lock.Release(ctx) }()
 	}
 
 	// Get applied migrations in reverse order
@@ -286,7 +286,7 @@ func (m *Migrator) DownTo(ctx context.Context, version int64) (*MigrationResult,
 		if err := m.lock.Acquire(ctx); err != nil {
 			return nil, err
 		}
-		defer m.lock.Release(ctx)
+		defer func() { _ = m.lock.Release(ctx) }()
 	}
 
 	// Get applied migrations in reverse order
