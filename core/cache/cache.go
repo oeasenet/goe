@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.oease.dev/goe/v2/contract"
+	"golang.org/x/sync/singleflight"
 )
 
 // cache implements the Cache interface
@@ -16,6 +17,7 @@ type cache struct {
 	store  contract.CacheStore
 	prefix string
 	mu     sync.RWMutex
+	sfg    singleflight.Group
 }
 
 // New creates a new cache instance with a given store
@@ -30,7 +32,7 @@ func New(store contract.CacheStore, prefix string) contract.Cache {
 func (c *cache) Get(key string, value any) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return errors.New("value must be a non-nil pointer")
 	}
 
@@ -53,7 +55,7 @@ func (c *cache) Get(key string, value any) error {
 func (c *cache) GetWithDefault(key string, value any, defaultValue any) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return errors.New("value must be a non-nil pointer")
 	}
 
@@ -117,11 +119,13 @@ func (c *cache) Has(key string) bool {
 	return err == nil && data != nil
 }
 
-// Remember gets a value from cache or computes it
+// Remember gets a value from cache or computes it.
+// Concurrent calls for the same key are deduplicated via singleflight
+// so the callback executes at most once per cache miss, preventing stampedes.
 func (c *cache) Remember(key string, value any, ttl time.Duration, callback func() (any, error)) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return errors.New("value must be a non-nil pointer")
 	}
 
@@ -137,24 +141,47 @@ func (c *cache) Remember(key string, value any, ttl time.Duration, callback func
 		return json.Unmarshal(data, value)
 	}
 
-	// Cache miss - compute the value
-	computedValue, err := callback()
+	// Cache miss - use singleflight to deduplicate concurrent callbacks
+	result, err, _ := c.sfg.Do(c.prefixKey(key), func() (any, error) {
+		// Double-check cache inside singleflight (another goroutine may have populated it)
+		c.mu.RLock()
+		data, err := c.store.Get(c.prefixKey(key))
+		c.mu.RUnlock()
+		if err != nil {
+			return nil, err
+		}
+		if data != nil {
+			return data, nil
+		}
+
+		// Compute the value
+		computedValue, err := callback()
+		if err != nil {
+			return nil, err
+		}
+
+		// Marshal to store in cache
+		computedData, err := json.Marshal(computedValue)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		storeErr := c.store.Set(c.prefixKey(key), computedData, ttl)
+		c.mu.Unlock()
+		if storeErr != nil {
+			return nil, storeErr
+		}
+
+		return computedData, nil
+	})
 	if err != nil {
 		return err
 	}
 
-	// Store in cache
-	if err := c.Set(key, computedValue, ttl); err != nil {
-		return err
-	}
-
-	// Unmarshal the computed value into the provided pointer
-	computedData, err := json.Marshal(computedValue)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(computedData, value)
+	// Unmarshal the result (either from cache or freshly computed)
+	return json.Unmarshal(result.([]byte), value)
 }
 
 // RememberForever gets a value from cache or computes it forever
@@ -162,18 +189,20 @@ func (c *cache) RememberForever(key string, value any, callback func() (any, err
 	return c.Remember(key, value, 0, callback)
 }
 
-// Pull retrieves and removes a value from cache
+// Pull retrieves and removes a value from cache atomically.
 func (c *cache) Pull(key string, value any) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return errors.New("value must be a non-nil pointer")
 	}
 
-	c.mu.RLock()
-	data, err := c.store.Get(c.prefixKey(key))
-	c.mu.RUnlock()
+	// Use exclusive lock for the entire get-then-delete operation
+	// to prevent TOCTOU race conditions.
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	data, err := c.store.Get(c.prefixKey(key))
 	if err != nil {
 		return err
 	}
@@ -188,8 +217,8 @@ func (c *cache) Pull(key string, value any) error {
 		return err
 	}
 
-	// Remove the key after successful retrieval
-	_ = c.Forget(key)
+	// Remove the key after successful retrieval (under same lock)
+	_ = c.store.Delete(c.prefixKey(key))
 
 	return nil
 }
@@ -261,7 +290,10 @@ func (c *cache) Increment(key string, value ...int64) (int64, error) {
 	// Increment
 	newValue := current + increment
 
-	// Store back (directly to avoid re-acquiring lock)
+	// Store back (directly to avoid re-acquiring lock).
+	// Note: TTL is set to 0 (no expiration) because CacheStore does not expose
+	// a method to query the current key's TTL. For TTL-sensitive counters,
+	// consider using the underlying store directly.
 	marshaledData, err := json.Marshal(newValue)
 	if err != nil {
 		return 0, err

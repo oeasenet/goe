@@ -2,6 +2,8 @@ package cache
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -433,6 +435,7 @@ func TestCache_Remember(t *testing.T) {
 	t.Run("value not in cache, compute and store", func(t *testing.T) {
 		store := &MockCacheStore{}
 		cache := New(store, "test")
+		// singleflight double-checks cache, so Get is called twice on miss
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 		store.On("Set", "test:key", []byte(`"computed"`), time.Minute).Return(nil)
 
@@ -454,6 +457,7 @@ func TestCache_Remember(t *testing.T) {
 	t.Run("callback error", func(t *testing.T) {
 		store := &MockCacheStore{}
 		cache := New(store, "test")
+		// singleflight double-checks cache, so Get is called twice on miss
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
 		callback := func() (any, error) {
@@ -472,6 +476,7 @@ func TestCache_Remember(t *testing.T) {
 func TestCache_RememberForever(t *testing.T) {
 	store := &MockCacheStore{}
 	cache := New(store, "test")
+	// singleflight double-checks cache, so Get is called twice on miss
 	store.On("Get", "test:key").Return([]byte(nil), nil)
 	store.On("Set", "test:key", []byte(`"computed"`), time.Duration(0)).Return(nil)
 
@@ -619,7 +624,7 @@ func TestCache_prefixKey(t *testing.T) {
 		store.On("Get", "app:key").Return([]byte(nil), nil)
 
 		var value string
-		cache.Get("key", &value)
+		_ = cache.Get("key", &value)
 
 		store.AssertExpectations(t)
 	})
@@ -630,8 +635,76 @@ func TestCache_prefixKey(t *testing.T) {
 		store.On("Get", "key").Return([]byte(nil), nil)
 
 		var value string
-		cache.Get("key", &value)
+		_ = cache.Get("key", &value)
 
 		store.AssertExpectations(t)
 	})
 }
+
+// TestCache_Remember_Singleflight verifies that concurrent Remember calls
+// for the same key only execute the callback once (stampede prevention).
+func TestCache_Remember_Singleflight(t *testing.T) {
+	// Use a simple in-memory store to avoid mock complexity with concurrent access
+	memStore := &inMemoryStore{data: make(map[string][]byte)}
+	c := New(memStore, "sf")
+
+	var callCount atomic.Int32
+	const goroutines = 20
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			var val string
+			err := c.Remember("key", &val, time.Minute, func() (any, error) {
+				callCount.Add(1)
+				time.Sleep(10 * time.Millisecond) // simulate slow computation
+				return "result", nil
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, "result", val)
+		}()
+	}
+
+	wg.Wait()
+
+	// Callback should have been called exactly once thanks to singleflight
+	assert.Equal(t, int32(1), callCount.Load(), "callback should execute exactly once for concurrent calls")
+}
+
+// inMemoryStore is a simple thread-safe cache store for concurrency tests.
+type inMemoryStore struct {
+	mu   sync.RWMutex
+	data map[string][]byte
+}
+
+func (s *inMemoryStore) Get(key string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.data[key], nil
+}
+
+func (s *inMemoryStore) Set(key string, val []byte, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[key] = val
+	return nil
+}
+
+func (s *inMemoryStore) Delete(key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, key)
+	return nil
+}
+
+func (s *inMemoryStore) Reset() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = make(map[string][]byte)
+	return nil
+}
+
+func (s *inMemoryStore) Close() error { return nil }
