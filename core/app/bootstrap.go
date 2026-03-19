@@ -34,7 +34,7 @@ func BootstrapAndValidate(name, version, environment string) (contract.Applicati
 	}
 
 	// Stop the app after validation
-	app.Stop(ctx)
+	_ = app.Stop(ctx)
 
 	return app, nil
 }
