@@ -2,6 +2,7 @@ package webresult
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"testing"
@@ -454,8 +455,12 @@ func TestSystemBusy(t *testing.T) {
 			expectedCode: fiber.StatusInternalServerError,
 			expectedMsg:  "system busy",
 		},
-		// Note: Cannot test "with error" case as it requires goe.Log() to be initialized
-		// which would require importing the entire goe framework
+		{
+			name:         "with error but no logger initialized",
+			err:          []error{errors.New("some internal error")},
+			expectedCode: fiber.StatusInternalServerError,
+			expectedMsg:  "system busy",
+		},
 	}
 
 	for _, tt := range tests {

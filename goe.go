@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"maps"
 	"os"
 	"reflect"
 	"sync"
@@ -114,9 +115,7 @@ func New(opts ...Options) contract.Application {
 	// Create configuration with overrides
 	configOverrides := make(map[string]any)
 	if opt.ConfigOverrides != nil {
-		for key, value := range opt.ConfigOverrides {
-			configOverrides[key] = value
-		}
+		maps.Copy(configOverrides, opt.ConfigOverrides)
 	}
 
 	// Add HTTPPort override if specified
@@ -693,7 +692,8 @@ func Config() contract.Config {
 	return instance.config
 }
 
-// Log returns the global logger instance
+// Log returns the global logger instance.
+// Panics if the application has not been initialized.
 func Log() contract.Logger {
 	instance.mu.RLock()
 	defer instance.mu.RUnlock()
@@ -701,6 +701,15 @@ func Log() contract.Logger {
 	if instance.logger == nil {
 		panic("Application not initialized. Call goe.New() first")
 	}
+
+	return instance.logger
+}
+
+// LogOrNil returns the global logger instance, or nil if not yet initialized.
+// Use this when logging is best-effort and a panic would be worse than silence.
+func LogOrNil() contract.Logger {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
 
 	return instance.logger
 }
@@ -729,11 +738,6 @@ func HTTP() contract.HTTPKernel {
 		panic("HTTP module not initialized. Set WithHTTP: true in goe.New() options")
 	}
 
-	return instance.http
-}
-
-// httpAccessor is used internally to access HTTP without locking
-func httpAccessor() contract.HTTPKernel {
 	return instance.http
 }
 

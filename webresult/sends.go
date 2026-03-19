@@ -68,7 +68,9 @@ func NotFound(msg ...string) error {
 
 func SystemBusy(err ...error) error {
 	if len(err) > 0 && err[0] != nil {
-		goe.Log().GetLogger().WithOptions(zap.AddCallerSkip(1)).Error(err)
+		if logger := goe.LogOrNil(); logger != nil {
+			logger.GetLogger().WithOptions(zap.AddCallerSkip(1)).Error(err)
+		}
 	}
 	return fiber.NewError(fiber.StatusInternalServerError, "system busy")
 }
