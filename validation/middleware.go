@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"reflect"
 
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2/contract"
@@ -109,75 +110,103 @@ func GetValidator(c fiber.Ctx) *Validator {
 	return nil
 }
 
-// ValidateBody is a middleware that validates request body
-func ValidateBody(dst interface{}) fiber.Handler {
+// ValidateBody is a middleware that validates request body.
+// A fresh instance of the dst type is allocated per request to prevent
+// concurrent requests from sharing and overwriting the same struct.
+func ValidateBody(dst any) fiber.Handler {
+	dstType := reflect.TypeOf(dst)
+	if dstType.Kind() == reflect.Pointer {
+		dstType = dstType.Elem()
+	}
+
 	return func(c fiber.Ctx) error {
 		v := GetValidator(c)
 		if v == nil {
 			v = New()
 		}
 
-		if err := v.ValidateRequest(c, dst); err != nil {
+		// Allocate a fresh struct per request to avoid shared-pointer data races
+		reqDst := reflect.New(dstType).Interface()
+
+		if err := v.ValidateRequest(c, reqDst); err != nil {
 			return defaultErrorHandler(c, err)
 		}
 
 		// Store validated data in context
-		c.Locals("validatedBody", dst)
+		c.Locals("validatedBody", reqDst)
 
 		return c.Next()
 	}
 }
 
-// ValidateQuery is a middleware that validates query parameters
-func ValidateQuery(dst interface{}) fiber.Handler {
+// ValidateQuery is a middleware that validates query parameters.
+// A fresh instance of the dst type is allocated per request to prevent
+// concurrent requests from sharing and overwriting the same struct.
+func ValidateQuery(dst any) fiber.Handler {
+	dstType := reflect.TypeOf(dst)
+	if dstType.Kind() == reflect.Pointer {
+		dstType = dstType.Elem()
+	}
+
 	return func(c fiber.Ctx) error {
 		v := GetValidator(c)
 		if v == nil {
 			v = New()
 		}
 
-		if err := v.ValidateQuery(c, dst); err != nil {
+		reqDst := reflect.New(dstType).Interface()
+
+		if err := v.ValidateQuery(c, reqDst); err != nil {
 			return defaultErrorHandler(c, err)
 		}
 
 		// Store validated data in context
-		c.Locals("validatedQuery", dst)
+		c.Locals("validatedQuery", reqDst)
 
 		return c.Next()
 	}
 }
 
-// ValidateParams is a middleware that validates URL parameters
-func ValidateParams(dst interface{}) fiber.Handler {
+// ValidateParams is a middleware that validates URL parameters.
+// A fresh instance of the dst type is allocated per request to prevent
+// concurrent requests from sharing and overwriting the same struct.
+func ValidateParams(dst any) fiber.Handler {
+	dstType := reflect.TypeOf(dst)
+	if dstType.Kind() == reflect.Pointer {
+		dstType = dstType.Elem()
+	}
+
 	return func(c fiber.Ctx) error {
 		v := GetValidator(c)
 		if v == nil {
 			v = New()
 		}
 
-		if err := v.ValidateParams(c, dst); err != nil {
+		reqDst := reflect.New(dstType).Interface()
+
+		if err := v.ValidateParams(c, reqDst); err != nil {
 			return defaultErrorHandler(c, err)
 		}
 
 		// Store validated data in context
-		c.Locals("validatedParams", dst)
+		c.Locals("validatedParams", reqDst)
 
 		return c.Next()
 	}
 }
 
 // GetValidatedBody retrieves validated body from context
-func GetValidatedBody(c fiber.Ctx) interface{} {
+func GetValidatedBody(c fiber.Ctx) any {
 	return c.Locals("validatedBody")
 }
 
 // GetValidatedQuery retrieves validated query from context
-func GetValidatedQuery(c fiber.Ctx) interface{} {
+func GetValidatedQuery(c fiber.Ctx) any {
 	return c.Locals("validatedQuery")
 }
 
 // GetValidatedParams retrieves validated params from context
-func GetValidatedParams(c fiber.Ctx) interface{} {
+func GetValidatedParams(c fiber.Ctx) any {
 	return c.Locals("validatedParams")
 }
 
@@ -190,17 +219,17 @@ func NewMiddlewareProvider() *MiddlewareProvider {
 }
 
 // ValidateBody creates middleware that validates request body
-func (mp *MiddlewareProvider) ValidateBody(dst interface{}) fiber.Handler {
+func (mp *MiddlewareProvider) ValidateBody(dst any) fiber.Handler {
 	return ValidateBody(dst)
 }
 
 // ValidateQuery creates middleware that validates query parameters
-func (mp *MiddlewareProvider) ValidateQuery(dst interface{}) fiber.Handler {
+func (mp *MiddlewareProvider) ValidateQuery(dst any) fiber.Handler {
 	return ValidateQuery(dst)
 }
 
 // ValidateParams creates middleware that validates URL parameters
-func (mp *MiddlewareProvider) ValidateParams(dst interface{}) fiber.Handler {
+func (mp *MiddlewareProvider) ValidateParams(dst any) fiber.Handler {
 	return ValidateParams(dst)
 }
 

@@ -15,10 +15,10 @@ type Error struct {
 
 // FieldError represents a single field validation error
 type FieldError struct {
-	Field   string      `json:"field"`
-	Value   interface{} `json:"value,omitempty"`
-	Tag     string      `json:"tag"`
-	Message string      `json:"message"`
+	Field   string `json:"field"`
+	Value   any    `json:"value,omitempty"`
+	Tag     string `json:"tag"`
+	Message string `json:"message"`
 }
 
 // Error returns the error message

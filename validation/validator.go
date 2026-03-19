@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -37,7 +38,7 @@ func New() *Validator {
 }
 
 // Validate validates a struct according to its tags
-func (v *Validator) Validate(i interface{}) error {
+func (v *Validator) Validate(i any) error {
 	if err := v.validator.Struct(i); err != nil {
 		return NewValidationError(err)
 	}
@@ -45,7 +46,7 @@ func (v *Validator) Validate(i interface{}) error {
 }
 
 // ValidateVar validates a single variable against a tag
-func (v *Validator) ValidateVar(field interface{}, tag string) error {
+func (v *Validator) ValidateVar(field any, tag string) error {
 	return v.validator.Var(field, tag)
 }
 
@@ -60,7 +61,7 @@ func (v *Validator) RegisterAlias(alias, tags string) {
 }
 
 // RegisterStructValidation registers a custom struct validation function
-func (v *Validator) RegisterStructValidation(fn validator.StructLevelFunc, types ...interface{}) {
+func (v *Validator) RegisterStructValidation(fn validator.StructLevelFunc, types ...any) {
 	v.validator.RegisterStructValidation(fn, types...)
 }
 
@@ -69,85 +70,87 @@ func (v *Validator) GetValidator() *validator.Validate {
 	return v.validator
 }
 
-// ValidateRequest validates request body in Fiber context
-func (v *Validator) ValidateRequest(c fiber.Ctx, dst interface{}) error {
-	// Parse body
+// ValidateRequest validates request body in Fiber context.
+//
+// Note: If StructValidator is set in Fiber config (goe does this by default),
+// c.Bind().Body() already validates automatically. In that case, prefer using
+// c.Bind().Body(&dst) directly in your handler instead of this method.
+func (v *Validator) ValidateRequest(c fiber.Ctx, dst any) error {
+	// c.Bind().Body() parses and validates (via StructValidator) in one step.
 	if err := c.Bind().Body(dst); err != nil {
-		return NewParseError(err)
+		return classifyBindError(err)
 	}
-
-	// Validate struct
-	if err := v.Validate(dst); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-// ValidateQuery validates query parameters in Fiber context
-func (v *Validator) ValidateQuery(c fiber.Ctx, dst interface{}) error {
-	// Parse query
+// ValidateQuery validates query parameters in Fiber context.
+//
+// Note: If StructValidator is set in Fiber config (goe does this by default),
+// c.Bind().Query() already validates automatically. In that case, prefer using
+// c.Bind().Query(&dst) directly in your handler instead of this method.
+func (v *Validator) ValidateQuery(c fiber.Ctx, dst any) error {
 	if err := c.Bind().Query(dst); err != nil {
-		return NewParseError(err)
+		return classifyBindError(err)
 	}
-
-	// Validate struct
-	if err := v.Validate(dst); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-// ValidateParams validates URL parameters in Fiber context
-func (v *Validator) ValidateParams(c fiber.Ctx, dst interface{}) error {
-	// Parse params
+// ValidateParams validates URL parameters in Fiber context.
+//
+// Note: If StructValidator is set in Fiber config (goe does this by default),
+// c.Bind().URI() already validates automatically. In that case, prefer using
+// c.Bind().URI(&dst) directly in your handler instead of this method.
+func (v *Validator) ValidateParams(c fiber.Ctx, dst any) error {
 	if err := c.Bind().URI(dst); err != nil {
-		return NewParseError(err)
+		return classifyBindError(err)
 	}
-
-	// Validate struct
-	if err := v.Validate(dst); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-// ValidateHeaders validates request headers in Fiber context
-func (v *Validator) ValidateHeaders(c fiber.Ctx, dst interface{}) error {
-	// Parse headers
+// ValidateHeaders validates request headers in Fiber context.
+//
+// Note: If StructValidator is set in Fiber config (goe does this by default),
+// c.Bind().Header() already validates automatically. In that case, prefer using
+// c.Bind().Header(&dst) directly in your handler instead of this method.
+func (v *Validator) ValidateHeaders(c fiber.Ctx, dst any) error {
 	if err := c.Bind().Header(dst); err != nil {
-		return NewParseError(err)
+		return classifyBindError(err)
 	}
-
-	// Validate struct
-	if err := v.Validate(dst); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-// ValidateForm validates form data in Fiber context
-func (v *Validator) ValidateForm(c fiber.Ctx, dst interface{}) error {
-	// Parse form
+// ValidateForm validates form data in Fiber context.
+//
+// Note: If StructValidator is set in Fiber config (goe does this by default),
+// c.Bind().Form() already validates automatically. In that case, prefer using
+// c.Bind().Form(&dst) directly in your handler instead of this method.
+func (v *Validator) ValidateForm(c fiber.Ctx, dst any) error {
 	if err := c.Bind().Form(dst); err != nil {
-		return NewParseError(err)
+		return classifyBindError(err)
 	}
-
-	// Validate struct
-	if err := v.Validate(dst); err != nil {
-		return err
-	}
-
 	return nil
+}
+
+// classifyBindError classifies errors from Fiber's bind methods into
+// validation errors or parse errors for proper error typing.
+func classifyBindError(err error) error {
+	// Already our validation error type (returned by Validator.Validate via StructValidator)
+	var ve Error
+	if errors.As(err, &ve) {
+		return ve
+	}
+	// Raw validator errors (in case StructValidator wrapping is bypassed)
+	var valErrs validator.ValidationErrors
+	if errors.As(err, &valErrs) {
+		return NewValidationError(err)
+	}
+	return NewParseError(err)
 }
 
 // registerCustomValidators registers common custom validators
 func registerCustomValidators(v *validator.Validate) {
 	// Phone number validation
-	v.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
 		phone := fl.Field().String()
 		// Simple phone validation - can be enhanced
 		if len(phone) < 10 || len(phone) > 15 {
@@ -162,13 +165,13 @@ func registerCustomValidators(v *validator.Validate) {
 	})
 
 	// Username validation (alphanumeric and underscore)
-	v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
 		username := fl.Field().String()
 		if len(username) < 3 || len(username) > 30 {
 			return false
 		}
 		for _, r := range username {
-			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
 				return false
 			}
 		}
@@ -176,7 +179,7 @@ func registerCustomValidators(v *validator.Validate) {
 	})
 
 	// Password strength validation
-	v.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("strong_password", func(fl validator.FieldLevel) bool {
 		password := fl.Field().String()
 		if len(password) < 8 {
 			return false
@@ -251,13 +254,13 @@ func IsNumeric(str string) bool {
 }
 
 // ValidateStruct is a convenience function for one-off struct validation
-func ValidateStruct(s interface{}) error {
+func ValidateStruct(s any) error {
 	v := New()
 	return v.Validate(s)
 }
 
 // MustValidate validates a struct and panics if validation fails
-func MustValidate(s interface{}) {
+func MustValidate(s any) {
 	if err := ValidateStruct(s); err != nil {
 		panic(fmt.Sprintf("validation failed: %v", err))
 	}

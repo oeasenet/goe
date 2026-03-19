@@ -93,15 +93,6 @@ func TestGetErrorMessage(t *testing.T) {
 
 	// Helper to get FieldError from validation
 	getFieldError := func(tag, param string) validator.FieldError {
-		type TestStruct struct {
-			Field string `validate:"TAG"`
-		}
-
-		// Create dynamic struct with the tag we want to test
-		type DynamicStruct struct {
-			Field string
-		}
-
 		var fe validator.FieldError
 
 		switch tag {
