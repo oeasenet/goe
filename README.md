@@ -1,183 +1,176 @@
 <div align="center">
-  <img src="docs/public/goe_gopher_logo.png" alt="GOE Framework Logo" width="200">
+  <img src="docs/public/goe_gopher_logo.png" alt="GOE Framework Logo" width="180">
 
 # GOE Framework
 
-### Modern Go Application Framework
+### Build production Go applications in minutes, not days.
 
-*Built on Uber's Fx & GoFiber for developer productivity and scalability*
+*Dependency injection, HTTP, databases, caching, jobs, and distributed locking — wired together and ready to go.*
 
-  <br/>
+<br/>
 
-[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Dev-yellow?style=for-the-badge)](https://github.com/oeasenet/goe)
+[![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![Latest Release](https://img.shields.io/github/v/release/oeasenet/goe?style=for-the-badge&color=blue)](https://github.com/oeasenet/goe/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/oeasenet/goe/ci.yml?branch=v2&style=for-the-badge&label=tests)](https://github.com/oeasenet/goe/actions)
 [![Coverage](https://img.shields.io/codecov/c/gh/oeasenet/goe/v2?token=9SWCFFQ38U&style=for-the-badge)](https://codecov.io/gh/oeasenet/goe)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/oeasenet/goe)
+<br/>
 
-  <br/>
-
-[Documentation](https://deepwiki.com/oeasenet/goe) •
-[Getting Started](#-getting-started) •
-[Features](#-features) •
-[Contributing](#-contributing)
+[Documentation](https://deepwiki.com/oeasenet/goe) · [Examples](examples/) · [Configuration](.example.env) · [Contributing](#contributing)
 
 </div>
 
 <br/>
 
-## Overview
+## Why GOE?
 
-GOE is a modern Go application framework that combines best practices from leading frameworks and libraries. Built
-entirely on [Uber's Fx](https://uber-go.github.io/fx/) dependency injection framework and
-leveraging [GoFiber](https://gofiber.io/) for its HTTP layer, GOE prioritizes developer experience, modularity,
-extensibility, and concurrent safety.
+Most Go projects start the same way: wiring up a logger, a config loader, an HTTP server, a database connection, graceful shutdown — before writing a single line of business logic.
 
-<br/>
-
-## ✨ Features
-
-### Core Infrastructure
-
-- 🔌 **Dependency Injection** - Built on Uber's Fx for type-safe component management
-- 🌐 **HTTP Server** - GoFiber v3 with middleware & fast routing
-- 📝 **Logging** - Uber's Zap with console & JSON formatting
-- ⚙️ **Configuration** - Environment-aware with `.env` file support
-
-### Data & Storage
-
-- 🗄️ **SQL Database** - GORM integration (MySQL, PostgreSQL, SQLite, SQL Server)
-- 🍃 **MongoDB** - Native driver with connection pooling
-- 💾 **Caching** - 10+ backends (Redis, Memory, S3, DynamoDB...)
-
-### Distributed Systems
-
-- 🔄 **Event System** - Redis Streams with consumer groups & DLQ
-- 🔐 **Distributed Lock** - Redlock algorithm for multi-process coordination
-
-### Developer Experience
-
-- 🧩 **Module System** - Managed lifecycles (OnStart, OnStop)
-- 🛡️ **Contract-Driven** - Interface-based design for testability
-- ⚡ **Concurrency Safe** - Thread-safe core components
+GOE handles all of that. It combines [Uber Fx](https://uber-go.github.io/fx/) for dependency injection with [GoFiber v3](https://gofiber.io/) for HTTP, then layers on the infrastructure modules most applications need. Everything is interface-driven, concurrency-safe, and testable out of the box.
 
 <br/>
 
-## 🚀 Getting Started
-
-### Installation
+## Quick Start
 
 ```bash
 go get go.oease.dev/goe/v2
 ```
 
-### Quick Start
-
-Create a minimal application (`main.go`):
-
 ```go
 package main
 
 import (
-	"github.com/gofiber/fiber/v3"
-	"go.oease.dev/goe/v2"
-	"go.oease.dev/goe/v2/contract"
+    "github.com/gofiber/fiber/v3"
+    "go.oease.dev/goe/v2"
+    "go.oease.dev/goe/v2/contract"
+    "go.oease.dev/goe/v2/webresult"
 )
 
 func main() {
-	// Initialize GOE with HTTP module enabled
-	_ = goe.New(goe.Options{
-		WithHTTP: true,
-		Invokers: []any{
-			func(httpKernel contract.HTTPKernel, logger contract.Logger) {
-				app := httpKernel.App()
-				app.Get("/", func(c fiber.Ctx) error {
-					logger.Info("Hello endpoint was hit!")
-					return c.SendString("Hello, World from GOE!")
-				})
-				logger.Info("Main route registered.")
-			},
-		},
-	})
+    _ = goe.New(goe.Options{
+        WithHTTP: true,
+        Invokers: []any{registerRoutes},
+    })
+    goe.Run() // blocks until SIGINT/SIGTERM
+}
 
-	// Start the application (blocks until shutdown)
-	goe.Run()
+func registerRoutes(app contract.HTTPKernel, log contract.Logger) {
+    app.App().Get("/", func(c fiber.Ctx) error {
+        return c.SendString("Hello from GOE!")
+    })
+
+    app.App().Get("/health", func(c fiber.Ctx) error {
+        return webresult.SendSucceed(c, fiber.Map{"status": "healthy"})
+    })
+
+    log.Info("Routes registered")
 }
 ```
 
-Access your application at `http://localhost:8080`
+```bash
+go run main.go
+# → http://localhost:8080
+```
+
+> See the full [examples/](examples/) directory for real-world patterns including REST APIs with MongoDB, custom modules, and production configuration.
 
 <br/>
 
-## 📦 Available Modules
+## Features
 
-Enable modules via `goe.Options`:
+### Core
+
+| | Feature | What You Get |
+|---|---|---|
+| 🔌 | **Dependency Injection** | Uber Fx — type-safe, automatic resolution, lifecycle hooks |
+| 🌐 | **HTTP Server** | GoFiber v3 — fast routing, middleware, request logging |
+| 📝 | **Logging** | Uber Zap — structured JSON for production, colored console for dev |
+| ⚙️ | **Configuration** | `.env` files with environment layering, type-safe accessors |
+
+### Data
+
+| | Feature | What You Get |
+|---|---|---|
+| 🗄️ | **SQL Databases** | GORM with MySQL, PostgreSQL, SQLite, SQL Server. Multiple named connections |
+| 🍃 | **MongoDB** | Native driver with pooling, transactions, helper utilities, and a fluent migration system |
+| 💾 | **Caching** | Unified interface across 10+ backends — Redis, Memory, S3, DynamoDB, Badger, and more |
+
+### Infrastructure
+
+| | Feature | What You Get |
+|---|---|---|
+| 📋 | **Job System** | Redis-backed background processing with scheduling, retries, and dead letter queues |
+| 🔐 | **Distributed Lock** | Redlock algorithm — single instance, Sentinel, or Cluster modes |
+| 🩺 | **Health & Metrics** | Built-in health checks and OpenTelemetry integration |
+
+### Design
+
+| | Feature | What You Get |
+|---|---|---|
+| 🧩 | **Module System** | Managed lifecycles (`OnStart`/`OnStop`), config validation, clean boundaries |
+| 🛡️ | **Contracts** | Interface-driven design — swap implementations, mock in tests |
+| ⚡ | **Concurrency Safe** | Singleflight cache protection, atomic operations, race-free by default |
+
+<br/>
+
+## Enabling Modules
+
+Turn on what you need:
 
 ```go
 goe.New(goe.Options{
-WithHTTP:    true, // HTTP server (Fiber)
-WithCache:   true, // Caching system
-WithDB:      true, // SQL database (GORM)
-WithMongoDB: true, // MongoDB
-WithJob:     true, // Background job processing (Redis)
-WithLock:    true, // Distributed locking
+    WithHTTP:    true,  // HTTP server (Fiber v3)
+    WithCache:   true,  // Caching (10+ backends)
+    WithDB:      true,  // SQL database (GORM)
+    WithMongoDB: true,  // MongoDB with connection pooling
+    WithMigrate: true,  // MongoDB schema migrations
+    WithJob:     true,  // Background job processing
+    WithLock:    true,  // Distributed mutex (Redlock)
 })
 ```
 
 <br/>
 
-## ⚙️ Configuration
+## Configuration
 
-GOE loads configuration from multiple sources in order of priority:
+GOE loads config from multiple sources, in priority order:
 
-| Priority | Source           | Description                              |
-|:--------:|------------------|------------------------------------------|
-|    1     | `.env`           | Base configuration                       |
-|    2     | `.local.env`     | Local overrides (gitignored)             |
-|    3     | `.{GOE_ENV}.env` | Environment-specific (e.g., `.prod.env`) |
-|    4     | **System ENV**   | Highest priority - overrides all         |
+| Priority | Source | Purpose |
+|:---:|---|---|
+| 1 | `.env` | Base defaults |
+| 2 | `.local.env` | Local dev overrides (gitignored) |
+| 3 | `.{GOE_ENV}.env` | Environment-specific (`prod`, `staging`) |
+| 4 | **System ENV** | Deployment overrides — highest priority |
 
-> **See:** [`.example.env`](.example.env) for all options or the [Configuration Reference](CONFIGURATION.md) for
-> detailed documentation.
-
-<br/>
-
-## 📚 Documentation
-
-The **official documentation** is hosted on DeepWiki:
-
-<div align="center">
-
-### **[deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
-
-</div>
+See [`.example.env`](.example.env) for every available option with documentation.
 
 <br/>
 
-## 🤝 Contributing
+## Documentation
 
-Contributions are welcome and greatly appreciated!
+Full documentation is available on DeepWiki:
 
-1. **Fork & Clone** - Fork this repository and clone your fork locally
-2. **Create a Branch** - Use a descriptive branch name (e.g., `feature/add-cache-metrics`)
-3. **Install Dependencies** - Run `go mod download`
-4. **Format & Lint** - Ensure code is formatted (`gofmt -w .`)
-5. **Test** - Run the test suite:
+**[deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
+
+<br/>
+
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repository and create a feature branch
+2. Run `go mod download` to install dependencies
+3. Make your changes and ensure tests pass:
    ```bash
-   make test
+   go test -race ./...
    ```
-6. **Commit & PR** - Open a pull request against `v2` with clear description
+4. Open a pull request against `v2` with a clear description
 
-If you encounter issues or have questions, please [open a GitHub issue](https://github.com/oeasenet/goe/issues).
+Found a bug or have a question? [Open an issue](https://github.com/oeasenet/goe/issues).
 
 <br/>
 
-## 📄 License
+## License
 
-GOE is released under the [MIT License](LICENSE).
-
-<div align="center">
-  <br/>
-  <sub>Built with ❤️ by the GOE community</sub>
-</div>
+MIT — see [LICENSE](LICENSE) for details.

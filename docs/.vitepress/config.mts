@@ -31,7 +31,7 @@ export default withMermaid(defineConfig(
 
       footer: {
         message: 'Released under the MIT License.',
-        copyright: 'Copyright © 2024 GOE Framework'
+        copyright: 'Copyright © 2024-present GOE Framework'
       },
 
       editLink: false,

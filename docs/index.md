@@ -3,55 +3,57 @@ layout: home
 
 hero:
     name: "GOE Framework"
-    text: "Modern Go Application Framework"
-    tagline: Built on Uber's Fx & GoFiber for developer productivity and scalability
+    text: "Build Production Go Apps in Minutes"
+    tagline: Dependency injection, HTTP, databases, caching, jobs, and distributed locking — wired together and ready to go. Built on Uber Fx and GoFiber v3.
     image:
         src: /goe_gopher_logo.png
         alt: GOE Framework Logo
     actions:
         -   theme: brand
-            text: Read Documentation
+            text: Get Started
             link: https://deepwiki.com/oeasenet/goe
         -   theme: alt
-            text: GitHub
+            text: View on GitHub
             link: https://github.com/oeasenet/goe
+        -   theme: alt
+            text: Browse Examples
+            link: https://github.com/oeasenet/goe/tree/v2/examples
 
 features:
     -   icon: 🔌
-        title: Powerful Dependency Injection
-        details: Built on Uber's Fx for type-safe management of application components and lifecycle with automatic dependency resolution.
+        title: Dependency Injection
+        details: Built on Uber Fx for type-safe component wiring with automatic resolution and lifecycle management. No globals, no init() magic.
     -   icon: 🌐
-        title: High-Performance HTTP Server
-        details: Integrated with GoFiber v3 featuring automatic request logging, middleware support, and lightning-fast routing.
+        title: High-Performance HTTP
+        details: GoFiber v3 with automatic request logging, middleware support, and one of the fastest routing engines in the Go ecosystem.
     -   icon: 📝
-        title: Structured & Flexible Logging
-        details: Utilizes Uber's Zap logger with developer-friendly console output and production-ready JSON formatting.
+        title: Structured Logging
+        details: Uber Zap under the hood — colored console output for development, structured JSON for production. Injected everywhere automatically.
     -   icon: ⚙️
-        title: Environment-Aware Configuration
-        details: Load configuration from environment variables and .env files with type-safe accessors and hot-reloading support.
-    -   icon: 💾
-        title: Versatile Cache Support
-        details: Unified caching interface supporting Memory, Redis, Memcache, Badger, SQLite3, PostgreSQL, MySQL, MongoDB, DynamoDB, and S3 backends.
-    -   icon: 🧩
-        title: Extensible Module System
-        details: Organize your application into logical modules with managed lifecycles (OnStart, OnStop) and clean separation of concerns.
-    -   icon: 🛡️
-        title: Contract-Driven Design
-        details: Core components are defined by interfaces, promoting loose coupling, testability, and maintainability.
+        title: Environment-Aware Config
+        details: Layered .env files with environment overrides, type-safe accessors, and validation. No more missing config surprises at runtime.
     -   icon: 🗄️
-        title: GORM Database Integration
-        details: Seamless integration with GORM for database operations, supporting MySQL, PostgreSQL, SQLite, and SQL Server.
+        title: SQL & MongoDB
+        details: GORM integration for SQL databases (MySQL, PostgreSQL, SQLite, SQL Server) and native MongoDB driver with pooling, transactions, and migrations.
+    -   icon: 💾
+        title: Caching with 10+ Backends
+        details: Unified caching interface supporting Redis, Memory, Memcache, Badger, SQLite3, PostgreSQL, MySQL, MongoDB, DynamoDB, and S3.
     -   icon: 📋
-        title: Job System
-        details: Production-ready background job processing with human-friendly scheduling, delayed execution, retries with exponential backoff, and dead letter queues.
-    -   icon: 🍃
-        title: MongoDB Support
-        details: Native MongoDB integration with connection pooling, multiple database support, and helper utilities for indexes and transactions.
-    -   icon: 🔄
-        title: MongoDB Migrations
-        details: Fluent migration API for MongoDB with schema versioning, distributed locking, checksum verification, and powerful helper functions.
+        title: Background Jobs
+        details: Redis-backed job processing with human-friendly scheduling, delayed execution, retries with exponential backoff, and dead letter queues.
     -   icon: 🔐
         title: Distributed Locking
-        details: Redis-based distributed mutex system with support for single instance, Sentinel, Cluster, and Redlock algorithms.
+        details: Redis-based mutex with Redlock algorithm support for single instance, Sentinel, and Cluster deployments.
+    -   icon: 🧩
+        title: Module System
+        details: Organize your app into modules with managed lifecycles (OnStart, OnStop), config validation, and clean separation of concerns.
+    -   icon: 🛡️
+        title: Contract-Driven Design
+        details: Every core component is defined by an interface. Swap implementations, mock in tests, and keep coupling low across your codebase.
+    -   icon: ⚡
+        title: Concurrency Safe
+        details: Singleflight cache protection, atomic operations, and double-check locking throughout. Race-free by default, verified with -race in CI.
+    -   icon: 🩺
+        title: Observability Ready
+        details: Built-in health checks, OpenTelemetry tracing integration, and structured metrics. Production visibility from day one.
 ---
-
