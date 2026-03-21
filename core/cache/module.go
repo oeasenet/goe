@@ -46,11 +46,22 @@ func (m *Module) OnStart(ctx context.Context) error {
 
 // OnStop is called when the module stops
 func (m *Module) OnStop(ctx context.Context) error {
-	m.logger.Info("Cache module stopped")
+	// Close all initialized cache stores to release connections
+	mgr := m.manager.(*manager)
+	mgr.mu.RLock()
+	stores := make(map[string]contract.Cache, len(mgr.stores))
+	for k, v := range mgr.stores {
+		stores[k] = v
+	}
+	mgr.mu.RUnlock()
 
-	// Close all stores
-	// This is handled by each store's Close method
+	for name, store := range stores {
+		if err := store.Store().Close(); err != nil {
+			m.logger.Error("Error closing cache store", "store", name, "error", err)
+		}
+	}
 
+	m.logger.Info("Cache module stopped", "stores_closed", len(stores))
 	return nil
 }
 
