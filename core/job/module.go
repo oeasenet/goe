@@ -108,7 +108,7 @@ func (m *Module) ValidateConfig() error {
 	}
 
 	if m.config.Has("JOB_REDIS_DB") {
-		v.Optional("JOB_REDIS_DB", "Redis database number", configvalidator.ValidatePositiveInt)
+		v.Optional("JOB_REDIS_DB", "Redis database number", configvalidator.ValidateNonNegativeInt)
 	}
 
 	if m.config.Has("JOB_REDIS_POOL_SIZE") {
