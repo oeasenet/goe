@@ -349,6 +349,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.running.Store(true)
 	m.stopCh = make(chan struct{})
 
+	// Use a background context for long-running goroutines.
+	// The startup context (ctx) has a short timeout (e.g. 2 minutes from Fx),
+	// and goroutines rely on stopCh for graceful shutdown instead.
+	bgCtx := context.Background()
+
 	// Start workers for each queue
 	m.workersMu.Lock()
 	for _, queue := range m.totalQueues {
@@ -358,7 +363,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.wg.Add(1)
 			go func(w *worker) {
 				defer m.wg.Done()
-				w.run(ctx)
+				w.run(bgCtx)
 			}(w)
 		}
 	}
@@ -367,13 +372,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start scheduler if enabled
 	if m.config.SchedulerEnabled {
 		m.wg.Go(func() {
-			m.runScheduler(ctx)
+			m.runScheduler(bgCtx)
 		})
 	}
 
 	// Start scheduled job promoter
 	m.wg.Go(func() {
-		m.runPromoter(ctx)
+		m.runPromoter(bgCtx)
 	})
 
 	m.logger.Info("Job manager started",
