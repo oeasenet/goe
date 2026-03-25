@@ -283,6 +283,9 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 		return fmt.Errorf("cannot cancel job with status %s", job.status)
 	}
 
+	// Save original status before overwriting so we remove from the correct queue
+	originalStatus := job.status
+
 	// Update status
 	job.status = contract.JobStatusCancelled
 	job.completedAt = time.Now()
@@ -292,8 +295,8 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 		return err
 	}
 
-	// Remove from queues
-	if job.status == contract.JobStatusScheduled {
+	// Remove from queues based on original status
+	if originalStatus == contract.JobStatusScheduled {
 		scheduledKey := m.scheduledKey(job.queue)
 		m.redis.ZRem(ctx, scheduledKey, jobID)
 	} else {
@@ -341,13 +344,19 @@ func (m *Manager) saveJob(ctx context.Context, job *jobImpl) error {
 }
 
 // Start starts the job workers and scheduler
-func (m *Manager) Start(ctx context.Context) error {
+func (m *Manager) Start(_ context.Context) error {
 	if m.running.Load() {
 		return nil
 	}
 
 	m.running.Store(true)
 	m.stopCh = make(chan struct{})
+
+	// Use a background context for all long-running goroutines.
+	// The Fx startup context passed here expires after StartTimeout (2 min),
+	// which would kill all background goroutines. Graceful shutdown is handled
+	// by closing stopCh in Stop().
+	bgCtx := context.Background()
 
 	// Start workers for each queue
 	m.workersMu.Lock()
@@ -358,7 +367,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.wg.Add(1)
 			go func(w *worker) {
 				defer m.wg.Done()
-				w.run(ctx)
+				w.run(bgCtx)
 			}(w)
 		}
 	}
@@ -367,13 +376,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start scheduler if enabled
 	if m.config.SchedulerEnabled {
 		m.wg.Go(func() {
-			m.runScheduler(ctx)
+			m.runScheduler(bgCtx)
 		})
 	}
 
 	// Start scheduled job promoter
 	m.wg.Go(func() {
-		m.runPromoter(ctx)
+		m.runPromoter(bgCtx)
 	})
 
 	m.logger.Info("Job manager started",

@@ -458,6 +458,201 @@ func TestManagerIntegration_Health(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestManagerIntegration_ContextLifecycle verifies Issue #61 fix:
+// background goroutines must survive after the startup context expires.
+// Before the fix, runPromoter/runScheduler/workers would exit after 2 minutes
+// because they used the Fx startup context which has a StartTimeout.
+func TestManagerIntegration_ContextLifecycle(t *testing.T) {
+	cfg := getTestConfig()
+	logger := &testLogger{t: t}
+
+	manager, err := NewManager(cfg, logger)
+	require.NoError(t, err)
+
+	var processed atomic.Bool
+
+	manager.RegisterHandler("lifecycle-test", contract.JobHandlerFunc(
+		func(ctx context.Context, j contract.Job) error {
+			processed.Store(true)
+			return nil
+		},
+	))
+
+	// Simulate the Fx startup context: expires very quickly (500ms).
+	// Before the fix, all goroutines would die when this context expires.
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer startupCancel()
+
+	err = manager.Start(startupCtx)
+	require.NoError(t, err)
+	defer manager.Stop(context.Background())
+
+	// Wait for the startup context to expire
+	<-startupCtx.Done()
+	time.Sleep(200 * time.Millisecond) // give goroutines a moment
+
+	// Now dispatch a job AFTER the startup context has expired.
+	// If the goroutines died with the context, this job will never be processed.
+	bgCtx := context.Background()
+	_, err = manager.Dispatch(bgCtx, &contract.JobDefinition{
+		Name:    "lifecycle-test",
+		Payload: "after-ctx-expired",
+	})
+	require.NoError(t, err)
+
+	// Wait for processing
+	time.Sleep(3 * time.Second)
+
+	assert.True(t, processed.Load(),
+		"Job dispatched after startup context expired must still be processed (Issue #61)")
+}
+
+// TestManagerIntegration_PromoterSurvivesContextExpiry specifically tests that
+// the promoter (which moves delayed jobs to the ready queue) keeps working
+// after the startup context expires.
+func TestManagerIntegration_PromoterSurvivesContextExpiry(t *testing.T) {
+	cfg := getTestConfig()
+	logger := &testLogger{t: t}
+
+	manager, err := NewManager(cfg, logger)
+	require.NoError(t, err)
+
+	var processed atomic.Bool
+
+	manager.RegisterHandler("promoter-test", contract.JobHandlerFunc(
+		func(ctx context.Context, j contract.Job) error {
+			processed.Store(true)
+			return nil
+		},
+	))
+
+	// Start with a very short-lived context
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer startupCancel()
+
+	err = manager.Start(startupCtx)
+	require.NoError(t, err)
+	defer manager.Stop(context.Background())
+
+	// Wait for startup context to expire
+	<-startupCtx.Done()
+	time.Sleep(200 * time.Millisecond)
+
+	// Dispatch a delayed job AFTER the context expired.
+	// The promoter must still be alive to move it from scheduled → ready.
+	bgCtx := context.Background()
+	_, err = manager.Dispatch(bgCtx, &contract.JobDefinition{
+		Name:    "promoter-test",
+		Payload: "delayed-after-ctx",
+		Delay:   500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	// Wait: delay + promoter interval + processing buffer
+	time.Sleep(4 * time.Second)
+
+	assert.True(t, processed.Load(),
+		"Delayed job must be promoted and processed even after startup context expired")
+}
+
+// TestManagerIntegration_SchedulerSurvivesContextExpiry tests that the scheduler
+// (which creates recurring jobs) keeps working after the startup context expires.
+func TestManagerIntegration_SchedulerSurvivesContextExpiry(t *testing.T) {
+	cfg := getTestConfig()
+	logger := &testLogger{t: t}
+
+	manager, err := NewManager(cfg, logger)
+	require.NoError(t, err)
+
+	var executedCount atomic.Int32
+
+	err = manager.RegisterSchedule(&contract.ScheduledJob{
+		Name:     "scheduler-lifecycle",
+		Schedule: Every(500 * time.Millisecond),
+		Handler: contract.JobHandlerFunc(func(ctx context.Context, j contract.Job) error {
+			executedCount.Add(1)
+			return nil
+		}),
+		Overlap: true,
+	})
+	require.NoError(t, err)
+
+	// Start with context that expires in 300ms
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer startupCancel()
+
+	err = manager.Start(startupCtx)
+	require.NoError(t, err)
+	defer manager.Stop(context.Background())
+
+	// Wait for context to expire, then wait for scheduled jobs to accumulate
+	<-startupCtx.Done()
+	time.Sleep(4 * time.Second)
+
+	count := executedCount.Load()
+	assert.Greater(t, count, int32(1),
+		"Scheduler must continue creating recurring jobs after startup context expires (got %d executions)", count)
+}
+
+// TestManagerIntegration_CancelScheduledJob verifies that cancelling a scheduled
+// (delayed) job properly removes it from the scheduled sorted set in Redis.
+// Before the fix, Cancel() checked job.status after already overwriting it to
+// Cancelled, so the ZRem on the scheduled queue never executed.
+func TestManagerIntegration_CancelScheduledJob(t *testing.T) {
+	cfg := getTestConfig()
+	logger := &testLogger{t: t}
+
+	manager, err := NewManager(cfg, logger)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	var processed atomic.Bool
+
+	manager.RegisterHandler("cancel-scheduled", contract.JobHandlerFunc(
+		func(ctx context.Context, j contract.Job) error {
+			processed.Store(true)
+			return nil
+		},
+	))
+
+	// Dispatch with delay (goes to scheduled sorted set)
+	jobID, err := manager.Dispatch(ctx, &contract.JobDefinition{
+		Name:    "cancel-scheduled",
+		Payload: "should-not-run",
+		Delay:   2 * time.Second,
+	})
+	require.NoError(t, err)
+
+	// Verify it's in the scheduled set
+	scheduledKey := manager.scheduledKey("default")
+	count, err := manager.redis.ZCard(ctx, scheduledKey).Result()
+	require.NoError(t, err)
+	assert.Greater(t, count, int64(0), "Job should be in the scheduled set")
+
+	// Cancel the job
+	err = manager.Cancel(ctx, jobID)
+	require.NoError(t, err)
+
+	// Verify it's been removed from the scheduled set
+	score, err := manager.redis.ZScore(ctx, scheduledKey, jobID).Result()
+	assert.Error(t, err, "Cancelled job should be removed from scheduled set")
+	assert.Equal(t, float64(0), score)
+
+	// Verify job status is cancelled
+	job, err := manager.Get(ctx, jobID)
+	require.NoError(t, err)
+	assert.Equal(t, contract.JobStatusCancelled, job.Status())
+
+	// Start the manager and wait — cancelled job should not run
+	err = manager.Start(ctx)
+	require.NoError(t, err)
+	defer manager.Stop(ctx)
+
+	time.Sleep(4 * time.Second)
+	assert.False(t, processed.Load(), "Cancelled scheduled job must not be processed")
+}
+
 func TestJobBuilder(t *testing.T) {
 	// Test fluent builder
 	job := NewJob("test-job", map[string]string{"key": "value"}).
