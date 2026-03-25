@@ -232,6 +232,33 @@ func ValidateOneOf(options ...string) func(value any) error {
 	}
 }
 
+// ValidateNonNegativeInt validates that value is a non-negative integer (>= 0)
+func ValidateNonNegativeInt(value any) error {
+	var num int
+	switch v := value.(type) {
+	case int:
+		num = v
+	case int64:
+		num = int(v)
+	case string:
+		if v == "" {
+			return fmt.Errorf("value cannot be empty")
+		}
+		_, err := fmt.Sscanf(v, "%d", &num)
+		if err != nil {
+			return fmt.Errorf("invalid numeric format: %v", err)
+		}
+	default:
+		return fmt.Errorf("expected numeric value")
+	}
+
+	if num < 0 {
+		return fmt.Errorf("value must be non-negative")
+	}
+
+	return nil
+}
+
 // ValidatePositiveInt validates that value is a positive integer
 func ValidatePositiveInt(value any) error {
 	var num int

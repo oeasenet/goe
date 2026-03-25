@@ -19,6 +19,7 @@ func TestConfigValidator(t *testing.T) {
 	cfg.Set("VALID_EMAIL", "test@example.com")
 	cfg.Set("VALID_DRIVER", "mysql")
 	cfg.Set("VALID_POSITIVE_INT", "10")
+	cfg.Set("VALID_NON_NEGATIVE_INT", "0")
 	cfg.Set("EMPTY_STRING", "")
 	cfg.Set("INVALID_PORT", "99999")
 	cfg.Set("INVALID_HOST_PORT", "invalid")
@@ -26,6 +27,7 @@ func TestConfigValidator(t *testing.T) {
 	cfg.Set("INVALID_EMAIL", "invalid-email")
 	cfg.Set("INVALID_DRIVER", "unsupported")
 	cfg.Set("INVALID_POSITIVE_INT", "-5")
+	cfg.Set("INVALID_NON_NEGATIVE_INT", "-1")
 
 	tests := []struct {
 		name        string
@@ -137,6 +139,21 @@ func TestConfigValidator(t *testing.T) {
 			},
 			expectError: true,
 			errorString: "value must be positive",
+		},
+		{
+			name: "valid non-negative integer (zero)",
+			setupFunc: func(v *ConfigValidator) {
+				v.RequireWithValidator("VALID_NON_NEGATIVE_INT", "Valid non-negative int", ValidateNonNegativeInt)
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid non-negative integer",
+			setupFunc: func(v *ConfigValidator) {
+				v.RequireWithValidator("INVALID_NON_NEGATIVE_INT", "Invalid non-negative int", ValidateNonNegativeInt)
+			},
+			expectError: true,
+			errorString: "value must be non-negative",
 		},
 		{
 			name: "valid one of",
