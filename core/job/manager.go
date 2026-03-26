@@ -23,6 +23,28 @@ var (
 	ErrScheduleNotFound  = errors.New("scheduled job not found")
 )
 
+// promoteScript atomically moves due jobs from the scheduled sorted set to the
+// ready list. Because ZRangeByScore + ZRem + LPush must be atomic to prevent
+// duplicate processing across multiple app instances, this is done in a Lua
+// script executed inside Redis.
+//
+// KEYS[1] = scheduled sorted-set key
+// KEYS[2] = ready list key
+// ARGV[1] = current time in milliseconds (max score)
+//
+// Returns the list of promoted job IDs.
+var promoteScript = redis.NewScript(`
+local jobs = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, 100)
+local promoted = {}
+for _, job_id in ipairs(jobs) do
+    if redis.call('ZREM', KEYS[1], job_id) == 1 then
+        redis.call('LPUSH', KEYS[2], job_id)
+        table.insert(promoted, job_id)
+    end
+end
+return promoted
+`)
+
 // Manager implements the contract.JobManager interface
 type Manager struct {
 	config  *Config
@@ -179,22 +201,24 @@ func (m *Manager) Dispatch(ctx context.Context, def *contract.JobDefinition) (st
 		def.UniqueFor = m.config.DefaultUniqueTTL
 	}
 
-	// Check uniqueness if key is provided
-	if def.UniqueKey != "" {
-		uniqueKeyRedis := m.uniqueKey(def.Queue, def.UniqueKey)
-		exists, err := m.redis.Exists(ctx, uniqueKeyRedis).Result()
-		if err != nil {
-			return "", fmt.Errorf("failed to check job uniqueness: %w", err)
-		}
-		if exists > 0 {
-			return "", ErrJobAlreadyExists
-		}
-	}
-
-	// Create job
+	// Create job first so we have the ID for the uniqueness key
 	job, err := newJob(def)
 	if err != nil {
 		return "", fmt.Errorf("failed to create job: %w", err)
+	}
+
+	// Atomically reserve uniqueness key using SetNX (atomic check-and-set).
+	// This prevents the TOCTOU race where two instances both pass an Exists
+	// check before either sets the key.
+	if def.UniqueKey != "" {
+		uniqueKeyRedis := m.uniqueKey(def.Queue, def.UniqueKey)
+		set, err := m.redis.SetNX(ctx, uniqueKeyRedis, job.id, def.UniqueFor).Result()
+		if err != nil {
+			return "", fmt.Errorf("failed to check job uniqueness: %w", err)
+		}
+		if !set {
+			return "", ErrJobAlreadyExists
+		}
 	}
 
 	// Serialize job
@@ -228,14 +252,6 @@ func (m *Manager) Dispatch(ctx context.Context, def *contract.JobDefinition) (st
 		queueKey := m.queueKey(job.queue)
 		if err := m.redis.LPush(ctx, queueKey, job.id).Err(); err != nil {
 			return "", fmt.Errorf("failed to queue job: %w", err)
-		}
-	}
-
-	// Set uniqueness key if provided
-	if def.UniqueKey != "" {
-		uniqueKeyRedis := m.uniqueKey(def.Queue, def.UniqueKey)
-		if err := m.redis.Set(ctx, uniqueKeyRedis, job.id, def.UniqueFor).Err(); err != nil {
-			m.logger.Warn("Failed to set uniqueness key", "error", err)
 		}
 	}
 
@@ -283,6 +299,9 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 		return fmt.Errorf("cannot cancel job with status %s", job.status)
 	}
 
+	// Save original status before overwriting so we remove from the correct queue
+	originalStatus := job.status
+
 	// Update status
 	job.status = contract.JobStatusCancelled
 	job.completedAt = time.Now()
@@ -292,8 +311,8 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 		return err
 	}
 
-	// Remove from queues
-	if job.status == contract.JobStatusScheduled {
+	// Remove from queues based on original status
+	if originalStatus == contract.JobStatusScheduled {
 		scheduledKey := m.scheduledKey(job.queue)
 		m.redis.ZRem(ctx, scheduledKey, jobID)
 	} else {
@@ -341,13 +360,19 @@ func (m *Manager) saveJob(ctx context.Context, job *jobImpl) error {
 }
 
 // Start starts the job workers and scheduler
-func (m *Manager) Start(ctx context.Context) error {
+func (m *Manager) Start(_ context.Context) error {
 	if m.running.Load() {
 		return nil
 	}
 
 	m.running.Store(true)
 	m.stopCh = make(chan struct{})
+
+	// Use a background context for all long-running goroutines.
+	// The Fx startup context passed here expires after StartTimeout (2 min),
+	// which would kill all background goroutines. Graceful shutdown is handled
+	// by closing stopCh in Stop().
+	bgCtx := context.Background()
 
 	// Start workers for each queue
 	m.workersMu.Lock()
@@ -358,7 +383,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.wg.Add(1)
 			go func(w *worker) {
 				defer m.wg.Done()
-				w.run(ctx)
+				w.run(bgCtx)
 			}(w)
 		}
 	}
@@ -367,13 +392,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start scheduler if enabled
 	if m.config.SchedulerEnabled {
 		m.wg.Go(func() {
-			m.runScheduler(ctx)
+			m.runScheduler(bgCtx)
 		})
 	}
 
 	// Start scheduled job promoter
 	m.wg.Go(func() {
-		m.runPromoter(ctx)
+		m.runPromoter(bgCtx)
 	})
 
 	m.logger.Info("Job manager started",
@@ -484,7 +509,10 @@ func (m *Manager) Stats(ctx context.Context) (*contract.JobStats, error) {
 	return stats, nil
 }
 
-// runScheduler runs the scheduler for recurring jobs
+// runScheduler runs the scheduler for recurring jobs.
+// In multi-instance deployments, a distributed lock ensures only one instance
+// dispatches scheduled jobs per tick. The atomic uniqueness check in Dispatch
+// serves as a second safety net against duplicate dispatches.
 func (m *Manager) runScheduler(ctx context.Context) {
 	ticker := time.NewTicker(m.config.SchedulerInterval)
 	defer ticker.Stop()
@@ -499,6 +527,17 @@ func (m *Manager) runScheduler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
+			// Try to acquire a distributed lock for this scheduler tick.
+			// Only one instance across all replicas will win the lock.
+			// The lock auto-expires so another instance takes over if this one dies.
+			lockKey := m.config.KeyPrefix + "lock:scheduler"
+			acquired, err := m.redis.SetNX(ctx, lockKey, "1",
+				m.config.SchedulerInterval+500*time.Millisecond,
+			).Result()
+			if err != nil || !acquired {
+				continue // another instance is handling this tick
+			}
+
 			m.schedulesMu.RLock()
 			for name, sched := range m.schedules {
 				lastRun := lastRuns[name]
@@ -539,7 +578,9 @@ func (m *Manager) runScheduler(ctx context.Context) {
 	}
 }
 
-// runPromoter moves scheduled jobs to the ready queue when their time comes
+// runPromoter moves scheduled jobs to the ready queue when their time comes.
+// Uses a Lua script for atomic promote to prevent duplicate processing when
+// multiple app instances run concurrently.
 func (m *Manager) runPromoter(ctx context.Context) {
 	ticker := time.NewTicker(m.config.SchedulerInterval)
 	defer ticker.Stop()
@@ -551,37 +592,26 @@ func (m *Manager) runPromoter(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			now := time.Now().UnixMilli()
+			now := fmt.Sprintf("%d", time.Now().UnixMilli())
 
 			for _, queue := range m.totalQueues {
 				scheduledKey := m.scheduledKey(queue)
 				queueKey := m.queueKey(queue)
 
-				// Get jobs that are ready to run
-				jobs, err := m.redis.ZRangeByScore(ctx, scheduledKey, &redis.ZRangeBy{
-					Min:   "-inf",
-					Max:   fmt.Sprintf("%d", now),
-					Count: 100,
-				}).Result()
+				// Atomically: find due jobs, remove from sorted set, push to ready queue.
+				// The Lua script ensures only one instance promotes each job, even if
+				// multiple instances call ZRangeByScore at the same time.
+				result, err := promoteScript.Run(ctx, m.redis,
+					[]string{scheduledKey, queueKey}, now,
+				).StringSlice()
 
-				if err != nil {
-					m.logger.Warn("Failed to get scheduled jobs", "queue", queue, "error", err)
+				if err != nil && !errors.Is(err, redis.Nil) {
+					m.logger.Warn("Failed to promote scheduled jobs", "queue", queue, "error", err)
 					continue
 				}
 
-				for _, jobID := range jobs {
-					// Move to ready queue
-					pipe := m.redis.Pipeline()
-					pipe.ZRem(ctx, scheduledKey, jobID)
-					pipe.LPush(ctx, queueKey, jobID)
-					if _, err := pipe.Exec(ctx); err != nil {
-						m.logger.Warn("Failed to promote scheduled job",
-							"job_id", jobID,
-							"error", err,
-						)
-					}
-
-					// Update job status
+				// Update status for each promoted job
+				for _, jobID := range result {
 					job, err := m.getJobInternal(ctx, jobID)
 					if err == nil {
 						job.status = contract.JobStatusPending
