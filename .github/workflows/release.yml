@@ -7,6 +7,7 @@ on:
 
 permissions:
     contents: write
+    pull-requests: read
     id-token: write
 
 env:
@@ -51,33 +52,69 @@ jobs:
                 id: version
                 run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-            -   name: Generate changelog
-                id: changelog
+            -   name: Gather commit log
+                id: commits
                 run: |
-                    if [ -f "CHANGELOG.md" ]; then
-                      # Extract changelog for this version
-                      sed -n "/^## \[${{ steps.version.outputs.version }}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > temp_changelog.md
-                      if [ -s temp_changelog.md ]; then
-                        echo "changelog_file=temp_changelog.md" >> $GITHUB_OUTPUT
-                      else
-                        echo "No changelog found for version ${{ steps.version.outputs.version }}" > temp_changelog.md
-                        echo "changelog_file=temp_changelog.md" >> $GITHUB_OUTPUT
-                      fi
+                    # Find the previous tag
+                    PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+                    if [ -z "$PREV_TAG" ]; then
+                      COMMITS=$(git log --pretty=format:"%h %s" -20)
                     else
-                      # Generate changelog from git commits
-                      git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s" > temp_changelog.md
-                      echo "changelog_file=temp_changelog.md" >> $GITHUB_OUTPUT
+                      COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"%h %s")
                     fi
+                    # Store in file to avoid escaping issues
+                    echo "$COMMITS" > commits.txt
+                    echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+            -   name: Generate release notes with Claude
+                id: release_notes
+                uses: anthropics/claude-code-action@v1
+                with:
+                    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+                    direct_prompt: |
+                        You are generating release notes for GOE (Go Enterprise Framework) version ${{ steps.version.outputs.version }}.
+
+                        Previous version: ${{ steps.commits.outputs.prev_tag }}
+
+                        Here are the commits since the last release:
+                        $(cat commits.txt)
+
+                        Generate concise, professional release notes in Markdown. Follow this format exactly:
+
+                        ## What's Changed
+
+                        Group changes under these headers (omit empty sections):
+                        ### Breaking Changes
+                        ### Bug Fixes
+                        ### Features
+                        ### Performance
+                        ### Tests
+                        ### Documentation
+                        ### Internal
+
+                        Rules:
+                        - Each item should be one clear sentence describing the user-facing impact
+                        - Reference PR numbers with (#N) when available in commit messages
+                        - Skip CI-only changes, merge commits, and trivial changes
+                        - For bug fixes, briefly mention what was broken and what's fixed
+                        - End with: **Full Changelog**: https://github.com/oeasenet/goe/compare/${{ steps.commits.outputs.prev_tag }}...${{ steps.version.outputs.version }}
+
+                        Output ONLY the Markdown release notes, nothing else.
+
+            -   name: Write release notes to file
+                run: |
+                    cat << 'RELEASE_EOF' > temp_changelog.md
+                    ${{ steps.release_notes.outputs.result }}
+                    RELEASE_EOF
 
             -   name: Create GitHub Release
                 uses: softprops/action-gh-release@v2
                 with:
                     tag_name: ${{ steps.version.outputs.version }}
-                    name: Release ${{ steps.version.outputs.version }}
-                    body_path: ${{ steps.changelog.outputs.changelog_file }}
+                    name: ${{ steps.version.outputs.version }}
+                    body_path: temp_changelog.md
                     draft: false
                     prerelease: ${{ contains(steps.version.outputs.version, '-') }}
-                    generate_release_notes: true
 
     publish-docs:
         name: Publish Documentation
