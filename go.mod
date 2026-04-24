@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/bytedance/sonic v1.15.0
-	github.com/go-playground/validator/v10 v10.30.1
+	github.com/go-playground/validator/v10 v10.30.2
 	github.com/gofiber/contrib/v3/zap v1.0.2
 	github.com/gofiber/fiber/v3 v3.1.0
 	github.com/gofiber/storage/memory/v2 v2.1.2
