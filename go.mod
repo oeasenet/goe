@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/bytedance/sonic v1.15.1
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/gofiber/contrib/v3/zap v1.0.3
+	github.com/gofiber/contrib/v3/zap v1.0.4
 	github.com/gofiber/fiber/v3 v3.2.0
 	github.com/gofiber/storage/memory/v2 v2.1.2
 	github.com/gofiber/storage/redis/v3 v3.4.5
@@ -24,7 +24,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.uber.org/fx v1.24.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	golang.org/x/sync v0.20.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
