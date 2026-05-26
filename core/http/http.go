@@ -15,7 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
-	htmltpl "github.com/gofiber/template/html/v2"
+	htmltpl "github.com/gofiber/template/html/v3"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.oease.dev/goe/v2/validation"
