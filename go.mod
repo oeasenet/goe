@@ -3,7 +3,7 @@ module go.oease.dev/goe/v2
 go 1.26
 
 require (
-	github.com/bytedance/sonic v1.15.1
+	github.com/bytedance/sonic v1.15.2
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/gofiber/contrib/v3/zap v1.0.7
 	github.com/gofiber/fiber/v3 v3.3.0
