@@ -90,7 +90,7 @@ DB_PASSWORD="password with spaces"
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `LOG_LEVEL` | string | `info` | Log level: `debug`, `info`, `warn`, `error`, `panic`, `fatal` |
+| `LOG_LEVEL` | string | `info` | Global log level (baseline for every module): `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | string | `text` | Log format: `text` (console) or `json` |
 | `LOG_OUTPUT` | []string | `console` | Comma-separated outputs: `console`, `stdout`, `stderr`, or file path |
 | `LOG_CALLER` | bool | `false` | Include caller information in logs |
@@ -109,6 +109,18 @@ LOG_MODULE_LEVELS=job:debug              # debug only the job module
 LOG_LEVEL=debug
 LOG_MODULE_LEVELS=gorm:warn,access:warn  # debug everything except GORM and access
 ```
+
+**What lands where (default `info`):** module **started / stopped / failed**, the HTTP
+listen address, "database connected", migrations applied, and graceful shutdown stay at
+**Info**. Per-request, per-query, and per-job detail is at **Debug** (opt in per module).
+Recoverable issues (slow SQL, job retries) are **Warn**; failures are **Error**.
+
+**HTTP access log** (`access` module): one line per request with fields `method`, `status`,
+`latency`, `ip`, `url`, `request_id`. The `/.well-known/{liveness,readiness,health}` URIs are
+skipped. Status maps to level: 2xx/3xx → Info, 4xx → Warn, 5xx → Error.
+
+To see SQL or MongoDB commands, enable `DB_LOG_MODE` / `MONGO_DEBUG` — they surface under the
+`gorm` / `mongo` module tags (e.g. `LOG_MODULE_LEVELS=gorm:debug`).
 
 ---
 
@@ -160,7 +172,7 @@ For each connection, use the prefix `DB_` (default) or `DB_{NAME}_` (named conne
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `DB_LOG_MODE` | bool | `false` | Enable GORM SQL logging |
+| `DB_LOG_MODE` | bool | `false` | Enable GORM SQL logging (queries at Debug, slow queries at Warn, under the `gorm` log module). OR'd with per-connection `DB_{NAME}_LOG_MODE`. |
 | `DB_IGNORE_RECORD_NOT_FOUND_ERROR` | bool | `false` | Suppress record not found errors |
 | `DB_DISABLE_FOREIGN_KEY_CONSTRAINT_WHEN_MIGRATING` | bool | `false` | Disable FK constraints during migration |
 
@@ -194,6 +206,7 @@ GOE supports multiple MongoDB connections. The default connection uses `MONGO_*`
 | `MONGO_MIN_POOL_SIZE` | int | - | Minimum connection pool size |
 | `MONGO_MAX_POOL_SIZE` | int | - | Maximum connection pool size |
 | `MONGO_MAX_CONN_IDLE_TIME` | duration | - | Maximum idle time for connections |
+| `MONGO_DEBUG` | bool | `false` | Log MongoDB commands via a command monitor (under the `mongo` log module); also `MONGO_{NAME}_DEBUG` per named connection |
 
 ---
 
@@ -285,8 +298,8 @@ The job system provides Redis-backed background job processing with scheduling, 
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CACHE_STORE` | string | `memory` | Cache store type: `memory`, `redis`, `memcache`, `badger`, `sqlite3`, `postgres`, `mysql`, `mongodb`, `dynamodb`, `s3` |
-| `CACHE_DRIVER` | string | - | Alias for `CACHE_STORE` |
+| `CACHE_STORE` | string | `memory` | Cache store name. **Only `memory` and `redis` are implemented** (see note under "Database-Backed Stores"). |
+| `CACHE_DRIVER` | string | `memory` | Backing driver (`memory` or `redis`); resolved from `CACHE_{STORE}_DRIVER`, then `CACHE_DRIVER`, then `memory` |
 | `CACHE_PREFIX` | string | `{APP_NAME}` | Prefix for all cache keys |
 | `CACHE_TTL` | duration | `2h` | Default cache TTL |
 
@@ -306,7 +319,7 @@ The job system provides Redis-backed background job processing with scheduling, 
 | `CACHE_REDIS_USERNAME` | string | - | Redis username (Redis 6+) |
 | `CACHE_REDIS_PASSWORD` | string | - | Redis password |
 | `CACHE_REDIS_DATABASE` | int | `0` | Redis database number |
-| `CACHE_REDIS_DB` | int | - | Alias for `CACHE_REDIS_DATABASE` |
+| `CACHE_REDIS_DB` | int | - | **Validation-only — not used at runtime.** Set `CACHE_REDIS_DATABASE` instead. |
 | `CACHE_REDIS_CLIENT_NAME` | string | - | Client name for Redis connection |
 | `CACHE_REDIS_POOL_SIZE` | int | - | Connection pool size |
 | `CACHE_REDIS_RESET` | bool | `false` | Reset (flush) Redis database on startup |
@@ -320,6 +333,11 @@ The job system provides Redis-backed background job processing with scheduling, 
 | `CACHE_REDIS_IS_CLUSTER_MODE` | bool | `false` | Enable Redis Cluster mode |
 
 ### Database-Backed Stores
+
+> **Not yet implemented.** Only the `memory` and `redis` drivers ship with GOE today. The store
+> types below (`postgres`, `mysql`, `memcache`, `mongodb`, `dynamodb`, `s3`, `badger`, `sqlite3`)
+> are accepted by config validation but have no backing driver — selecting one silently falls
+> back to the in-memory store. The keys are documented for forward reference.
 
 #### PostgreSQL/MySQL
 
@@ -374,13 +392,13 @@ The connection URL scheme determines the mode:
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `LOCK_REDIS_URL` | string | `redis://localhost:6379/0` | Primary Redis connection URL |
-| `LOCK_REDIS_URLS` | []string | - | Multiple URLs for Redlock algorithm |
-| `LOCK_REDIS_ADDR` | string | - | Redis address (fallback) |
-| `LOCK_REDIS_HOST` | string | - | Redis host (fallback) |
-| `LOCK_REDIS_HOSTS` | string | - | Redis hosts (fallback) |
-| `LOCK_REDIS_DB` | int | - | Redis database number |
-| `LOCK_REDIS_POOL_SIZE` | int | - | Alias for `LOCK_POOL_SIZE` |
+| `LOCK_REDIS_URL` | string | `redis://localhost:6379/0` | Primary Redis connection URL (database is taken from the URL path) |
+| `LOCK_REDIS_URLS` | []string | - | Multiple URLs for the Redlock algorithm |
+
+> The lock connection is configured **only** via `LOCK_REDIS_URL` (or `LOCK_REDIS_URLS` for
+> Redlock), with the pool size from `LOCK_POOL_SIZE`. `LOCK_REDIS_ADDR`, `LOCK_REDIS_HOST`,
+> `LOCK_REDIS_HOSTS`, `LOCK_REDIS_DB`, and `LOCK_REDIS_POOL_SIZE` are accepted by validation but
+> **not used at runtime** — use the URL form.
 
 ### Lock Defaults
 
@@ -398,6 +416,70 @@ The connection URL scheme determines the mode:
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `LOCK_TLS_INSECURE_SKIP_VERIFY` | bool | `false` | Skip TLS certificate verification (not recommended) |
+
+---
+
+## Observability — OpenTelemetry
+
+Distributed tracing (and optional metric export) via OpenTelemetry. Enable with `WithOTel: true`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `OTEL_ENABLED` | bool | `true` | Master switch for OpenTelemetry (when `WithOTel` is set) |
+| `OTEL_SERVICE_NAME` | string | `APP_NAME` → `goe-app` | Service name reported on traces |
+| `OTEL_SERVICE_VERSION` | string | `APP_VERSION` → `1.0.0` | Service version reported on traces |
+| `OTEL_TRACES_ENABLED` | bool | `true` | Enable trace generation |
+| `OTEL_METRICS_ENABLED` | bool | `false` | Enable OTel metric export (Prometheus is used by default) |
+| `OTEL_TRACES_SAMPLER` | string | `parentbased_traceidratio` | Trace sampler strategy |
+| `OTEL_TRACES_SAMPLER_ARG` | float | `0.1` | Sampler ratio (10%) for ratio-based samplers |
+| `OTEL_EXPORTER_TYPE` | string | `otlp` | Exporter: `otlp`, `stdout`, or `none` (falls back to `OTEL_EXPORTER`) |
+| `OTEL_EXPORTER` | string | `otlp` | Legacy fallback for `OTEL_EXPORTER_TYPE` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | string | `localhost:4317` | OTLP collector endpoint |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | string | `grpc` | OTLP protocol: `grpc` or `http` |
+| `OTEL_EXPORTER_OTLP_INSECURE` | bool | `true` | Disable TLS for the OTLP exporter (intended for local dev) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | string | - | Comma-separated `key=value` headers for OTLP requests |
+| `OTEL_PROPAGATORS` | string | `tracecontext,baggage` | Comma-separated context propagators |
+| `OTEL_RESOURCE_ATTRIBUTES` | string | - | Comma-separated `key=value` resource attributes |
+
+---
+
+## Metrics (Prometheus)
+
+Prometheus metrics endpoint and collectors. Enable with `WithMetrics: true`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `METRICS_ENABLED` | bool | `true` | Enable metrics collection (when `WithMetrics` is set) |
+| `METRICS_PATH` | string | `/metrics` | HTTP path for the Prometheus endpoint |
+| `METRICS_NAMESPACE` | string | `goe` | Prometheus namespace (metric name prefix) |
+| `METRICS_SUBSYSTEM` | string | - | Optional Prometheus subsystem |
+| `METRICS_GO_ENABLED` | bool | `true` | Collect Go runtime metrics |
+| `METRICS_PROCESS_ENABLED` | bool | `true` | Collect process metrics |
+
+---
+
+## Health Checks
+
+Liveness/readiness endpoints. Enable with `WithHealth: true`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `HEALTH_ENABLED` | bool | `true` | Enable health checks (when `WithHealth` is set) |
+| `HEALTH_PATH` | string | `/health` | Base path for the health endpoint |
+| `HEALTH_LIVENESS_PATH` | string | `/health/live` | Liveness probe path |
+| `HEALTH_READINESS_PATH` | string | `/health/ready` | Readiness probe path |
+| `HEALTH_TIMEOUT` | duration | `5s` | Per-check timeout |
+
+---
+
+## Graceful Shutdown
+
+Timeouts applied when the application shuts down (SIGINT/SIGTERM).
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SHUTDOWN_TIMEOUT` | duration | `30s` | Total graceful-shutdown timeout |
+| `SHUTDOWN_DRAIN_TIMEOUT` | duration | `5s` | HTTP connection drain timeout |
 
 ---
 
