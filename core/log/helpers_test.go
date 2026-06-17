@@ -297,6 +297,23 @@ func TestModule_ValidateConfig(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("accepts warn and error levels", func(t *testing.T) {
+		for _, lvl := range []string{"warn", "error"} {
+			mockCfg := &validatingMockConfig{values: map[string]any{"LOG_LEVEL": lvl}}
+			err := NewModule(mockCfg).ValidateConfig()
+			assert.NoError(t, err, "level %q should be valid", lvl)
+		}
+	})
+
+	t.Run("rejects unsupported levels", func(t *testing.T) {
+		// panic/fatal are not honored by the level parser; bogus is invalid.
+		for _, lvl := range []string{"panic", "fatal", "bogus"} {
+			mockCfg := &validatingMockConfig{values: map[string]any{"LOG_LEVEL": lvl}}
+			err := NewModule(mockCfg).ValidateConfig()
+			assert.Error(t, err, "level %q should be rejected", lvl)
+		}
+	})
+
 	t.Run("validates log format", func(t *testing.T) {
 		mockCfg := &validatingMockConfig{
 			values: map[string]any{

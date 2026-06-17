@@ -379,7 +379,8 @@ func (m *Module) ValidateConfig() error {
 
 	// Log level validation
 	if m.config.Has("LOG_LEVEL") {
-		validLevels := []string{"debug", "info", "warn", "error", "panic", "fatal"}
+		// Only these are honored by parseLevel; panic/fatal are not valid thresholds.
+		validLevels := []string{"debug", "info", "warn", "error"}
 		v.Optional("LOG_LEVEL", "Log level", configvalidator.ValidateOneOf(validLevels...))
 	}
 
