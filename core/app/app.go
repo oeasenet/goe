@@ -18,8 +18,8 @@ type app struct {
 	ctx         context.Context
 	container   *fx.App
 	isRunning   atomic.Bool
-	modules     []contract.Module   // tracking for validation
-	fxOptions   []fx.Option         // accumulated FX options (single source of truth for lifecycle)
+	modules     []contract.Module // tracking for validation
+	fxOptions   []fx.Option       // accumulated FX options (single source of truth for lifecycle)
 	mu          sync.RWMutex
 	config      contract.Config
 	logger      contract.Logger
@@ -129,7 +129,7 @@ func (a *app) SetConfig(config contract.Config) {
 func (a *app) SetLogger(logger contract.Logger) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.logger = logger
+	a.logger = logger.With("module", "app")
 }
 
 // validateModules validates all module configurations using the provided snapshots.

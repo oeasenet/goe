@@ -31,7 +31,7 @@ func NewModule(config contract.Config, logger contract.Logger, mongodb contract.
 	}
 
 	return &Module{
-		logger:  logger,
+		logger:  logger.With("module", "mongo-migrate"),
 		config:  config,
 		mongodb: mongodb,
 		cfg:     cfg,
@@ -157,6 +157,7 @@ func (m *Module) Config() *Config {
 
 // NewModuleWithDB creates a migration module with a specific database
 func NewModuleWithDB(config contract.Config, logger contract.Logger, db *mongo.Database) (*Module, error) {
+	logger = logger.With("module", "mongo-migrate")
 	cfg := LoadConfig(config)
 
 	if err := cfg.Validate(); err != nil {

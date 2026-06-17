@@ -23,7 +23,7 @@ type DatabaseModule struct {
 // NewDBModule creates a new DatabaseModule instance
 func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule {
 	return &DatabaseModule{
-		logger:      logger,
+		logger:      logger.With("module", "mongo"),
 		config:      config,
 		connections: make(map[string]*mongo.Database),
 	}
@@ -150,7 +150,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 // OnStop is called when the module stops
 // This is where database connections will be closed
 func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
-	dbm.logger.Info("Mongo Database module OnStop")
+	dbm.logger.Debug("Mongo Database module stopping")
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 

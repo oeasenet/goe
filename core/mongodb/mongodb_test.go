@@ -152,8 +152,9 @@ func (m *MockLogger) Fatalw(msg string, keysAndValues ...any) {
 }
 
 func (m *MockLogger) With(keysAndValues ...any) contract.Logger {
-	args := m.Called(keysAndValues)
-	return args.Get(0).(contract.Logger)
+	// Module tagging calls With during construction; return self so the same
+	// mock receives subsequent calls.
+	return m
 }
 
 func (m *MockLogger) WithContext(ctx context.Context) contract.Logger {

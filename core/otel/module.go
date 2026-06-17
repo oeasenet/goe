@@ -28,7 +28,7 @@ func NewModule(ctx context.Context, cfg contract.Config, logger contract.Logger)
 	return &Module{
 		provider: provider,
 		config:   config,
-		logger:   logger,
+		logger:   logger.With("module", "otel"),
 	}, nil
 }
 

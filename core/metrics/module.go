@@ -24,7 +24,7 @@ func NewModule(cfg contract.Config, logger contract.Logger) *Module {
 	return &Module{
 		manager: manager,
 		config:  config,
-		logger:  logger,
+		logger:  logger.With("module", "metrics"),
 	}
 }
 
