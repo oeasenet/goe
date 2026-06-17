@@ -95,6 +95,20 @@ DB_PASSWORD="password with spaces"
 | `LOG_OUTPUT` | []string | `console` | Comma-separated outputs: `console`, `stdout`, `stderr`, or file path |
 | `LOG_CALLER` | bool | `false` | Include caller information in logs |
 | `LOG_STACKTRACE` | bool | `false` | Include stack traces for error logs |
+| `LOG_MODULE_LEVELS` | string | `""` | Per-module level overrides, comma-separated `module:level` pairs (e.g. `gorm:warn,job:debug`). Overrides `LOG_LEVEL` for those modules, up or down. |
+
+**Per-module logging.** `LOG_LEVEL` sets the global baseline; `LOG_MODULE_LEVELS`
+adjusts individual modules. Valid levels: `debug`, `info`, `warn`, `error`. Module
+names: `log`, `app`, `db`, `gorm`, `mongo`, `mongo-migrate`, `cache`, `lock`,
+`job`, `http`, `access`, `health`, `metrics`, `otel`. The `access` module is the
+per-request HTTP log (2xx/3xx at Info, 4xx at Warn, 5xx at Error), so `access:warn`
+shows only failing requests. Invalid entries are ignored with a startup warning.
+
+```bash
+LOG_MODULE_LEVELS=job:debug              # debug only the job module
+LOG_LEVEL=debug
+LOG_MODULE_LEVELS=gorm:warn,access:warn  # debug everything except GORM and access
+```
 
 ---
 
