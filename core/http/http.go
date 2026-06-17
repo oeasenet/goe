@@ -34,6 +34,12 @@ type kernel struct {
 
 // New creates a new HTTP kernel
 func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
+	// Tag loggers once: "http" for kernel/server logs, "access" for the
+	// per-request access log so it can be controlled independently
+	// (e.g. LOG_MODULE_LEVELS=access:warn shows only 4xx/5xx requests).
+	klog := logger.With("module", "http")
+	accessLogger := logger.With("module", "access")
+
 	// Create validator
 	validator := validation.New()
 
@@ -41,7 +47,7 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	var err error
 	tpl, err = template.ParseFS(templateFS, "error_page.gohtml")
 	if err != nil {
-		logger.Fatal(err.Error())
+		klog.Fatal(err.Error())
 		panic(err)
 	}
 
@@ -64,7 +70,7 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 		EnableIPValidation:  config.GetBool("FIBER_ENABLE_IP_VALIDATION"),
 		ColorScheme:         fiber.DefaultColors,
 		StructValidator:     validator,
-		ErrorHandler:        defaultErrorHandler(logger),
+		ErrorHandler:        defaultErrorHandler(klog),
 		PassLocalsToContext: true,
 		PassLocalsToViews:   true,
 	}
@@ -84,9 +90,9 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 			if layout := config.GetString("VIEWS_LAYOUT"); layout != "" {
 				fiberConfig.ViewsLayout = layout
 			}
-			logger.Info("HTTP Views engine initialized", "engine", engine, "root", root, "ext", ext)
+			klog.Debug("HTTP Views engine initialized", "engine", engine, "root", root, "ext", ext)
 		} else {
-			logger.Warn("Unsupported VIEWS_ENGINE specified; views not initialized", "engine", engine)
+			klog.Warn("Unsupported VIEWS_ENGINE specified; views not initialized", "engine", engine)
 		}
 	}
 
@@ -161,21 +167,24 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	app.Use(requestid.New())
 
 	//Add request logging middleware using fiber's official middleware
+	// fiberzap maps by status: index 0 = >=500, 1 = >=400, 2 = other.
+	// So success requests log at Info, 4xx at Warn, 5xx at Error — and the
+	// "access" module tag lets operators silence success with access:warn.
 	fiberZap := fiberzap.New(fiberzap.Config{
 		SkipURIs: []string{
 			"/.well-known/liveness",
 			"/.well-known/readiness",
 			"/.well-known/health",
 		},
-		Logger: logger.GetLogger().Desugar(),
-		Fields: []string{"ip", "latency", "status", "method", "request_id", "url"},
+		Logger: accessLogger.GetLogger().Desugar(),
+		Fields: []string{"method", "status", "latency", "ip", "url"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
 			return []zap.Field{
 				zap.String("request_id", requestid.FromContext(c)),
 			}
 		},
-		Messages: []string{"HTTP REQUEST"},
-		Levels:   []zapcore.Level{zapcore.InfoLevel},
+		Messages: []string{"http server error", "http client error", "http request"},
+		Levels:   []zapcore.Level{zapcore.ErrorLevel, zapcore.WarnLevel, zapcore.InfoLevel},
 	})
 
 	app.Use(fiberZap)
@@ -183,7 +192,7 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	return &kernel{
 		app:       app,
 		config:    config,
-		logger:    logger,
+		logger:    klog,
 		validator: validator,
 	}
 }
