@@ -49,7 +49,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 
 	newLogger := gormlogger.New(
 		// Use goe logger for gorm messages
-		NewGoeGormLogger(dbm.logger),
+		NewGoeGormLogger(dbm.gormLogger),
 		gormlogger.Config{
 			SlowThreshold:             200 * time.Millisecond, // Can be made configurable
 			LogLevel:                  gormLogLevel,
@@ -127,7 +127,7 @@ func (dbm *DatabaseModule) connect(name string) (*gorm.DB, error) {
 		}
 	}
 
-	dbm.logger.Info("Database connection established successfully", "connection", name, "driver", driver)
+	dbm.logger.Info("Database connected", "connection", name, "driver", driver)
 	return db, nil
 }
 
@@ -136,7 +136,7 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 	// Allow providing a full DSN directly
 	directDSN := dbm.config.GetString(configPrefix + "DSN")
 	if directDSN != "" {
-		dbm.logger.Info("Using direct DSN for connection", "connection", name)
+		dbm.logger.Debug("Using direct DSN for connection", "connection", name)
 		return directDSN, nil
 	}
 
@@ -154,7 +154,7 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 		if dbname == "" {
 			// Default to an in-memory database if no path is provided, common for testing
 			// Or you could make this an error: return "", fmt.Errorf("database path (DB_DATABASE or DB_%s_DATABASE) not configured for SQLite connection '%s'", strings.ToUpper(name), name)
-			dbm.logger.Info("SQLite database path not specified, using in-memory database.", "connection", name)
+			dbm.logger.Debug("SQLite database path not specified, using in-memory database.", "connection", name)
 			return ":memory:", nil
 		}
 		// TODO: Add support for query params for SQLite if needed, e.g., "file:path?cache=shared&mode=memory"
@@ -240,21 +240,14 @@ func (l *GoeGormLogger) Printf(s string, i ...any) {
 		message = s
 	}
 
-	// Parse GORM's formatted log messages and convert to structured logging
+	// Slow queries are operationally important — surface them at Warn.
 	if strings.Contains(message, "SLOW SQL") {
-		// Extract slow query information and log with structured format
-		l.goeLogger.Debug("GORM slow query detected",
-			"module", "gorm",
-			"message", message,
-		)
+		l.goeLogger.Warn("GORM slow query detected", "message", message)
 		return
 	}
 
-	// For other GORM log messages, use structured logging
-	l.goeLogger.Debug("GORM log",
-		"module", "gorm",
-		"message", message,
-	)
+	// Other GORM chatter is per-op detail.
+	l.goeLogger.Debug("GORM log", "message", message)
 }
 
 // NewGoeGormLogger creates a new GoeGormLogger
@@ -269,25 +262,19 @@ func (l *GoeGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface 
 	return l
 }
 
-// Info prints info messages
+// Info prints info messages (GORM "info" is per-op detail -> Debug here).
 func (l *GoeGormLogger) Info(ctx context.Context, msg string, data ...any) {
-	args := []any{"module", "gorm"}
-	args = append(args, convertGormLogDataToArgs(data)...)
-	l.goeLogger.Debug(msg, args...)
+	l.goeLogger.Debug(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Warn prints warning messages
 func (l *GoeGormLogger) Warn(ctx context.Context, msg string, data ...any) {
-	args := []any{"module", "gorm"}
-	args = append(args, convertGormLogDataToArgs(data)...)
-	l.goeLogger.Warn(msg, args...)
+	l.goeLogger.Warn(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Error prints error messages
 func (l *GoeGormLogger) Error(ctx context.Context, msg string, data ...any) {
-	args := []any{"module", "gorm"}
-	args = append(args, convertGormLogDataToArgs(data)...)
-	l.goeLogger.Error(msg, args...)
+	l.goeLogger.Error(msg, convertGormLogDataToArgs(data)...)
 }
 
 // Trace prints SQL query execution information
@@ -298,7 +285,6 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 
 	if err != nil && err != gorm.ErrRecordNotFound { // Don't log RecordNotFound as an error from Trace, GORM handles it.
 		l.goeLogger.Error("GORM SQL error",
-			"module", "gorm",
 			"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
 			"sql", sql,
 			"rows", rows,
@@ -307,11 +293,10 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 		return
 	}
 
-	// Log slow queries at warn level (threshold from GORM config is 200ms)
+	// Slow queries at Warn so they are visible at the default level.
 	slowThreshold := 200 * time.Millisecond
 	if elapsed > slowThreshold {
-		l.goeLogger.Debug("GORM slow query",
-			"module", "gorm",
+		l.goeLogger.Warn("GORM slow query",
 			"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
 			"sql", sql,
 			"rows", rows,
@@ -319,9 +304,8 @@ func (l *GoeGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 		return
 	}
 
-	// Regular queries at debug level
+	// Regular queries are per-op detail.
 	l.goeLogger.Debug("GORM SQL query",
-		"module", "gorm",
 		"elapsed_ms", fmt.Sprintf("%.3f", elapsedMs),
 		"sql", sql,
 		"rows", rows,

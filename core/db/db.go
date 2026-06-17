@@ -14,9 +14,10 @@ import (
 
 // DatabaseModule implements the contract.DB and contract.Module interfaces
 type DatabaseModule struct {
-	config contract.Config
-	logger contract.Logger
-	mu     sync.RWMutex
+	config     contract.Config
+	logger     contract.Logger // tagged module=db
+	gormLogger contract.Logger // tagged module=gorm, passed to the GORM adapter
+	mu         sync.RWMutex
 	// defaultConnectionName string // This can be derived from config when needed
 	connections map[string]*gorm.DB
 	// gormConfig *gorm.Config // To be added later for more GORM specific configs
@@ -29,7 +30,8 @@ type DatabaseModule struct {
 func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule {
 	return &DatabaseModule{
 		config:           config,
-		logger:           logger,
+		logger:           logger.With("module", "db"),
+		gormLogger:       logger.With("module", "gorm"),
 		connections:      make(map[string]*gorm.DB),
 		registeredModels: make(map[string][]any),
 	}
@@ -80,7 +82,7 @@ func (dbm *DatabaseModule) Name() string {
 // OnStart is called when the module starts
 // This is where database connections will be established
 func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
-	dbm.logger.Info("Database module OnStart")
+	dbm.logger.Debug("Database module starting")
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
@@ -91,7 +93,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	}
 
 	// Connect to default database
-	dbm.logger.Info("Attempting to connect to default database", "connection_config_name", defaultConnectionName)
+	dbm.logger.Debug("Attempting to connect to default database", "connection_config_name", defaultConnectionName)
 	db, err := dbm.connect(defaultConnectionName)
 	if err != nil {
 		dbm.logger.Error("Failed to connect to default database",
@@ -102,7 +104,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	} else {
 		// Store the connection using the name it will be requested by, which is defaultConnectionName.
 		dbm.connections[defaultConnectionName] = db
-		dbm.logger.Info("Successfully connected to default database", "connection_config_name", defaultConnectionName)
+		dbm.logger.Debug("Successfully connected to default database", "connection_config_name", defaultConnectionName)
 	}
 
 	// Connect to additional databases if configured
@@ -123,7 +125,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 				continue
 			}
 
-			dbm.logger.Info("Attempting to connect to additional database", "connection_name", connName)
+			dbm.logger.Debug("Attempting to connect to additional database", "connection_name", connName)
 			conn, err := dbm.connect(connName)
 			if err != nil {
 				dbm.logger.Error("Failed to connect to additional database",
@@ -133,19 +135,19 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 				// Continue with other connections
 			} else {
 				dbm.connections[connName] = conn
-				dbm.logger.Info("Successfully connected to additional database", "connection_name", connName)
+				dbm.logger.Debug("Successfully connected to additional database", "connection_name", connName)
 
 				// Check for auto-migration for this connection
 				autoMigrateKey := fmt.Sprintf("DB_%s_AUTO_MIGRATE", strings.ToUpper(connName))
 				if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateKey) {
-					dbm.logger.Info("Auto-migration is enabled for connection",
+					dbm.logger.Debug("Auto-migration is enabled for connection",
 						"connection_name", connName,
 						"checked_config_key", autoMigrateKey,
 					)
 
 					// Perform auto-migration for registered models
 					if models, exists := dbm.registeredModels[connName]; exists && len(models) > 0 {
-						dbm.logger.Info("Performing database migration...",
+						dbm.logger.Debug("Performing database migration...",
 							"connection_name", connName,
 							"model_count", len(models),
 						)
@@ -155,7 +157,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 								"error", err,
 							)
 						} else {
-							dbm.logger.Debug("Database migration completed successfully",
+							dbm.logger.Info("Database migrated",
 								"connection_name", connName,
 								"model_count", len(models),
 							)
@@ -178,14 +180,14 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 
 	if dbm.config.GetBool("DB_AUTO_MIGRATE_ANY") || dbm.config.GetBool(autoMigrateConfigKey) {
 		if db != nil {
-			dbm.logger.Info("Auto-migration is enabled for default connection",
+			dbm.logger.Debug("Auto-migration is enabled for default connection",
 				"connection_config_name", defaultConnectionName,
 				"checked_config_key", autoMigrateConfigKey,
 			)
 
 			// Perform auto-migration for registered models on default connection
 			if models, exists := dbm.registeredModels[defaultConnectionName]; exists && len(models) > 0 {
-				dbm.logger.Info("Performing database migration...",
+				dbm.logger.Debug("Performing database migration...",
 					"connection_name", defaultConnectionName,
 					"model_count", len(models),
 				)
@@ -195,7 +197,7 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 						"error", err,
 					)
 				} else {
-					dbm.logger.Debug("Database migration completed successfully",
+					dbm.logger.Info("Database migrated",
 						"connection_name", defaultConnectionName,
 						"model_count", len(models),
 					)
@@ -218,13 +220,13 @@ func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 // OnStop is called when the module stops
 // This is where database connections will be closed
 func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
-	dbm.logger.Info("Database module OnStop")
+	dbm.logger.Debug("Database module stopping")
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
 	var lastErr error
 	for name, conn := range dbm.connections {
-		dbm.logger.Info("Closing database connection", "connection", name)
+		dbm.logger.Debug("Closing database connection", "connection", name)
 		sqlDB, err := conn.DB()
 		if err != nil {
 			dbm.logger.Error("Failed to get SQL DB from GORM instance for closing", "connection", name, "error", err)
@@ -274,7 +276,7 @@ func (dbm *DatabaseModule) RegisterModelsForMigration(dst ...any) {
 	}
 
 	dbm.registeredModels[defaultConnectionName] = append(dbm.registeredModels[defaultConnectionName], dst...)
-	dbm.logger.Info("Registered models for auto-migration on default connection",
+	dbm.logger.Debug("Registered models for auto-migration on default connection",
 		"connection_name", defaultConnectionName,
 		"model_count", len(dst),
 	)
@@ -286,7 +288,7 @@ func (dbm *DatabaseModule) RegisterModelsForMigrationOnConnection(connectionName
 	defer dbm.mu.Unlock()
 
 	dbm.registeredModels[connectionName] = append(dbm.registeredModels[connectionName], dst...)
-	dbm.logger.Info("Registered models for auto-migration on specific connection",
+	dbm.logger.Debug("Registered models for auto-migration on specific connection",
 		"connection_name", connectionName,
 		"model_count", len(dst),
 	)

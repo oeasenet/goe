@@ -157,8 +157,9 @@ func (m *MockLogger) Fatalw(msg string, keysAndValues ...any) {
 }
 
 func (m *MockLogger) With(keysAndValues ...any) contract.Logger {
-	args := m.Called(keysAndValues)
-	return args.Get(0).(contract.Logger)
+	// Module tagging calls With during construction; return self so the same
+	// mock receives subsequent level calls (tests assert on those).
+	return m
 }
 
 func (m *MockLogger) WithContext(ctx context.Context) contract.Logger {
@@ -276,7 +277,7 @@ func TestDatabaseModule_RegisterModelsForMigration(t *testing.T) {
 
 	t.Run("register models for default connection", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("")
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		dbModule.RegisterModelsForMigration(&TestModel{})
 
@@ -286,7 +287,7 @@ func TestDatabaseModule_RegisterModelsForMigration(t *testing.T) {
 
 	t.Run("register models for custom connection", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("custom")
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		dbModule.RegisterModelsForMigration(&TestModel{})
 
@@ -302,7 +303,7 @@ func TestDatabaseModule_RegisterModelsForMigrationOnConnection(t *testing.T) {
 	dbModule := NewDBModule(config, logger)
 
 	t.Run("register models for specific connection", func(t *testing.T) {
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		dbModule.RegisterModelsForMigrationOnConnection("test", &TestModel{})
 
@@ -323,7 +324,7 @@ func TestDatabaseModule_OnStart(t *testing.T) {
 		config.On("GetBool", "DB_AUTO_MIGRATE_ANY").Return(false)
 		config.On("GetBool", "DB_AUTO_MIGRATE").Return(false)
 
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 		logger.On("Error", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		ctx := context.Background()
@@ -342,7 +343,7 @@ func TestDatabaseModule_OnStop(t *testing.T) {
 	dbModule := NewDBModule(config, logger)
 
 	t.Run("stop with no connections", func(t *testing.T) {
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		ctx := context.Background()
 		err := dbModule.OnStop(ctx)
@@ -421,6 +422,7 @@ func TestDatabaseModule_IntegrationWithSQLite(t *testing.T) {
 		config.On("GetString", "DB_CHARSET").Return("")
 		config.On("GetString", "DB_TIMEZONE").Return("")
 
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
 		logger.On("Error", mock.AnythingOfType("string"), mock.Anything).Return()
 
@@ -560,7 +562,7 @@ func TestGoeGormLogger(t *testing.T) {
 	gormLogger := NewGoeGormLogger(logger)
 
 	t.Run("Printf", func(t *testing.T) {
-		logger.On("Debug", "GORM log", []any{"module", "gorm", "message", "test message"}).Return()
+		logger.On("Debug", "GORM log", []any{"message", "test message"}).Return()
 
 		gormLogger.Printf("test message")
 
@@ -649,7 +651,7 @@ func TestDatabaseModule_ConcurrentAccess(t *testing.T) {
 	// Test concurrent model registration
 	t.Run("concurrent model registration", func(t *testing.T) {
 		config.On("GetString", "DB_CONNECTION").Return("default")
-		logger.On("Info", mock.AnythingOfType("string"), mock.Anything).Return()
+		logger.On("Debug", mock.AnythingOfType("string"), mock.Anything).Return()
 
 		done := make(chan bool)
 
