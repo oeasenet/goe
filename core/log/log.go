@@ -22,8 +22,14 @@ func (l *zapLogger) GetLogger() *zap.SugaredLogger {
 	return l.sugar
 }
 
-// New creates a new logger instance using zap
+// New creates a new logger instance using zap (no per-module overrides).
 func New(config contract.LoggerConfig) contract.Logger {
+	return buildLogger(config, nil)
+}
+
+// buildLogger constructs the zap-backed logger. moduleOverrides may be nil, in
+// which case every module follows the global level (identical to prior behavior).
+func buildLogger(config contract.LoggerConfig, moduleOverrides map[string]zapcore.Level) contract.Logger {
 	// Check if we're in production based on environment or explicit format
 	env := os.Getenv("GOE_ENV")
 	isProduction := env == "prod" || env == "production"
@@ -75,35 +81,28 @@ func New(config contract.LoggerConfig) contract.Logger {
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
 
-	// Parse log level
-	level := zapcore.InfoLevel
-	switch config.Level() {
-	case "debug":
-		level = zapcore.DebugLevel
-	case "info":
-		level = zapcore.InfoLevel
-	case "warn":
-		level = zapcore.WarnLevel
-	case "error":
-		level = zapcore.ErrorLevel
+	// Parse the global (root) level. Unknown values fall back to Info.
+	globalLevel, ok := parseLevel(config.Level())
+	if !ok {
+		globalLevel = zapcore.InfoLevel
 	}
 
-	// Create outputs
+	// Leaf cores are enabled at Debug; the moduleLevelCore wrapper performs all
+	// real level gating so per-module overrides can go above OR below global.
 	var cores []zapcore.Core
 	for _, output := range config.Output() {
 		switch output {
 		case "console":
-			core := zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), level)
-			cores = append(cores, core)
+			cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel))
 		case "file":
 			file, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			core := zapcore.NewCore(encoder, zapcore.AddSync(file), level)
-			cores = append(cores, core)
+			cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(file), zapcore.DebugLevel))
 		}
 	}
 
-	// Combine cores
-	core := zapcore.NewTee(cores...)
+	// Wrap the combined core with per-module level gating.
+	levels := &moduleLevels{global: globalLevel, overrides: moduleOverrides}
+	core := newModuleLevelCore(zapcore.NewTee(cores...), levels)
 
 	// Create logger options
 	var opts []zap.Option
@@ -326,7 +325,14 @@ func NewModule(config contract.Config) *Module {
 		logConfig.output = []string{"console"}
 	}
 
-	logger := New(logConfig)
+	overrides, invalid := parseModuleLevels(config.GetString("LOG_MODULE_LEVELS"))
+	logger := buildLogger(logConfig, overrides)
+	if len(invalid) > 0 {
+		logger.With(moduleFieldKey, "log").Warn(
+			"Ignored invalid LOG_MODULE_LEVELS entries",
+			"entries", invalid,
+		)
+	}
 
 	// Get the underlying zap logger for Fx
 	zapLogger := logger.(*zapLogger).logger
@@ -345,13 +351,13 @@ func (m *Module) Name() string {
 
 // OnStart is called when the module starts
 func (m *Module) OnStart(ctx context.Context) error {
-	m.logger.Info("Log module started")
+	m.logger.With(moduleFieldKey, "log").Info("Log module started")
 	return nil
 }
 
 // OnStop is called when the module stops
 func (m *Module) OnStop(ctx context.Context) error {
-	m.logger.Info("Log module stopped")
+	m.logger.With(moduleFieldKey, "log").Info("Log module stopped")
 	// Sync the logger
 	_ = m.zap.Sync()
 	return nil
