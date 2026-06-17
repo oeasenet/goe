@@ -211,7 +211,7 @@ func (w *worker) handleFailure(ctx context.Context, job *jobImpl, err error) {
 
 		w.manager.stats.retried.Add(1)
 
-		w.manager.logger.Info("Job scheduled for retry",
+		w.manager.logger.Debug("Job scheduled for retry",
 			"job_id", job.id,
 			"name", job.name,
 			"attempt", job.attempts,

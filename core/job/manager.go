@@ -162,7 +162,7 @@ func (m *Manager) RegisterSchedule(job *contract.ScheduledJob) error {
 	}
 
 	m.schedules[job.Name] = job
-	m.logger.Info("Registered scheduled job",
+	m.logger.Debug("Registered scheduled job",
 		"name", job.Name,
 		"schedule", job.Schedule.String(),
 		"queue", job.Queue,
@@ -181,7 +181,7 @@ func (m *Manager) UnregisterSchedule(name string) error {
 	}
 
 	delete(m.schedules, name)
-	m.logger.Info("Unregistered scheduled job", "name", name)
+	m.logger.Debug("Unregistered scheduled job", "name", name)
 	return nil
 }
 
@@ -320,7 +320,7 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 		m.redis.LRem(ctx, queueKey, 0, jobID)
 	}
 
-	m.logger.Info("Cancelled job", "id", jobID)
+	m.logger.Debug("Cancelled job", "id", jobID)
 	return nil
 }
 
@@ -416,7 +416,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	m.logger.Info("Stopping job manager...")
+	m.logger.Debug("Stopping job manager...")
 
 	// Signal all goroutines to stop
 	close(m.stopCh)

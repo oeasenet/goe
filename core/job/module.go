@@ -16,6 +16,9 @@ type Module struct {
 
 // NewModule creates a new job module
 func NewModule(config contract.Config, logger contract.Logger) (*Module, error) {
+	// Tag once; the manager and workers share this module-scoped logger.
+	logger = logger.With("module", "job")
+
 	// Load job configuration
 	jobConfig := LoadConfig(config)
 
@@ -66,7 +69,7 @@ func (m *Module) OnStart(ctx context.Context) error {
 
 // OnStop is called when the module stops
 func (m *Module) OnStop(ctx context.Context) error {
-	m.logger.Info("Job module stopping")
+	m.logger.Debug("Job module stopping")
 
 	// Stop the job manager
 	if err := m.manager.Stop(ctx); err != nil {
