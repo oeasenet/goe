@@ -19,6 +19,7 @@ import (
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.oease.dev/goe/v2/validation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -164,7 +165,17 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 
 	// Add default middleware
 	app.Use(recover.New())
-	app.Use(requestid.New())
+
+	// Request ID middleware: on by default (set HTTP_REQUEST_ID=false to disable
+	// and own your own middleware stack). It reuses an upstream request id from
+	// the configured header and generates one when absent.
+	reqIDHeader := config.GetString("HTTP_REQUEST_ID_HEADER")
+	if reqIDHeader == "" {
+		reqIDHeader = fiber.HeaderXRequestID
+	}
+	if requestIDEnabled(config) {
+		app.Use(requestid.New(requestid.Config{Header: reqIDHeader}))
+	}
 
 	//Add request logging middleware using fiber's official middleware
 	// fiberzap maps by status: index 0 = >=500, 1 = >=400, 2 = other.
@@ -179,9 +190,11 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 		Logger: accessLogger.GetLogger().Desugar(),
 		Fields: []string{"method", "status", "latency", "ip", "url"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
-			return []zap.Field{
-				zap.String("request_id", requestid.FromContext(c)),
+			fields := []zap.Field{zap.String("request_id", requestIDFrom(c, reqIDHeader))}
+			if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
+				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
 			}
+			return fields
 		},
 		Messages: []string{"http server error", "http client error", "http request"},
 		Levels:   []zapcore.Level{zapcore.ErrorLevel, zapcore.WarnLevel, zapcore.InfoLevel},

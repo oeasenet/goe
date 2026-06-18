@@ -2,8 +2,10 @@ package http
 
 import (
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/validation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 )
 
@@ -11,9 +13,6 @@ import (
 type ContextKey string
 
 const (
-	// RequestIDKey is the key for request ID in context
-	RequestIDKey ContextKey = "requestID"
-
 	// ServicesKey is the key for DI services in context
 	ServicesKey ContextKey = "services"
 )
@@ -49,17 +48,67 @@ func GetConfig(c fiber.Ctx) contract.Config {
 	return GetServices(c).Config
 }
 
-// GetLogger retrieves logger from the context
-func GetLogger(c fiber.Ctx) contract.Logger {
-	services := GetServices(c)
-	logger := services.Logger
-
-	// Add request ID to logger if available
-	if requestID, ok := c.Locals(string(RequestIDKey)).(string); ok && requestID != "" {
-		logger = logger.With("request_id", requestID)
+// WithReqCtx returns a request-scoped logger: the application logger enriched
+// with request_id (from the requestid middleware or the raw header) and, when an
+// OpenTelemetry span is active, trace_id/span_id. Call it at the top of a handler
+// so every subsequent log line is correlated to the request.
+func WithReqCtx(c fiber.Ctx) contract.Logger {
+	logger := GetServices(c).Logger
+	if logger == nil {
+		return logger
 	}
-
+	if kv := requestLogFields(c); len(kv) > 0 {
+		logger = logger.With(kv...)
+	}
 	return logger
+}
+
+// GetLogger is a backward-compatible alias for WithReqCtx.
+func GetLogger(c fiber.Ctx) contract.Logger {
+	return WithReqCtx(c)
+}
+
+// requestLogFields returns the request-scoped log fields for c: request_id, plus
+// trace_id/span_id when a valid OpenTelemetry span is in the context.
+func requestLogFields(c fiber.Ctx) []any {
+	var kv []any
+	if rid := requestIDFrom(c, requestIDHeader(c)); rid != "" {
+		kv = append(kv, "request_id", rid)
+	}
+	if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
+		kv = append(kv, "trace_id", sc.TraceID().String(), "span_id", sc.SpanID().String())
+	}
+	return kv
+}
+
+// requestIDFrom returns the request id from the requestid middleware, falling
+// back to the raw header so an upstream id is captured even when the middleware
+// is disabled. An empty header defaults to X-Request-ID.
+func requestIDFrom(c fiber.Ctx, header string) string {
+	if rid := requestid.FromContext(c); rid != "" {
+		return rid
+	}
+	if header == "" {
+		header = fiber.HeaderXRequestID
+	}
+	return c.Get(header)
+}
+
+// requestIDHeader returns the configured request-id header (HTTP_REQUEST_ID_HEADER),
+// defaulting to X-Request-ID.
+func requestIDHeader(c fiber.Ctx) string {
+	if cfg := GetServices(c).Config; cfg != nil {
+		if h := cfg.GetString("HTTP_REQUEST_ID_HEADER"); h != "" {
+			return h
+		}
+	}
+	return fiber.HeaderXRequestID
+}
+
+// requestIDEnabled reports whether GOE should register the default requestid
+// middleware. It is on unless HTTP_REQUEST_ID is explicitly set to false.
+func requestIDEnabled(config contract.Config) bool {
+	return !config.Has("HTTP_REQUEST_ID") || config.GetBool("HTTP_REQUEST_ID")
 }
 
 // GetApp retrieves application from the context
@@ -95,8 +144,8 @@ type ServiceProvider struct {
 	App       contract.Application
 	Config    contract.Config
 	Logger    contract.Logger
-	Cache     contract.Cache           `optional:"true"`
-	Validator *validation.Validator    `optional:"true"`
+	Cache     contract.Cache        `optional:"true"`
+	Validator *validation.Validator `optional:"true"`
 }
 
 // CreateServiceMiddleware creates a middleware that injects services into the context

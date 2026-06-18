@@ -48,6 +48,8 @@ DB_PASSWORD="password with spaces"
 | `HTTP_READ_TIMEOUT` | duration | `10s` | Maximum duration for reading the entire request |
 | `HTTP_WRITE_TIMEOUT` | duration | `10s` | Maximum duration for writing the response |
 | `HTTP_IDLE_TIMEOUT` | duration | `30s` | Maximum idle time for keep-alive connections |
+| `HTTP_REQUEST_ID` | bool | `true` | Register the request-id middleware (reuses an upstream id, generates one when absent, echoes the response header). Set `false` to disable and use your own. |
+| `HTTP_REQUEST_ID_HEADER` | string | `X-Request-ID` | Header used to read/set the request id. |
 
 ### Fiber-Specific Settings
 
@@ -116,8 +118,14 @@ listen address, "database connected", migrations applied, and graceful shutdown 
 Recoverable issues (slow SQL, job retries) are **Warn**; failures are **Error**.
 
 **HTTP access log** (`access` module): one line per request with fields `method`, `status`,
-`latency`, `ip`, `url`, `request_id`. The `/.well-known/{liveness,readiness,health}` URIs are
-skipped. Status maps to level: 2xx/3xx → Info, 4xx → Warn, 5xx → Error.
+`latency`, `ip`, `url`, `request_id` (plus `trace_id` when OpenTelemetry is active). The
+`/.well-known/{liveness,readiness,health}` URIs are skipped. Status maps to level: 2xx/3xx → Info,
+4xx → Warn, 5xx → Error.
+
+**Request-scoped logging.** In a handler, `log := http.WithReqCtx(c)` (alias `http.GetLogger(c)`)
+returns the app logger enriched with `request_id` (reused from an upstream `X-Request-ID` or the
+configured header) and `trace_id`/`span_id` when a span is active — so every line you log is
+correlated to the request and its trace.
 
 To see SQL or MongoDB commands, enable `DB_LOG_MODE` / `MONGO_DEBUG` — they surface under the
 `gorm` / `mongo` module tags (e.g. `LOG_MODULE_LEVELS=gorm:debug`).
