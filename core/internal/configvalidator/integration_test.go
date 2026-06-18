@@ -64,4 +64,3 @@ func TestConfigValidationFramework(t *testing.T) {
 		t.Errorf("Expected validation to pass but got: %v", err)
 	}
 }
-

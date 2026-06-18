@@ -87,7 +87,7 @@ func New(config ...Config) fiber.Handler {
 				return serveStatic(c, fullPath)
 			}
 
-			}
+		}
 
 		// For SPA routing, serve the index file for all non-file routes
 		// This allows client-side routing to work
@@ -161,4 +161,3 @@ func fileExists(path string) bool {
 	}
 	return !info.IsDir()
 }
-

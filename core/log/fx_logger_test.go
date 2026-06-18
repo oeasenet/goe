@@ -519,4 +519,3 @@ func TestConvertFieldsWithContractField(t *testing.T) {
 	assert.Equal(t, "key1", zapFields[0].Key)
 	assert.Equal(t, "key2", zapFields[1].Key)
 }
-

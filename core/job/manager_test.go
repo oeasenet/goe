@@ -33,7 +33,7 @@ func (l *nopLogger) Fatalw(msg string, keysAndValues ...any)         {}
 func (l *nopLogger) With(keysAndValues ...any) contract.Logger       { return l }
 func (l *nopLogger) WithContext(ctx context.Context) contract.Logger { return l }
 func (l *nopLogger) WithError(err error) contract.Logger             { return l }
-func (l *nopLogger) GetLogger() *zap.SugaredLogger                  { return nil }
+func (l *nopLogger) GetLogger() *zap.SugaredLogger                   { return nil }
 
 func TestNewJob(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
@@ -353,9 +353,9 @@ func TestJobImplAccessors(t *testing.T) {
 func TestJobBuilderFull(t *testing.T) {
 	def := NewJob("send-email", "payload").
 		OnQueue("emails").
-		WithDelay(5 * time.Minute).
+		WithDelay(5*time.Minute).
 		WithRetries(5).
-		WithTimeout(10 * time.Minute).
+		WithTimeout(10*time.Minute).
 		Unique("email-123").
 		UniqueFor("email-123", 2*time.Hour).
 		WithTag("env", "prod").
@@ -432,7 +432,7 @@ func TestScheduledJobBuilder(t *testing.T) {
 			Handle(handler).
 			OnQueue("maintenance").
 			WithPayload("test-payload").
-			WithTimeout(1 * time.Hour).
+			WithTimeout(1*time.Hour).
 			WithRetries(2).
 			AllowOverlap().
 			WithTag("env", "prod").

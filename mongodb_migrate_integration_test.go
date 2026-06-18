@@ -42,8 +42,8 @@ func TestMongoDBMigrate_Integration(t *testing.T) {
 			WithMongoDB: true,
 			WithMigrate: true,
 			ConfigOverrides: map[string]any{
-				"MONGO_URI":           "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true",
-				"MONGO_DB_NAME":       "goe_e2e_migrate_test",
+				"MONGO_URI":            "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true",
+				"MONGO_DB_NAME":        "goe_e2e_migrate_test",
 				"MONGODB_MIGRATE_AUTO": true,
 			},
 		})
