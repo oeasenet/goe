@@ -33,7 +33,7 @@ func TestModule_ValidateConfig(t *testing.T) {
 
 		err := m.ValidateConfig()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "LOCK_REDIS_ADDR")
+		assert.Contains(t, err.Error(), "LOCK_REDIS_URL")
 	})
 
 	t.Run("with LOCK_REDIS_URL passes validation", func(t *testing.T) {
@@ -49,71 +49,47 @@ func TestModule_ValidateConfig(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("with LOCK_REDIS_ADDR passes validation", func(t *testing.T) {
+	t.Run("LOCK_REDIS_ADDR alone is rejected (URL required)", func(t *testing.T) {
 		mockCfg := newMockConfig()
 		mockCfg.Set("LOCK_REDIS_ADDR", "localhost:6379")
 
-		m := &Module{
-			config: mockCfg,
-			logger: logger,
-		}
+		m := &Module{config: mockCfg, logger: logger}
 
 		err := m.ValidateConfig()
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "LOCK_REDIS_URL")
 	})
 
-	t.Run("with LOCK_REDIS_HOST passes validation", func(t *testing.T) {
+	t.Run("LOCK_REDIS_HOST alone is rejected (URL required)", func(t *testing.T) {
 		mockCfg := newMockConfig()
 		mockCfg.Set("LOCK_REDIS_HOST", "localhost")
 
-		m := &Module{
-			config: mockCfg,
-			logger: logger,
-		}
+		m := &Module{config: mockCfg, logger: logger}
+
+		err := m.ValidateConfig()
+		assert.Error(t, err)
+	})
+
+	t.Run("with LOCK_REDIS_URLS passes validation", func(t *testing.T) {
+		mockCfg := newMockConfig()
+		mockCfg.Set("LOCK_REDIS_URLS", []string{"redis://r1:6379/0", "redis://r2:6379/0"})
+
+		m := &Module{config: mockCfg, logger: logger}
 
 		err := m.ValidateConfig()
 		assert.NoError(t, err)
 	})
 
-	t.Run("with LOCK_REDIS_HOSTS passes validation", func(t *testing.T) {
-		mockCfg := newMockConfig()
-		mockCfg.Set("LOCK_REDIS_HOSTS", []string{"localhost:6379", "localhost:6380"})
+	t.Run("validates LOCK_POOL_SIZE", func(t *testing.T) {
+		ok := newMockConfig()
+		ok.Set("LOCK_REDIS_URL", "redis://localhost:6379/0")
+		ok.Set("LOCK_POOL_SIZE", 20)
+		assert.NoError(t, (&Module{config: ok, logger: logger}).ValidateConfig())
 
-		m := &Module{
-			config: mockCfg,
-			logger: logger,
-		}
-
-		err := m.ValidateConfig()
-		assert.NoError(t, err)
-	})
-
-	t.Run("validates LOCK_REDIS_DB format", func(t *testing.T) {
-		mockCfg := newMockConfig()
-		mockCfg.Set("LOCK_REDIS_URL", "redis://localhost:6379/0")
-		mockCfg.Set("LOCK_REDIS_DB", 5) // valid positive int
-
-		m := &Module{
-			config: mockCfg,
-			logger: logger,
-		}
-
-		err := m.ValidateConfig()
-		assert.NoError(t, err)
-	})
-
-	t.Run("validates LOCK_REDIS_POOL_SIZE", func(t *testing.T) {
-		mockCfg := newMockConfig()
-		mockCfg.Set("LOCK_REDIS_URL", "redis://localhost:6379/0")
-		mockCfg.Set("LOCK_REDIS_POOL_SIZE", 20)
-
-		m := &Module{
-			config: mockCfg,
-			logger: logger,
-		}
-
-		err := m.ValidateConfig()
-		assert.NoError(t, err)
+		bad := newMockConfig()
+		bad.Set("LOCK_REDIS_URL", "redis://localhost:6379/0")
+		bad.Set("LOCK_POOL_SIZE", -1)
+		assert.Error(t, (&Module{config: bad, logger: logger}).ValidateConfig())
 	})
 
 	t.Run("validates LOCK_DEFAULT_TRIES", func(t *testing.T) {

@@ -79,27 +79,16 @@ func (m *Module) ProvideLockManager() contract.LockManager {
 func (m *Module) ValidateConfig() error {
 	v := configvalidator.NewConfigValidator(m.config, "lock")
 
-	// Require at least one Redis configuration
-	hasLockConfig := m.config.Has("LOCK_REDIS_URL") ||
-		m.config.Has("LOCK_REDIS_ADDR") ||
-		m.config.Has("LOCK_REDIS_HOST") ||
-		m.config.Has("LOCK_REDIS_HOSTS")
-
+	// The lock connection is driven only by LOCK_REDIS_URL or LOCK_REDIS_URLS
+	// (see LoadConfig). Require an explicit URL — a lone ADDR/HOST would be ignored.
+	hasLockConfig := m.config.Has("LOCK_REDIS_URL") || m.config.Has("LOCK_REDIS_URLS")
 	if !hasLockConfig {
-		v.RequireWithValidator("LOCK_REDIS_ADDR", "Redis server address for lock system", configvalidator.ValidateHostPort)
+		v.Require("LOCK_REDIS_URL", "Redis connection URL for the lock system (e.g. redis://host:6379/0)")
 	}
 
-	// Validate LOCK_* specific settings if present
-	if m.config.Has("LOCK_REDIS_ADDR") {
-		v.Optional("LOCK_REDIS_ADDR", "Redis server address", configvalidator.ValidateHostPort)
-	}
-
-	if m.config.Has("LOCK_REDIS_DB") {
-		v.Optional("LOCK_REDIS_DB", "Redis database number", configvalidator.ValidatePositiveInt)
-	}
-
-	if m.config.Has("LOCK_REDIS_POOL_SIZE") {
-		v.Optional("LOCK_REDIS_POOL_SIZE", "Redis pool size", configvalidator.ValidatePositiveInt)
+	// Validate the settings that are actually consumed, when present.
+	if m.config.Has("LOCK_POOL_SIZE") {
+		v.Optional("LOCK_POOL_SIZE", "Redis connection pool size", configvalidator.ValidatePositiveInt)
 	}
 
 	if m.config.Has("LOCK_DEFAULT_TRIES") {
