@@ -298,7 +298,7 @@ The job system provides Redis-backed background job processing with scheduling, 
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CACHE_STORE` | string | `memory` | Cache store name. **Only `memory` and `redis` are implemented** (see note under "Database-Backed Stores"). |
+| `CACHE_STORE` | string | `memory` | Cache store. **Only `memory` and `redis` are supported**; any other value is rejected at startup. |
 | `CACHE_DRIVER` | string | `memory` | Backing driver (`memory` or `redis`); resolved from `CACHE_{STORE}_DRIVER`, then `CACHE_DRIVER`, then `memory` |
 | `CACHE_PREFIX` | string | `{APP_NAME}` | Prefix for all cache keys |
 | `CACHE_TTL` | duration | `2h` | Default cache TTL |
@@ -319,7 +319,6 @@ The job system provides Redis-backed background job processing with scheduling, 
 | `CACHE_REDIS_USERNAME` | string | - | Redis username (Redis 6+) |
 | `CACHE_REDIS_PASSWORD` | string | - | Redis password |
 | `CACHE_REDIS_DATABASE` | int | `0` | Redis database number |
-| `CACHE_REDIS_DB` | int | - | **Validation-only — not used at runtime.** Set `CACHE_REDIS_DATABASE` instead. |
 | `CACHE_REDIS_CLIENT_NAME` | string | - | Client name for Redis connection |
 | `CACHE_REDIS_POOL_SIZE` | int | - | Connection pool size |
 | `CACHE_REDIS_RESET` | bool | `false` | Reset (flush) Redis database on startup |
@@ -332,49 +331,11 @@ The job system provides Redis-backed background job processing with scheduling, 
 | `CACHE_REDIS_MASTER_NAME` | string | - | Sentinel master name |
 | `CACHE_REDIS_IS_CLUSTER_MODE` | bool | `false` | Enable Redis Cluster mode |
 
-### Database-Backed Stores
+### Other store types
 
-> **Not yet implemented.** Only the `memory` and `redis` drivers ship with GOE today. The store
-> types below (`postgres`, `mysql`, `memcache`, `mongodb`, `dynamodb`, `s3`, `badger`, `sqlite3`)
-> are accepted by config validation but have no backing driver — selecting one silently falls
-> back to the in-memory store. The keys are documented for forward reference.
-
-#### PostgreSQL/MySQL
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `CACHE_DB_HOST` | string | **required** | Database host |
-| `CACHE_DB_PORT` | int | driver-specific | Database port |
-| `CACHE_DB_DATABASE` | string | **required** | Database name |
-| `CACHE_DB_USERNAME` | string | **required** | Database username |
-| `CACHE_DB_PASSWORD` | string | - | Database password |
-
-#### Memcache
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `CACHE_MEMCACHE_SERVERS` | string | **required** | Comma-separated server addresses |
-
-#### MongoDB
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `CACHE_MONGODB_URI` | string | **required** | MongoDB connection URI |
-| `CACHE_MONGODB_DATABASE` | string | **required** | Database name |
-
-#### DynamoDB
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `CACHE_DYNAMODB_TABLE` | string | **required** | DynamoDB table name |
-| `CACHE_DYNAMODB_REGION` | string | **required** | AWS region |
-
-#### S3
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `CACHE_S3_BUCKET` | string | **required** | S3 bucket name |
-| `CACHE_S3_REGION` | string | **required** | AWS region |
+> Only `memory` and `redis` have registered drivers. Any other `CACHE_STORE` value
+> (`postgres`, `mysql`, `memcache`, `mongodb`, `dynamodb`, `s3`, `badger`, `sqlite3`) is
+> **rejected at startup** by config validation.
 
 ---
 
@@ -397,8 +358,8 @@ The connection URL scheme determines the mode:
 
 > The lock connection is configured **only** via `LOCK_REDIS_URL` (or `LOCK_REDIS_URLS` for
 > Redlock), with the pool size from `LOCK_POOL_SIZE`. `LOCK_REDIS_ADDR`, `LOCK_REDIS_HOST`,
-> `LOCK_REDIS_HOSTS`, `LOCK_REDIS_DB`, and `LOCK_REDIS_POOL_SIZE` are accepted by validation but
-> **not used at runtime** — use the URL form.
+> `LOCK_REDIS_HOSTS`, `LOCK_REDIS_DB`, and `LOCK_REDIS_POOL_SIZE` are **not used** (and no longer
+> validated) — setting only one of them is rejected, so use the URL form.
 
 ### Lock Defaults
 
