@@ -82,50 +82,18 @@ func (m *Module) ValidateConfig() error {
 	// Cache store is optional, defaults to memory
 	store := m.config.GetString("CACHE_STORE")
 	if store != "" {
-		// Validate store type
-		validStores := []string{"memory", "redis", "memcache", "badger", "sqlite3", "postgres", "mysql", "mongodb", "dynamodb", "s3"}
+		// Only memory and redis have registered drivers (see RegisterBuiltinDrivers).
+		validStores := []string{"memory", "redis"}
 		v.Optional("CACHE_STORE", "Cache store type", configvalidator.ValidateOneOf(validStores...))
 
-		// Store-specific validations
-		switch store {
-		case "redis":
-			v.RequireWithValidator("CACHE_REDIS_ADDR", "Redis server address", configvalidator.ValidateHostPort)
-
-			if m.config.Has("CACHE_REDIS_DB") {
-				v.Optional("CACHE_REDIS_DB", "Redis database number", configvalidator.ValidatePositiveInt)
+		// Redis works with localhost defaults; validate the real keys only when set.
+		if store == "redis" {
+			if m.config.Has("CACHE_REDIS_PORT") {
+				v.Optional("CACHE_REDIS_PORT", "Redis port", configvalidator.ValidatePort)
 			}
-
-		case "memcache":
-			v.Require("CACHE_MEMCACHE_SERVERS", "Memcache server addresses (comma-separated)")
-
-		case "postgres", "mysql":
-			v.Require("CACHE_DB_HOST", "Database host")
-			v.Require("CACHE_DB_DATABASE", "Database name")
-			v.Require("CACHE_DB_USERNAME", "Database username")
-
-			if m.config.Has("CACHE_DB_PORT") {
-				v.Optional("CACHE_DB_PORT", "Database port", configvalidator.ValidatePort)
+			if m.config.Has("CACHE_REDIS_DATABASE") {
+				v.Optional("CACHE_REDIS_DATABASE", "Redis database number", configvalidator.ValidateNonNegativeInt)
 			}
-
-		case "mongodb":
-			v.Require("CACHE_MONGODB_URI", "MongoDB connection URI")
-			v.Require("CACHE_MONGODB_DATABASE", "MongoDB database name")
-
-		case "dynamodb":
-			v.Require("CACHE_DYNAMODB_TABLE", "DynamoDB table name")
-			v.Require("CACHE_DYNAMODB_REGION", "AWS region")
-
-		case "s3":
-			v.Require("CACHE_S3_BUCKET", "S3 bucket name")
-			v.Require("CACHE_S3_REGION", "AWS region")
-
-		case "sqlite3":
-			// SQLite can use memory or file, both are optional
-			// Default is usually ":memory:" or a file path
-
-		case "badger":
-			// Badger uses local storage, path is optional
-			// Default is usually a temp directory
 		}
 	}
 

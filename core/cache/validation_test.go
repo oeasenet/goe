@@ -29,37 +29,25 @@ func TestCacheModuleValidation(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "redis store - valid configuration",
+			name: "redis store - no connection key needed (localhost defaults)",
 			configFunc: func(cfg *config.Module) {
 				cfg.Provide().Set("CACHE_STORE", "redis")
-				cfg.Provide().Set("CACHE_REDIS_ADDR", "localhost:6379")
 			},
 			expectError: false,
 		},
 		{
-			name: "redis store - missing address",
+			name: "redis store - with URL",
 			configFunc: func(cfg *config.Module) {
 				cfg.Provide().Set("CACHE_STORE", "redis")
-				// Missing CACHE_REDIS_ADDR
+				cfg.Provide().Set("CACHE_REDIS_URL", "redis://localhost:6379/0")
 			},
-			expectError: true,
-			errorString: "CACHE_REDIS_ADDR",
+			expectError: false,
 		},
 		{
-			name: "redis store - invalid address",
+			name: "redis store - valid database number (0 allowed)",
 			configFunc: func(cfg *config.Module) {
 				cfg.Provide().Set("CACHE_STORE", "redis")
-				cfg.Provide().Set("CACHE_REDIS_ADDR", "invalid-address")
-			},
-			expectError: true,
-			errorString: "invalid host:port format",
-		},
-		{
-			name: "redis store - valid with database",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
-				cfg.Provide().Set("CACHE_REDIS_ADDR", "localhost:6379")
-				cfg.Provide().Set("CACHE_REDIS_DB", "1")
+				cfg.Provide().Set("CACHE_REDIS_DATABASE", "0")
 			},
 			expectError: false,
 		},
@@ -67,157 +55,82 @@ func TestCacheModuleValidation(t *testing.T) {
 			name: "redis store - invalid database number",
 			configFunc: func(cfg *config.Module) {
 				cfg.Provide().Set("CACHE_STORE", "redis")
-				cfg.Provide().Set("CACHE_REDIS_ADDR", "localhost:6379")
-				cfg.Provide().Set("CACHE_REDIS_DB", "-1")
+				cfg.Provide().Set("CACHE_REDIS_DATABASE", "-1")
 			},
 			expectError: true,
-			errorString: "value must be positive",
+			errorString: "non-negative",
 		},
 		{
-			name: "memcache store - valid configuration",
+			name: "redis store - invalid port",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "memcache")
-				cfg.Provide().Set("CACHE_MEMCACHE_SERVERS", "localhost:11211")
-			},
-			expectError: false,
-		},
-		{
-			name: "memcache store - missing servers",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "memcache")
-				// Missing CACHE_MEMCACHE_SERVERS
-			},
-			expectError: true,
-			errorString: "CACHE_MEMCACHE_SERVERS",
-		},
-		{
-			name: "postgres store - valid configuration",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "postgres")
-				cfg.Provide().Set("CACHE_DB_HOST", "localhost")
-				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
-				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
-			},
-			expectError: false,
-		},
-		{
-			name: "postgres store - missing host",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "postgres")
-				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
-				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
-			},
-			expectError: true,
-			errorString: "CACHE_DB_HOST",
-		},
-		{
-			name: "postgres store - with valid port",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "postgres")
-				cfg.Provide().Set("CACHE_DB_HOST", "localhost")
-				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
-				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
-				cfg.Provide().Set("CACHE_DB_PORT", "5432")
-			},
-			expectError: false,
-		},
-		{
-			name: "postgres store - with invalid port",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "postgres")
-				cfg.Provide().Set("CACHE_DB_HOST", "localhost")
-				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
-				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
-				cfg.Provide().Set("CACHE_DB_PORT", "99999")
+				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_REDIS_PORT", "99999")
 			},
 			expectError: true,
 			errorString: "port must be between 1 and 65535",
 		},
+		// Only memory and redis have registered drivers. Every other CACHE_STORE
+		// value is now rejected by validation instead of silently using memory.
+		// The postgres case is set up fully (host/db/user) to prove the rejection
+		// comes from the store whitelist, not from a missing per-store key.
 		{
-			name: "mysql store - valid configuration",
+			name: "postgres store - rejected (not implemented)",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "mysql")
+				cfg.Provide().Set("CACHE_STORE", "postgres")
 				cfg.Provide().Set("CACHE_DB_HOST", "localhost")
 				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
 				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
-			},
-			expectError: false,
-		},
-		{
-			name: "mongodb store - valid configuration",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "mongodb")
-				cfg.Provide().Set("CACHE_MONGODB_URI", "mongodb://localhost:27017")
-				cfg.Provide().Set("CACHE_MONGODB_DATABASE", "cache_db")
-			},
-			expectError: false,
-		},
-		{
-			name: "mongodb store - missing URI",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "mongodb")
-				cfg.Provide().Set("CACHE_MONGODB_DATABASE", "cache_db")
-			},
-			expectError: true,
-			errorString: "CACHE_MONGODB_URI",
-		},
-		{
-			name: "dynamodb store - valid configuration",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "dynamodb")
-				cfg.Provide().Set("CACHE_DYNAMODB_TABLE", "cache_table")
-				cfg.Provide().Set("CACHE_DYNAMODB_REGION", "us-east-1")
-			},
-			expectError: false,
-		},
-		{
-			name: "dynamodb store - missing table",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "dynamodb")
-				cfg.Provide().Set("CACHE_DYNAMODB_REGION", "us-east-1")
-			},
-			expectError: true,
-			errorString: "CACHE_DYNAMODB_TABLE",
-		},
-		{
-			name: "s3 store - valid configuration",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "s3")
-				cfg.Provide().Set("CACHE_S3_BUCKET", "my-cache-bucket")
-				cfg.Provide().Set("CACHE_S3_REGION", "us-east-1")
-			},
-			expectError: false,
-		},
-		{
-			name: "s3 store - missing bucket",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "s3")
-				cfg.Provide().Set("CACHE_S3_REGION", "us-east-1")
-			},
-			expectError: true,
-			errorString: "CACHE_S3_BUCKET",
-		},
-		{
-			name: "invalid store type",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "invalid_store")
 			},
 			expectError: true,
 			errorString: "value must be one of",
 		},
 		{
-			name: "sqlite3 store - valid",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "sqlite3")
-			},
-			expectError: false,
+			name:        "mysql store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "mysql") },
+			expectError: true,
+			errorString: "value must be one of",
 		},
 		{
-			name: "badger store - valid",
-			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "badger")
-			},
-			expectError: false,
+			name:        "memcache store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "memcache") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "mongodb store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "mongodb") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "dynamodb store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "dynamodb") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "s3 store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "s3") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "sqlite3 store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "sqlite3") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "badger store - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "badger") },
+			expectError: true,
+			errorString: "value must be one of",
+		},
+		{
+			name:        "invalid store type - rejected",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "invalid_store") },
+			expectError: true,
+			errorString: "value must be one of",
 		},
 		{
 			name: "valid TTL configuration",
