@@ -5,14 +5,14 @@ go 1.26
 require (
 	github.com/bytedance/sonic v1.15.2
 	github.com/go-playground/validator/v10 v10.30.3
-	github.com/gofiber/contrib/v3/zap v1.0.7
+	github.com/gofiber/contrib/v3/zap v1.0.8
 	github.com/gofiber/fiber/v3 v3.3.0
 	github.com/gofiber/storage/memory/v2 v2.1.2
-	github.com/gofiber/storage/redis/v3 v3.4.8
+	github.com/gofiber/storage/redis/v3 v3.5.0
 	github.com/gofiber/template/html/v3 v3.0.5
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/redis/go-redis/v9 v9.20.1
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.11.1
