@@ -18,7 +18,6 @@ import (
 	"github.com/gofiber/utils/v2"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
-	"go.oease.dev/goe/v2/validation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -30,7 +29,7 @@ type kernel struct {
 	app       *fiber.App
 	config    contract.Config
 	logger    contract.Logger
-	validator *validation.Validator
+	validator fiber.StructValidator
 
 	// listenCfg, host and port are resolved once at construction from
 	// defaults, environment and Options, and drive both Listen and Module.OnStart.
@@ -58,9 +57,6 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	klog := logger.With("module", "http")
 	accessLogger := logger.With("module", "access")
 
-	// Create validator
-	validator := validation.New()
-
 	// Init error page template
 	var err error
 	tpl, err = template.ParseFS(templateFS, "error_page.gohtml")
@@ -70,7 +66,7 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	}
 
 	// Layer 1 and 2: GOE defaults, then the environment.
-	base := defaultSettings(validator, defaultErrorHandler())
+	base := defaultSettings(defaultErrorHandler())
 	base.applyEnv(config)
 
 	if engine := config.GetString("VIEWS_ENGINE"); engine != "" && engine != "html" {
@@ -130,7 +126,7 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		app:       app,
 		config:    config,
 		logger:    klog,
-		validator: validator,
+		validator: resolved.fiber.StructValidator,
 		listenCfg: resolved.listen,
 		host:      resolved.host,
 		port:      resolved.port,
@@ -152,12 +148,18 @@ func (k *kernel) App() *fiber.App {
 	return k.app
 }
 
-// Validator returns the struct validator
+// Validator returns the fiber.StructValidator installed on the app.
+//
+// Deprecated: request validation runs through Ctx.Bind, which calls the
+// validator itself — see https://docs.gofiber.io/guide/validation. Use
+// WithValidatorSetup to add rules, or WithStructValidator to replace it.
 func (k *kernel) Validator() any {
 	return k.validator
 }
 
-// HTTPValidator returns the validator as an HTTPValidator interface
+// HTTPValidator returns the installed validator.
+//
+// Deprecated: as Validator. Retained so existing code compiles.
 func (k *kernel) HTTPValidator() contract.HTTPValidator {
 	return k.validator
 }
@@ -267,28 +269,15 @@ func defaultErrorHandler() fiber.ErrorHandler {
 	}
 }
 
-// getValidatorFromKernel safely extracts the validator from the kernel
-func getValidatorFromKernel(kernel contract.HTTPKernel) *validation.Validator {
-	if v, ok := kernel.Validator().(*validation.Validator); ok {
-		return v
-	}
-	return nil
-}
-
 // Module represents the HTTP module for Fx
 type Module struct {
-	kernel    contract.HTTPKernel
-	validator *validation.Validator
+	kernel contract.HTTPKernel
 }
 
 // NewModule creates a new HTTP module. See New for how opts resolve against
 // GOE defaults and the environment.
 func NewModule(config contract.Config, logger contract.Logger, opts ...Option) *Module {
-	kernel := New(config, logger, opts...)
-	return &Module{
-		kernel:    kernel,
-		validator: getValidatorFromKernel(kernel),
-	}
+	return &Module{kernel: New(config, logger, opts...)}
 }
 
 // Name returns the module name
@@ -360,18 +349,12 @@ func (m *Module) Provide() contract.HTTPKernel {
 	return m.kernel
 }
 
-// ProvideValidator returns the validator instance
-func (m *Module) ProvideValidator() *validation.Validator {
-	return m.validator
-}
-
 // SetupServiceMiddleware sets up the service injection middleware
 func (m *Module) SetupServiceMiddleware(app contract.Application, config contract.Config, logger contract.Logger) {
 	services := Services{
-		App:       app,
-		Config:    config,
-		Logger:    logger,
-		Validator: m.validator,
+		App:    app,
+		Config: config,
+		Logger: logger,
 	}
 	m.kernel.App().Use(InjectServices(services))
 }

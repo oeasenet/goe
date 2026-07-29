@@ -7,12 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/zap"
 )
 
@@ -117,82 +115,6 @@ func TestHTTP_Listen(t *testing.T) {
 		assert.NotPanics(t, func() {
 			assert.NotNil(t, kernel)
 		})
-	})
-}
-
-func TestHTTP_Validator(t *testing.T) {
-	t.Run("new validator", func(t *testing.T) {
-		validator := validation.New()
-		assert.NotNil(t, validator)
-	})
-
-	t.Run("validate valid struct", func(t *testing.T) {
-		validator := validation.New()
-
-		type TestStruct struct {
-			Name  string `validate:"required"`
-			Email string `validate:"email"`
-		}
-
-		validStruct := TestStruct{
-			Name:  "John Doe",
-			Email: "john@example.com",
-		}
-
-		err := validator.Validate(validStruct)
-		assert.NoError(t, err)
-	})
-
-	t.Run("validate invalid struct", func(t *testing.T) {
-		validator := validation.New()
-
-		type TestStruct struct {
-			Name  string `validate:"required"`
-			Email string `validate:"email"`
-		}
-
-		invalidStruct := TestStruct{
-			Name:  "",
-			Email: "invalid-email",
-		}
-
-		err := validator.Validate(invalidStruct)
-		assert.Error(t, err)
-	})
-
-	t.Run("register custom validation", func(t *testing.T) {
-		v := validation.New()
-
-		err := v.RegisterValidation("custom", func(fl validator.FieldLevel) bool {
-			return true
-		})
-		assert.NoError(t, err)
-	})
-
-	t.Run("register alias", func(t *testing.T) {
-		validator := validation.New()
-
-		validator.RegisterAlias("password", "required,min=8")
-
-		// Should not panic
-		assert.NotPanics(t, func() {
-			validator.RegisterAlias("password", "required,min=8")
-		})
-	})
-}
-
-// TestHTTP_ValidatorProvider tests are now handled by the validation package
-// The validator provider functionality has been moved to the validation package
-func TestHTTP_ValidatorIntegration(t *testing.T) {
-	t.Run("validator is available in HTTP module", func(t *testing.T) {
-		v := validation.New()
-		assert.NotNil(t, v)
-
-		// Test custom validation registration
-		err := v.RegisterValidation("test", func(fl validator.FieldLevel) bool {
-			return true
-		})
-		assert.NoError(t, err)
 	})
 }
 

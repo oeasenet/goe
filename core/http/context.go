@@ -4,7 +4,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"go.oease.dev/goe/v2/contract"
-	"go.oease.dev/goe/v2/validation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/fx"
 )
@@ -19,10 +18,9 @@ const (
 
 // Services holds all the services that can be injected into handlers
 type Services struct {
-	App       contract.Application
-	Config    contract.Config
-	Logger    contract.Logger
-	Validator *validation.Validator
+	App    contract.Application
+	Config contract.Config
+	Logger contract.Logger
 	// Add more services as needed
 	Cache contract.Cache
 }
@@ -116,11 +114,6 @@ func GetApp(c fiber.Ctx) contract.Application {
 	return GetServices(c).App
 }
 
-// GetValidator retrieves validator from the context
-func GetValidator(c fiber.Ctx) *validation.Validator {
-	return GetServices(c).Validator
-}
-
 // GetCache retrieves cache from the context
 func GetCache(c fiber.Ctx) contract.Cache {
 	return GetServices(c).Cache
@@ -141,21 +134,19 @@ func AsHandler[T any](h Handler[T], deps T) fiber.Handler {
 type ServiceProvider struct {
 	fx.In
 
-	App       contract.Application
-	Config    contract.Config
-	Logger    contract.Logger
-	Cache     contract.Cache        `optional:"true"`
-	Validator *validation.Validator `optional:"true"`
+	App    contract.Application
+	Config contract.Config
+	Logger contract.Logger
+	Cache  contract.Cache `optional:"true"`
 }
 
 // CreateServiceMiddleware creates a middleware that injects services into the context
 func CreateServiceMiddleware(provider ServiceProvider) fiber.Handler {
 	services := Services{
-		App:       provider.App,
-		Config:    provider.Config,
-		Logger:    provider.Logger,
-		Cache:     provider.Cache,
-		Validator: provider.Validator,
+		App:    provider.App,
+		Config: provider.Config,
+		Logger: provider.Logger,
+		Cache:  provider.Cache,
 	}
 
 	provider.Logger.Debug("CreateServiceMiddleware called")

@@ -122,6 +122,59 @@ combination (`WithTrustProxyConfig` without `WithTrustProxy(true)`,
 listed at once. When that happens no option is applied at all, so a
 half-configured server is never served.
 
+### Request validation
+
+GOE installs a `fiber.StructValidator` on the app, so `validate` struct tags are
+enforced by `Ctx.Bind` with no setup:
+
+```go
+type Person struct {
+    Name string `json:"name" validate:"required"`
+    Age  int    `json:"age"  validate:"gte=18,lte=60"`
+}
+
+app.Post("/people", func(c fiber.Ctx) error {
+    p := new(Person)
+    if err := c.Bind().JSON(p); err != nil {
+        return err // parsed AND validated
+    }
+    return c.JSON(p)
+})
+```
+
+This matters because Fiber ships no validator of its own — it defines the
+one-method `StructValidator` interface and calls it from every binding, but with
+the field unset `Bind` parses the body and skips validation *silently*. GOE fills
+it in. See [Fiber's validation guide](https://docs.gofiber.io/guide/validation).
+
+`Bind` covers `JSON`, `Query`, `URI`, `Form`, `Header`, `Cookie`, `XML`, `CBOR`
+and `MsgPack`. It only validates struct destinations; binding into a map skips the
+validator. Use `c.Bind().SkipValidation()` to parse without validating.
+
+**Adding a rule** — when the defaults are fine but you need one more:
+
+```go
+goe.New(goe.Options{
+    HTTP: []goehttp.Option{
+        goehttp.WithValidatorSetup(func(v *validator.Validate) error {
+            return v.RegisterValidation("slug", isSlug)
+        }),
+    },
+})
+```
+
+Setups run in order during kernel construction, so rules exist before the first
+request. Returning an error aborts startup.
+
+**Replacing it entirely** — a different library, or custom behaviour:
+
+```go
+goehttp.WithStructValidator(myValidator) // implements Validate(any) error
+```
+
+Combining the two is rejected at startup, since a setup for the bundled validator
+cannot apply to a replacement.
+
 ### Basic Settings
 
 | Variable | Type | Default | Description |

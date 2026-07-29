@@ -206,6 +206,9 @@ func registerCustomValidators(v *validator.Validate) {
 // Helper functions for common validation scenarios
 
 // IsEmail validates if a string is a valid email
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsEmail(email string) bool {
 	v := validator.New()
 	err := v.Var(email, "required,email")
@@ -213,6 +216,9 @@ func IsEmail(email string) bool {
 }
 
 // IsURL validates if a string is a valid URL
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsURL(url string) bool {
 	v := validator.New()
 	err := v.Var(url, "required,url")
@@ -220,6 +226,9 @@ func IsURL(url string) bool {
 }
 
 // IsUUID validates if a string is a valid UUID
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsUUID(uuid string) bool {
 	v := validator.New()
 	err := v.Var(uuid, "required,uuid")
@@ -227,6 +236,9 @@ func IsUUID(uuid string) bool {
 }
 
 // IsAlpha validates if a string contains only alphabetic characters
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsAlpha(str string) bool {
 	v := validator.New()
 	err := v.Var(str, "required,alpha")
@@ -234,6 +246,9 @@ func IsAlpha(str string) bool {
 }
 
 // IsAlphanumeric validates if a string contains only alphanumeric characters
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsAlphanumeric(str string) bool {
 	v := validator.New()
 	err := v.Var(str, "required,alphanum")
@@ -241,6 +256,9 @@ func IsAlphanumeric(str string) bool {
 }
 
 // IsNumeric validates if a string contains only numeric characters (0-9)
+//
+// Deprecated: use go-playground/validator directly via Validator.ValidateVar, e.g.
+// validate.Var(value, "email"). This wrapper adds nothing.
 func IsNumeric(str string) bool {
 	if str == "" {
 		return false
@@ -254,37 +272,23 @@ func IsNumeric(str string) bool {
 }
 
 // ValidateStruct is a convenience function for one-off struct validation
+//
+// Deprecated: for request bodies use c.Bind(); elsewhere construct a Validator with New()
+// and call Validate, so the instance and its rules are explicit.
 func ValidateStruct(s any) error {
 	v := New()
 	return v.Validate(s)
 }
 
 // MustValidate validates a struct and panics if validation fails
+//
+// Deprecated: panicking on invalid input is rarely what a server wants; use Validate and
+// handle the error.
 func MustValidate(s any) {
 	if err := ValidateStruct(s); err != nil {
 		panic(fmt.Sprintf("validation failed: %v", err))
 	}
 }
 
-// Provider implements the contract.ValidationProvider interface
-type Provider struct {
-	validator *Validator
-}
-
-// NewProvider creates a new validation provider
-func NewProvider() *Provider {
-	return &Provider{
-		validator: New(),
-	}
-}
-
-// GetValidator returns the validator instance
-func (p *Provider) GetValidator() contract.HTTPValidator {
-	return p.validator
-}
-
-// Compile-time interface compliance checks
-var (
-	_ contract.HTTPValidator      = (*Validator)(nil)
-	_ contract.ValidationProvider = (*Provider)(nil)
-)
+// Compile-time interface compliance check
+var _ contract.HTTPValidator = (*Validator)(nil)

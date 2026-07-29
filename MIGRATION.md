@@ -5,6 +5,106 @@ are not listed here.
 
 ---
 
+## Unreleased
+
+### ⚠️ Breaking: request validation moved to Fiber's Bind
+
+Validation is no longer a separate injected service. Fiber owns the call site —
+`Ctx.Bind` validates every binding — so GOE now installs a
+`fiber.StructValidator` on the app and gets out of the way. This is the pattern
+from [Fiber's validation guide](https://docs.gofiber.io/guide/validation).
+
+**If you already use `c.Bind()`, nothing changes.** It validated before and it
+validates now; you may find you can delete a redundant validation call.
+
+#### `contract.HTTPValidator` reduced to one method
+
+```go
+// Before
+type HTTPValidator interface {
+    Validate(i any) error
+    ValidateRequest(c fiber.Ctx, dst any) error
+    ValidateQuery(c fiber.Ctx, dst any) error
+    ValidateParams(c fiber.Ctx, dst any) error
+    ValidateHeaders(c fiber.Ctx, dst any) error
+    ValidateForm(c fiber.Ctx, dst any) error
+}
+
+// After — the same shape as fiber.StructValidator
+type HTTPValidator interface {
+    Validate(i any) error
+}
+```
+
+The removed methods duplicated `Bind`:
+
+```go
+// Before
+if err := v.ValidateRequest(c, &dto); err != nil { return err }
+
+// After — parses and validates in one step
+if err := c.Bind().JSON(&dto); err != nil { return err }
+```
+
+`Bind` covers `JSON`, `Query`, `URI`, `Form`, `Header`, `Cookie`, `XML`, `CBOR`
+and `MsgPack`, plus `SkipValidation()` and `WithAutoHandling()`.
+
+#### `contract.ValidationProvider` and `contract.ValidationMiddleware` — removed
+
+Both existed only so the validation package could be injected. Nothing consumed
+them. `validation.NewProvider` and `validation.NewMiddlewareProvider` are gone
+with them.
+
+#### Validation removed from dependency injection
+
+`http.Services.Validator`, `http.GetValidator(c)`, `http.ServiceProvider.Validator`
+and `Module.ProvideValidator()` are removed. Fiber calls the validator itself, so
+handlers never needed a reference:
+
+```go
+// Before
+v := http.GetValidator(c)
+if err := v.Validate(&dto); err != nil { return err }
+
+// After
+if err := c.Bind().JSON(&dto); err != nil { return err }
+```
+
+`kernel.Validator()` and `kernel.HTTPValidator()` still work but are deprecated.
+
+#### Customising validation
+
+```go
+// Add a rule to the bundled validator
+goe.New(goe.Options{
+    HTTP: []goehttp.Option{
+        goehttp.WithValidatorSetup(func(v *validator.Validate) error {
+            return v.RegisterValidation("slug", isSlug)
+        }),
+    },
+})
+
+// Or replace it entirely
+goehttp.WithStructValidator(myValidator)
+```
+
+Combining the two is rejected at startup: a setup configures the bundled
+validator, so it cannot apply to a replacement.
+
+#### The `validation` package is deprecated
+
+It still compiles and its tests still pass, so existing code keeps working. The
+middleware (`NewMiddleware`, `ValidateBody`, `GetValidatedBody`, …), the
+parse-and-validate helpers and the `IsEmail`/`IsUUID`-style sugar are all marked
+`Deprecated:` with their replacements. `Validator` itself remains useful for
+validating structs outside a request.
+
+One caveat: a `validation.New()` validator is a **separate instance** from the one
+the HTTP kernel installs, so rules registered on it do not affect `Bind`. Use
+`WithValidatorSetup` for request rules.
+
+---
+
 ## v2.2.0
 
 ### ⚠️ Breaking: removed inert HTTP types and helpers

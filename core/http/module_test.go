@@ -42,9 +42,10 @@ func TestHTTP_Module(t *testing.T) {
 		assert.NotNil(t, kernel)
 	})
 
-	t.Run("module provides validator", func(t *testing.T) {
-		validator := module.ProvideValidator()
-		assert.NotNil(t, validator)
+	t.Run("kernel installs a struct validator on the fiber app", func(t *testing.T) {
+		// The validator is no longer provided through DI: Fiber's Bind calls it
+		// directly, so it lives on fiber.Config instead.
+		assert.NotNil(t, module.Provide().App().Config().StructValidator)
 	})
 
 	t.Run("module lifecycle", func(t *testing.T) {

@@ -38,48 +38,4 @@ func TestValidationContracts(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("Provider implements ValidationProvider contract", func(t *testing.T) {
-		provider := validation.NewProvider()
-
-		// Test that provider implements the contract
-		var _ contract.ValidationProvider = provider
-
-		// Test that GetValidator returns HTTPValidator
-		httpValidator := provider.GetValidator()
-		assert.NotNil(t, httpValidator)
-
-		// Test that returned validator works
-		type TestStruct struct {
-			Value string `json:"value" validate:"required"`
-		}
-
-		valid := TestStruct{Value: "test"}
-		err := httpValidator.Validate(valid)
-		assert.NoError(t, err)
-
-		invalid := TestStruct{Value: ""}
-		err = httpValidator.Validate(invalid)
-		assert.Error(t, err)
-	})
-
-	t.Run("MiddlewareProvider implements ValidationMiddleware contract", func(t *testing.T) {
-		middleware := validation.NewMiddlewareProvider()
-
-		// Test that middleware implements the contract
-		var _ contract.ValidationMiddleware = middleware
-
-		// Test that middleware methods return handlers
-		type TestStruct struct {
-			Name string `json:"name" validate:"required"`
-		}
-
-		bodyHandler := middleware.ValidateBody(&TestStruct{})
-		assert.NotNil(t, bodyHandler)
-
-		queryHandler := middleware.ValidateQuery(&TestStruct{})
-		assert.NotNil(t, queryHandler)
-
-		paramsHandler := middleware.ValidateParams(&TestStruct{})
-		assert.NotNil(t, paramsHandler)
-	})
 }

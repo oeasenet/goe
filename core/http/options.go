@@ -56,6 +56,12 @@ type settings struct {
 	requestIDEnabled bool
 	requestIDHeader  string
 
+	// bundledValidator is the validator GOE installs by default. It is kept so
+	// that WithValidatorSetup can configure it, and so materialise can tell
+	// whether WithStructValidator has replaced it.
+	bundledValidator *structValidator
+	validatorSetups  []ValidatorSetup
+
 	// Escape hatches, always applied last so that code always wins.
 	fiberHooks  []func(*fiber.Config)
 	listenHooks []func(*fiber.ListenConfig)
@@ -63,8 +69,10 @@ type settings struct {
 
 // defaultSettings returns GOE's opinionated baseline, the bottom layer of the
 // resolution pipeline (defaults -> env -> options -> escape hatches).
-func defaultSettings(validator fiber.StructValidator, errorHandler fiber.ErrorHandler) settings {
+func defaultSettings(errorHandler fiber.ErrorHandler) settings {
+	bundled := newStructValidator()
 	return settings{
+		bundledValidator: bundled,
 		fiber: fiber.Config{
 			ServerHeader:        "Goe",
 			BodyLimit:           4 * 1024 * 1024,
@@ -77,7 +85,7 @@ func defaultSettings(validator fiber.StructValidator, errorHandler fiber.ErrorHa
 			JSONDecoder:         sonic.Unmarshal,
 			XMLEncoder:          xml.Marshal,
 			ColorScheme:         fiber.DefaultColors,
-			StructValidator:     validator,
+			StructValidator:     bundled,
 			ErrorHandler:        errorHandler,
 			PassLocalsToContext: true,
 			PassLocalsToViews:   true,
@@ -217,6 +225,12 @@ func (s *settings) validate() []error {
 		errs = append(errs, fmt.Errorf("http port %d is out of range 0-65535", s.port))
 	}
 
+	if len(s.validatorSetups) > 0 && s.fiber.StructValidator != fiber.StructValidator(s.bundledValidator) {
+		errs = append(errs, errors.New(
+			"WithValidatorSetup configures GOE's bundled validator, which WithStructValidator "+
+				"has replaced; register your rules on your own validator instead"))
+	}
+
 	// Fiber ignores TrustProxyConfig entirely unless TrustProxy is true.
 	if !s.fiber.TrustProxy && trustProxyConfigured(s.fiber.TrustProxyConfig) {
 		errs = append(errs, errors.New(
@@ -250,6 +264,17 @@ func trustProxyConfigured(c fiber.TrustProxyConfig) bool {
 // It runs before the escape hatches so that a raw hook can still override
 // anything decided here.
 func (s *settings) materialise(logger contract.Logger) {
+	// Apply validator setups to the bundled validator. Skipped when
+	// WithStructValidator replaced it; validate() rejects that combination, so
+	// reaching here with both set is not possible.
+	if s.fiber.StructValidator == fiber.StructValidator(s.bundledValidator) {
+		for _, setup := range s.validatorSetups {
+			if err := setup(s.bundledValidator.validate); err != nil {
+				logger.Error("Validator setup failed", "error", err)
+			}
+		}
+	}
+
 	// Build the html/template engine only when the developer has not supplied
 	// an engine of their own through WithViews.
 	if s.htmlViews && s.fiber.Views == nil {

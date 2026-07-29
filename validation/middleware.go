@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	"github.com/gofiber/fiber/v3"
-	"go.oease.dev/goe/v2/contract"
 )
 
 const (
@@ -59,6 +58,9 @@ func defaultErrorHandler(c fiber.Ctx, err error) error {
 }
 
 // NewMiddleware creates a new validation middleware.
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func NewMiddleware(config ...Config) fiber.Handler {
 	// Set default config
 	cfg := ConfigDefault
@@ -98,6 +100,9 @@ func NewMiddleware(config ...Config) fiber.Handler {
 }
 
 // GetValidator retrieves the validator from context.
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func GetValidator(c fiber.Ctx) *Validator {
 	storedKey, ok := c.Locals(validatorContextKeyKey).(string)
 	if !ok || storedKey == "" {
@@ -113,6 +118,9 @@ func GetValidator(c fiber.Ctx) *Validator {
 // ValidateBody is a middleware that validates request body.
 // A fresh instance of the dst type is allocated per request to prevent
 // concurrent requests from sharing and overwriting the same struct.
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func ValidateBody(dst any) fiber.Handler {
 	dstType := reflect.TypeOf(dst)
 	if dstType.Kind() == reflect.Pointer {
@@ -142,6 +150,9 @@ func ValidateBody(dst any) fiber.Handler {
 // ValidateQuery is a middleware that validates query parameters.
 // A fresh instance of the dst type is allocated per request to prevent
 // concurrent requests from sharing and overwriting the same struct.
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func ValidateQuery(dst any) fiber.Handler {
 	dstType := reflect.TypeOf(dst)
 	if dstType.Kind() == reflect.Pointer {
@@ -170,6 +181,9 @@ func ValidateQuery(dst any) fiber.Handler {
 // ValidateParams is a middleware that validates URL parameters.
 // A fresh instance of the dst type is allocated per request to prevent
 // concurrent requests from sharing and overwriting the same struct.
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func ValidateParams(dst any) fiber.Handler {
 	dstType := reflect.TypeOf(dst)
 	if dstType.Kind() == reflect.Pointer {
@@ -196,42 +210,25 @@ func ValidateParams(dst any) fiber.Handler {
 }
 
 // GetValidatedBody retrieves validated body from context
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func GetValidatedBody(c fiber.Ctx) any {
 	return c.Locals("validatedBody")
 }
 
 // GetValidatedQuery retrieves validated query from context
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func GetValidatedQuery(c fiber.Ctx) any {
 	return c.Locals("validatedQuery")
 }
 
 // GetValidatedParams retrieves validated params from context
+//
+// Deprecated: use c.Bind() instead, which parses and validates in one step. See
+// https://docs.gofiber.io/guide/validation.
 func GetValidatedParams(c fiber.Ctx) any {
 	return c.Locals("validatedParams")
 }
-
-// MiddlewareProvider implements the contract.ValidationMiddleware interface
-type MiddlewareProvider struct{}
-
-// NewMiddlewareProvider creates a new middleware provider
-func NewMiddlewareProvider() *MiddlewareProvider {
-	return &MiddlewareProvider{}
-}
-
-// ValidateBody creates middleware that validates request body
-func (mp *MiddlewareProvider) ValidateBody(dst any) fiber.Handler {
-	return ValidateBody(dst)
-}
-
-// ValidateQuery creates middleware that validates query parameters
-func (mp *MiddlewareProvider) ValidateQuery(dst any) fiber.Handler {
-	return ValidateQuery(dst)
-}
-
-// ValidateParams creates middleware that validates URL parameters
-func (mp *MiddlewareProvider) ValidateParams(dst any) fiber.Handler {
-	return ValidateParams(dst)
-}
-
-// Compile-time interface compliance check
-var _ contract.ValidationMiddleware = (*MiddlewareProvider)(nil)

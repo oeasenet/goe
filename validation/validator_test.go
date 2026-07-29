@@ -279,27 +279,6 @@ func TestCustomValidators(t *testing.T) {
 	})
 }
 
-func TestProvider(t *testing.T) {
-	t.Run("NewProvider creates provider", func(t *testing.T) {
-		p := NewProvider()
-		require.NotNil(t, p)
-		require.NotNil(t, p.validator)
-	})
-
-	t.Run("GetValidator returns HTTPValidator", func(t *testing.T) {
-		p := NewProvider()
-		v := p.GetValidator()
-		require.NotNil(t, v)
-
-		// Test that returned validator works
-		type TestStruct struct {
-			Name string `validate:"required"`
-		}
-		err := v.Validate(TestStruct{Name: "test"})
-		assert.NoError(t, err)
-	})
-}
-
 func TestIsNumeric(t *testing.T) {
 	tests := []struct {
 		input    string

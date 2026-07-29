@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.oease.dev/goe/v2/validation"
 	"go.uber.org/zap"
 )
 
@@ -47,10 +46,9 @@ func TestHTTP_Context(t *testing.T) {
 
 	// Create services
 	services := Services{
-		App:       mockApp,
-		Config:    config,
-		Logger:    logger,
-		Validator: kernel.Validator().(*validation.Validator),
+		App:    mockApp,
+		Config: config,
+		Logger: logger,
 	}
 
 	// Add service injection middleware
@@ -63,13 +61,13 @@ func TestHTTP_Context(t *testing.T) {
 		assert.NotNil(t, retrievedServices.App)
 		assert.NotNil(t, retrievedServices.Config)
 		assert.NotNil(t, retrievedServices.Logger)
-		assert.NotNil(t, retrievedServices.Validator)
 
 		// Test individual service getters
 		assert.Equal(t, mockApp, GetApp(c))
 		assert.Equal(t, config, GetConfig(c))
 		assert.NotNil(t, GetLogger(c))
-		assert.NotNil(t, GetValidator(c))
+		// Validation is no longer an injected service: Fiber's Bind calls the
+		// StructValidator installed on the app directly.
 
 		return c.SendString("OK")
 	})
@@ -128,10 +126,9 @@ func TestHTTP_GroupRouter(t *testing.T) {
 
 	// Create services
 	services := Services{
-		App:       mockApp,
-		Config:    config,
-		Logger:    logger,
-		Validator: kernel.Validator().(*validation.Validator),
+		App:    mockApp,
+		Config: config,
+		Logger: logger,
 	}
 
 	// Create group
