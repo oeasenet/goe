@@ -2,21 +2,19 @@ package http
 
 import (
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"html/template"
 	"net"
 	"reflect"
 	"slices"
-	"time"
+	"strconv"
+	"sync"
 
-	"github.com/bytedance/sonic"
 	fiberzap "github.com/gofiber/contrib/v3/zap"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
-	htmltpl "github.com/gofiber/template/html/v3"
 	"github.com/gofiber/utils/v2"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
@@ -33,10 +31,27 @@ type kernel struct {
 	config    contract.Config
 	logger    contract.Logger
 	validator *validation.Validator
+
+	// listenCfg, host and port are resolved once at construction from
+	// defaults, environment and Options, and drive both Listen and Module.OnStart.
+	listenCfg fiber.ListenConfig
+	host      string
+	port      int
+
+	// optErrs holds failures from Option application. They are reported by
+	// ValidateConfig so that startup aborts; the kernel itself was built from
+	// the environment-only configuration and is never served.
+	optErrs []error
 }
 
-// New creates a new HTTP kernel
-func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
+// New creates a new HTTP kernel.
+//
+// Configuration resolves in layers: GOE defaults, then FIBER_*/HTTP_*/VIEWS_*
+// environment variables, then opts. Anything set through an Option wins over
+// the environment; the environment still supplies everything code leaves
+// alone, so calling New without options behaves exactly as before options
+// existed.
+func New(config contract.Config, logger contract.Logger, opts ...Option) contract.HTTPKernel {
 	// Tag loggers once: "http" for kernel/server logs, "access" for the
 	// per-request access log so it can be controlled independently
 	// (e.g. LOG_MODULE_LEVELS=access:warn shows only 4xx/5xx requests).
@@ -54,113 +69,22 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 		panic(err)
 	}
 
-	// Create fiber config with all supported options
-	fiberConfig := fiber.Config{
-		ServerHeader:        config.GetString("FIBER_SERVER_HEADER"),
-		StrictRouting:       config.GetBool("FIBER_STRICT_ROUTING"),
-		CaseSensitive:       config.GetBool("FIBER_CASE_SENSITIVE"),
-		Immutable:           config.GetBool("FIBER_IMMUTABLE"),
-		UnescapePath:        config.GetBool("FIBER_UNESCAPE_PATH"),
-		BodyLimit:           config.GetInt("FIBER_BODY_LIMIT"),
-		StreamRequestBody:   config.GetBool("FIBER_STREAM_REQUEST_BODY"),
-		Concurrency:         config.GetInt("FIBER_CONCURRENCY"),
-		ProxyHeader:         config.GetString("FIBER_PROXY_HEADER"),
-		AppName:             config.GetString("APP_NAME"),
-		ReduceMemoryUsage:   config.GetBool("FIBER_REDUCE_MEMORY"),
-		JSONEncoder:         sonic.Marshal,
-		JSONDecoder:         sonic.Unmarshal,
-		XMLEncoder:          xml.Marshal,
-		EnableIPValidation:  config.GetBool("FIBER_ENABLE_IP_VALIDATION"),
-		ColorScheme:         fiber.DefaultColors,
-		StructValidator:     validator,
-		ErrorHandler:        defaultErrorHandler(klog),
-		PassLocalsToContext: true,
-		PassLocalsToViews:   true,
+	// Layer 1 and 2: GOE defaults, then the environment.
+	base := defaultSettings(validator, defaultErrorHandler(klog))
+	base.applyEnv(config)
+
+	if engine := config.GetString("VIEWS_ENGINE"); engine != "" && engine != "html" {
+		klog.Warn("Unsupported VIEWS_ENGINE specified; views not initialized", "engine", engine)
 	}
 
-	// Configure views (template engine) if enabled
-	if engine := config.GetString("VIEWS_ENGINE"); engine != "" {
-		if engine == "html" {
-			root := config.GetString("VIEWS_ROOT")
-			if root == "" {
-				root = "./views"
-			}
-			ext := config.GetString("VIEWS_EXT")
-			if ext == "" {
-				ext = ".gohtml"
-			}
-			fiberConfig.Views = htmltpl.New(root, ext)
-			if layout := config.GetString("VIEWS_LAYOUT"); layout != "" {
-				fiberConfig.ViewsLayout = layout
-			}
-			klog.Debug("HTTP Views engine initialized", "engine", engine, "root", root, "ext", ext)
-		} else {
-			klog.Warn("Unsupported VIEWS_ENGINE specified; views not initialized", "engine", engine)
-		}
-	}
-
-	// Handle TrustProxy configuration
-	if config.GetBool("FIBER_TRUST_PROXY") {
-		fiberConfig.TrustProxy = true
-
-		// Parse trusted proxies
-		trustedProxies := config.GetStringSlice("FIBER_TRUST_PROXIES")
-		if len(trustedProxies) > 0 {
-			fiberConfig.TrustProxyConfig = fiber.TrustProxyConfig{
-				Proxies:   trustedProxies,
-				LinkLocal: config.GetBool("FIBER_TRUST_LINK_LOCAL"),
-				Loopback:  config.GetBool("FIBER_TRUST_LOOPBACK"),
-				Private:   config.GetBool("FIBER_TRUST_PRIVATE"),
-			}
-			// Set defaults for trust proxy config if not specified
-			if !config.Has("FIBER_TRUST_LINK_LOCAL") {
-				fiberConfig.TrustProxyConfig.LinkLocal = true
-			}
-			if !config.Has("FIBER_TRUST_LOOPBACK") {
-				fiberConfig.TrustProxyConfig.Loopback = true
-			}
-			if !config.Has("FIBER_TRUST_PRIVATE") {
-				fiberConfig.TrustProxyConfig.Private = true
-			}
-		}
-	}
-
-	// Set defaults
-	if fiberConfig.ServerHeader == "" {
-		fiberConfig.ServerHeader = "Goe"
-	}
-	if fiberConfig.BodyLimit == 0 {
-		fiberConfig.BodyLimit = 4 * 1024 * 1024 // 4MB
-	}
-	if !config.Has("FIBER_STREAM_REQUEST_BODY") {
-		fiberConfig.StreamRequestBody = true
-	}
-	if fiberConfig.Concurrency == 0 {
-		fiberConfig.Concurrency = 256 * 1024 // Fiber's default
-	}
-
-	// Set timeouts from HTTP_ prefixed config for backward compatibility
-	if fiberConfig.ReadTimeout == 0 {
-		fiberConfig.ReadTimeout = config.GetDuration("HTTP_READ_TIMEOUT")
-		if fiberConfig.ReadTimeout == 0 {
-			fiberConfig.ReadTimeout = 10 * time.Second
-		}
-	}
-	if fiberConfig.WriteTimeout == 0 {
-		fiberConfig.WriteTimeout = config.GetDuration("HTTP_WRITE_TIMEOUT")
-		if fiberConfig.WriteTimeout == 0 {
-			fiberConfig.WriteTimeout = 10 * time.Second
-		}
-	}
-	if fiberConfig.IdleTimeout == 0 {
-		fiberConfig.IdleTimeout = config.GetDuration("HTTP_IDLE_TIMEOUT")
-		if fiberConfig.IdleTimeout == 0 {
-			fiberConfig.IdleTimeout = 30 * time.Second
-		}
-	}
+	// Layer 3 onwards: options, cross-field validation, materialisation and
+	// the raw escape hatches. Any option error discards every option and
+	// leaves the environment-only configuration in place; ValidateConfig then
+	// aborts startup before the server can serve a request.
+	resolved, optErrs := resolve(klog, base, opts)
 
 	// Create fiber app
-	app := fiber.New(fiberConfig)
+	app := fiber.New(resolved.fiber)
 
 	// Register default route constraints (uuid, uint, slug, email)
 	RegisterDefaultConstraints(app)
@@ -168,14 +92,12 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 	// Add default middleware
 	app.Use(recover.New())
 
-	// Request ID middleware: on by default (set HTTP_REQUEST_ID=false to disable
-	// and own your own middleware stack). It reuses an upstream request id from
-	// the configured header and generates one when absent.
-	reqIDHeader := config.GetString("HTTP_REQUEST_ID_HEADER")
-	if reqIDHeader == "" {
-		reqIDHeader = fiber.HeaderXRequestID
-	}
-	if requestIDEnabled(config) {
+	// Request ID middleware: on by default (set HTTP_REQUEST_ID=false or use
+	// WithRequestID(false) to disable and own your own middleware stack). It
+	// reuses an upstream request id from the configured header and generates
+	// one when absent.
+	reqIDHeader := resolved.requestIDHeader
+	if resolved.requestIDEnabled {
 		app.Use(requestid.New(requestid.Config{Header: reqIDHeader}))
 	}
 
@@ -209,7 +131,20 @@ func New(config contract.Config, logger contract.Logger) contract.HTTPKernel {
 		config:    config,
 		logger:    klog,
 		validator: validator,
+		listenCfg: resolved.listen,
+		host:      resolved.host,
+		port:      resolved.port,
+		optErrs:   optErrs,
 	}
+}
+
+// addr returns the address the server binds to. For a unix listener network
+// the host carries the socket path and no port is appended.
+func (k *kernel) addr() string {
+	if k.listenCfg.ListenerNetwork == fiber.NetworkUnix {
+		return k.host
+	}
+	return net.JoinHostPort(k.host, strconv.Itoa(k.port))
 }
 
 // App returns the underlying Fiber app
@@ -227,27 +162,21 @@ func (k *kernel) HTTPValidator() contract.HTTPValidator {
 	return k.validator
 }
 
-// Listen starts the HTTP server
+// Listen starts the HTTP server, blocking until it stops.
+//
+// An empty addr uses the resolved host and port. The resolved fiber.ListenConfig
+// is applied either way, so TLS, prefork and unix-socket options configured in
+// code take effect here too.
 func (k *kernel) Listen(addr string) error {
 	if addr == "" {
-		host := k.config.GetString("HTTP_HOST")
-		if host == "" {
-			host = "0.0.0.0"
-		}
-
-		port := k.config.GetInt("HTTP_PORT")
-		if port == 0 {
-			port = 8080
-		}
-
-		addr = fmt.Sprintf("%s:%d", host, port)
+		addr = k.addr()
 	}
 
 	k.logger.Info("HTTP server starting",
 		"address", addr,
 	)
 
-	return k.app.Listen(addr)
+	return k.app.Listen(addr, k.listenCfg)
 }
 
 // Shutdown gracefully shuts down the server
@@ -359,9 +288,10 @@ type Module struct {
 	validator *validation.Validator
 }
 
-// NewModule creates a new HTTP module
-func NewModule(config contract.Config, logger contract.Logger) *Module {
-	kernel := New(config, logger)
+// NewModule creates a new HTTP module. See New for how opts resolve against
+// GOE defaults and the environment.
+func NewModule(config contract.Config, logger contract.Logger, opts ...Option) *Module {
+	kernel := New(config, logger, opts...)
 	return &Module{
 		kernel:    kernel,
 		validator: getValidatorFromKernel(kernel),
@@ -373,42 +303,58 @@ func (m *Module) Name() string {
 	return "http"
 }
 
-// OnStart is called when the module starts
+// OnStart starts the HTTP server and returns once it is accepting connections.
+//
+// The server runs through app.Listen rather than a pre-bound net.Listener so
+// that fiber.ListenConfig applies — that is what makes TLS, prefork and unix
+// sockets work. Binding therefore happens on the serving goroutine, so
+// readiness is awaited explicitly to keep the guarantee callers already rely
+// on: when OnStart returns nil the port is bound, and a bind failure such as
+// EADDRINUSE is returned rather than logged and swallowed.
+//
+// Two signals are needed because Fiber reports readiness differently per mode:
+// OnListen hooks fire in the normal path and in the prefork master, while
+// prefork children only get ListenerAddrFunc. Whichever arrives first wins.
 func (m *Module) OnStart(ctx context.Context) error {
-	// Get listen address
-	host := m.kernel.(*kernel).config.GetString("HTTP_HOST")
-	if host == "" {
-		host = "0.0.0.0"
-	}
+	k := m.kernel.(*kernel)
+	addr := k.addr()
 
-	port := m.kernel.(*kernel).config.GetInt("HTTP_PORT")
-	if port == 0 {
-		port = 8080
-	}
+	ready := make(chan struct{})
+	var once sync.Once
+	signalReady := func() { once.Do(func() { close(ready) }) }
 
-	addr := fmt.Sprintf("%s:%d", host, port)
-
-	// Create listener first to ensure port is available and bound
-	// This guarantees the server is ready to accept connections when OnStart returns
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("failed to bind HTTP server to %s: %w", addr, err)
-	}
-
-	m.kernel.(*kernel).logger.Info("HTTP server starting",
-		"address", addr,
-	)
-
-	// Start server in background using the pre-created listener
-	go func() {
-		if err := m.kernel.App().Listener(ln); err != nil {
-			m.kernel.(*kernel).logger.Error("HTTP server error",
-				"error", err.Error(),
-			)
+	// Copy so the kernel's own config keeps the developer's callback intact.
+	listenCfg := k.listenCfg
+	userAddrFunc := listenCfg.ListenerAddrFunc
+	listenCfg.ListenerAddrFunc = func(a net.Addr) {
+		if userAddrFunc != nil {
+			userAddrFunc(a)
 		}
+		signalReady()
+	}
+	k.app.Hooks().OnListen(func(fiber.ListenData) error {
+		signalReady()
+		return nil
+	})
+
+	// Buffered so the goroutine never blocks once OnStart has returned.
+	errc := make(chan error, 1)
+	go func() {
+		errc <- k.app.Listen(addr, listenCfg)
 	}()
 
-	return nil
+	select {
+	case <-ready:
+		k.logger.Info("HTTP server started", "address", addr)
+		return nil
+	case err := <-errc:
+		if err == nil {
+			return fmt.Errorf("HTTP server on %s stopped before it started serving", addr)
+		}
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	case <-ctx.Done():
+		return fmt.Errorf("timed out starting HTTP server on %s: %w", addr, ctx.Err())
+	}
 }
 
 // OnStop is called when the module stops
@@ -441,6 +387,14 @@ func (m *Module) SetupServiceMiddleware(app contract.Application, config contrac
 func (m *Module) ValidateConfig() error {
 	// Get the kernel's config
 	k := m.kernel.(*kernel)
+
+	// Option failures are reported first and abort startup. The kernel fell
+	// back to the environment-only configuration when this happened, so
+	// returning here guarantees a half-configured server is never served.
+	if len(k.optErrs) > 0 {
+		return errors.Join(k.optErrs...)
+	}
+
 	v := configvalidator.NewConfigValidator(k.config, "http")
 
 	// HTTP port is optional but should be valid if set

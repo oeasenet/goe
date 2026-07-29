@@ -65,8 +65,32 @@ type Options struct {
 	WithHealth      bool           // Enable Health module (health checks)
 	WithMetrics     bool           // Enable Metrics module (Prometheus metrics)
 	WithOTel        bool           // Enable OpenTelemetry module (distributed tracing)
-	HTTPPort        int            // Override HTTP port (overrides HTTP_PORT env var)
 	ConfigOverrides map[string]any // Override any environment variables
+
+	// HTTP configures the HTTP kernel from Go code instead of environment
+	// variables. A non-nil value implies WithHTTP, so the module does not have
+	// to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins over
+	// the matching FIBER_*/HTTP_*/VIEWS_* variable while the environment still
+	// supplies everything left unset.
+	//
+	//	goe.New(goe.Options{
+	//	    HTTP: []goehttp.Option{
+	//	        goehttp.WithPort(8080),
+	//	        goehttp.WithBodyLimit(16 << 20),
+	//	    },
+	//	})
+	//
+	// See the core/http package for the full option list.
+	HTTP []http.Option
+
+	// HTTPPort overrides the HTTP port.
+	//
+	// Deprecated: use HTTP with goehttp.WithPort instead. This field still
+	// works, but it is applied as an environment override, so WithPort takes
+	// precedence over it.
+	HTTPPort int
 
 	// Shutdown configuration
 	ShutdownTimeout time.Duration // Total shutdown timeout (default: 30s)
@@ -100,12 +124,19 @@ func New(opts ...Options) contract.Application {
 		opt.WithHealth = o.WithHealth
 		opt.WithMetrics = o.WithMetrics
 		opt.WithOTel = o.WithOTel
+		opt.HTTP = o.HTTP
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
 		opt.ShutdownTimeout = o.ShutdownTimeout
 		opt.DrainTimeout = o.DrainTimeout
 		opt.OnStart = o.OnStart
 		opt.OnStop = o.OnStop
+	}
+
+	// Supplying HTTP options is an unambiguous request for the HTTP module, so
+	// enabling it separately would only be a way to get it wrong.
+	if opt.HTTP != nil {
+		opt.WithHTTP = true
 	}
 
 	// Create config first to read application settings
@@ -446,7 +477,7 @@ func New(opts ...Options) contract.Application {
 	// Add HTTP module if enabled
 	var httpModule *http.Module
 	if opt.WithHTTP {
-		httpModule = http.NewModule(instance.config, instance.logger)
+		httpModule = http.NewModule(instance.config, instance.logger, opt.HTTP...)
 		instance.http = httpModule.Provide()
 
 		instance.logger.Info("Registering HTTP module")

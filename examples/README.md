@@ -87,6 +87,24 @@ curl http://localhost:3000/stats
 curl http://localhost:3000/demo  # Records a request metric
 ```
 
+### [06-code-first-config](./06-code-first-config/)
+
+**Configuring the HTTP server in Go instead of `.env`** - Demonstrating:
+- Passing Fiber settings through `goe.Options.HTTP` (which also enables the module)
+- How code, environment variables and GOE defaults layer together
+- Reaching settings that have no environment equivalent, such as TLS
+- The `WithFiberConfig` escape hatch for anything GOE does not wrap
+
+```bash
+cd 06-code-first-config && go run .
+
+# Server header, body limit and routing flags all come from Go code
+curl -i http://localhost:8080/
+
+# Shows which values came from code and which fell through to the defaults
+curl -s http://localhost:8080/config | jq .
+```
+
 ---
 
 ## Architecture Patterns
@@ -237,6 +255,7 @@ curl -s http://localhost:3000/todos | jq .
 2. **Move to 02-todo-api** - Learn MongoDB, caching, and service patterns
 3. **Study 04-custom-module** - Master module creation and lifecycle
 4. **Explore 05-production-essentials** - Learn about health checks, metrics, and tracing
+5. **Read 06-code-first-config** - Configure the server in Go rather than `.env`
 
 ---
 

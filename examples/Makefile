@@ -34,6 +34,9 @@ event-driven: start ## Run the event-driven example (starts Docker first)
 custom-module: ## Run the custom-module example
 	cd 04-custom-module && go run .
 
+code-first-config: ## Run the code-first-config example
+	cd 06-code-first-config && go run .
+
 # Test commands
 test-hello: ## Test hello-world endpoints
 	@echo "Testing root endpoint..."

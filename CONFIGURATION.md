@@ -39,6 +39,89 @@ DB_PASSWORD="password with spaces"
 
 ## HTTP Server (Fiber)
 
+### Configuring in Go code
+
+Every variable in this section has a code equivalent. Pass options through
+`goe.Options.HTTP` and they take precedence over the environment:
+
+```go
+import (
+    "go.oease.dev/goe/v2"
+    goehttp "go.oease.dev/goe/v2/core/http"
+)
+
+goe.New(goe.Options{
+    // Supplying HTTP options enables the module; WithHTTP: true is not needed.
+    HTTP: []goehttp.Option{
+        goehttp.WithPort(8080),
+        goehttp.WithBodyLimit(16 << 20),
+        goehttp.WithTrustProxy(true),
+        goehttp.WithTrustProxyConfig(fiber.TrustProxyConfig{
+            Proxies: []string{"10.0.0.0/8"},
+        }),
+    },
+})
+```
+
+**Precedence — code wins, the environment fills the gaps:**
+
+| Layer | Example | Wins over |
+|-------|---------|-----------|
+| 1. GOE defaults | `BodyLimit` 4MB | — |
+| 2. Environment | `FIBER_BODY_LIMIT=8388608` | GOE defaults |
+| 3. Options | `goehttp.WithBodyLimit(16 << 20)` | environment and defaults |
+| 4. Escape hatches | `goehttp.WithFiberConfig(func(c *fiber.Config) { ... })` | everything, including GOE's own fields |
+
+A field you do not set in code keeps its environment value, so adding options to
+an existing application changes nothing else. Options apply in the order given,
+so the last write wins.
+
+**Naming rule.** Every field of `fiber.Config` and `fiber.ListenConfig` is
+exposed as `With<FieldName>` taking Fiber's own type — read [Fiber's
+documentation](https://docs.gofiber.io), prepend `With`, and that is the option.
+GOE only invents names where Fiber has no matching field: `WithHost`,
+`WithPort`, `WithRequestID`, `WithRequestIDHeader` and `WithHTMLViews`.
+
+**Beyond the environment.** Options also reach `fiber.ListenConfig`, which has no
+environment equivalent at all — most importantly TLS:
+
+```go
+HTTP: []goehttp.Option{
+    goehttp.WithCertFile("/etc/certs/server.crt"),
+    goehttp.WithCertKeyFile("/etc/certs/server.key"),
+    goehttp.WithTLSMinVersion(tls.VersionTLS13),
+},
+```
+
+Also available there: `WithAutoCertManager` (ACME), `WithListenerNetwork` for
+unix sockets, `WithEnablePrefork`, `WithDisableStartupMessage` and
+`WithEnablePrintRoutes`.
+
+**Escape hatch.** Four `fiber.Config` fields and two `fiber.ListenConfig` fields
+are intentionally not wrapped — Fiber's `Services` lifecycle (GOE uses fx
+modules), `RegexHandler`, and `GracefulContext`/`ShutdownTimeout` (GOE's
+shutdown manager owns those; use `goe.Options.ShutdownTimeout` and
+`DrainTimeout`). Reach them, and anything a future Fiber release adds, directly:
+
+```go
+goehttp.WithFiberConfig(func(c *fiber.Config) {
+    c.RegexHandler = myEngine
+}),
+```
+
+Hooks run last and always win — including over fields GOE's own features depend
+on. Disabling `PassLocalsToContext` breaks `http.WithReqCtx`, and clearing
+`StructValidator` disables `Bind` validation. GOE logs a warning naming the field
+and the affected feature, but does not override the choice. Use
+`WithErrorHandler` and `WithStructValidator` to *replace* those rather than clear
+them.
+
+**Errors fail fast.** An invalid option (`WithPort(70000)`), or an invalid
+combination (`WithTrustProxyConfig` without `WithTrustProxy(true)`,
+`WithCertFile` without `WithCertKeyFile`), aborts startup with every problem
+listed at once. When that happens no option is applied at all, so a
+half-configured server is never served.
+
 ### Basic Settings
 
 | Variable | Type | Default | Description |

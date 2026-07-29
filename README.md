@@ -145,6 +145,31 @@ GOE loads config from multiple sources, in priority order:
 
 See [`.example.env`](.example.env) for every available option with documentation.
 
+### Or configure in Go
+
+The HTTP server can be configured entirely in code, with no `.env` required:
+
+```go
+import goehttp "go.oease.dev/goe/v2/core/http"
+
+goe.New(goe.Options{
+    // Passing options enables the module — WithHTTP: true is not needed
+    HTTP: []goehttp.Option{
+        goehttp.WithPort(8080),
+        goehttp.WithBodyLimit(16 << 20),
+        goehttp.WithCertFile("server.crt"),   // TLS, which has no env equivalent
+        goehttp.WithCertKeyFile("server.key"),
+    },
+})
+```
+
+Options sit above the environment: a field set in code wins, and every field
+left alone still reads from `.env`, so adding options to an existing app
+changes nothing else. Every field of `fiber.Config` and `fiber.ListenConfig` is
+available as `With<FieldName>`, plus `WithFiberConfig` for anything GOE does not
+wrap. See [CONFIGURATION.md](CONFIGURATION.md#configuring-in-go-code) and
+[examples/06-code-first-config](examples/06-code-first-config/).
+
 <br/>
 
 ## Documentation
