@@ -177,8 +177,13 @@ func WithEnablePrintRoutes(enabled bool) Option {
 // process per CPU core, each binding the port with SO_REUSEPORT.
 //
 // Prefork spawns child processes that re-execute the program, so anything
-// created before goe.Run — database pools, background jobs — is created once
-// per child. Verify your application tolerates that before enabling it.
+// created before goe.Run — database pools, background jobs, cron schedules — is
+// created once per child. Verify your application tolerates that before
+// enabling it; a scheduler running in every child will fire N times.
+//
+// How connections spread across children is decided by the operating system.
+// Linux distributes them across sockets bound with SO_REUSEPORT; macOS tends to
+// route to a single socket, so local testing may show only one child serving.
 func WithEnablePrefork(enabled bool) Option {
 	return func(s *settings) error { s.listen.EnablePrefork = enabled; return nil }
 }

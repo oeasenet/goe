@@ -5,7 +5,7 @@ are not listed here.
 
 ---
 
-## Unreleased
+## v2.2.0
 
 ### ⚠️ Breaking: removed inert HTTP types and helpers
 
@@ -138,12 +138,11 @@ Existing behaviour is preserved deliberately:
 
 ### Note on versioning
 
-Removing exported symbols is a breaking change under semantic versioning, which
-normally calls for a major version. All four removals are inert declarations —
-code referencing them compiled but had no runtime effect — so the practical
-blast radius is a compile error with a one-line fix, not changed behaviour.
-Decide whether to ship this as `v3` or as a `v2.x` with this guide linked from
-the release notes.
+Removing exported symbols is normally a major-version change under semantic
+versioning. This ships as a **v2 minor** deliberately: all four removals are
+inert declarations — code referencing them compiled but had no runtime effect —
+so the practical blast radius is a compile error with a one-line fix, not changed
+behaviour. If you hit one of them, the replacement is listed above.
 
 ---
 

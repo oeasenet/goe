@@ -1,0 +1,48 @@
+# Service stack for the integration test suite (`make test_integration`).
+#
+# This is deliberately separate from examples/docker-compose.yml. That file
+# demonstrates a realistic setup with authentication enabled; this one is tuned
+# for tests: no credentials, and MongoDB running as a single-node replica set.
+#
+# The replica set is not optional. The migrator wraps migrations in a
+# transaction (core/mongodb/migrate/migrator.go), and MongoDB only supports
+# transactions on a replica set — a standalone server rejects them.
+#
+#   make test_services_up      # start and wait for health
+#   make test_integration      # run the tagged tests
+#   make test_services_down    # stop and remove volumes
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: goe-test-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  mongodb:
+    image: mongo:7
+    container_name: goe-test-mongodb
+    ports:
+      - "27017:27017"
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      # Doubles as the initiator: the first successful probe brings the replica
+      # set up, and subsequent probes just report its status. The member is
+      # registered as localhost:27017 so that a client on the host can reach it,
+      # which is why the tests connect with directConnection=true.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch (e) {
+            rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok
+          }"
+      interval: 2s
+      timeout: 10s
+      retries: 30
+      start_period: 5s

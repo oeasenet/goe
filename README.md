@@ -191,6 +191,10 @@ Contributions are welcome.
 3. Make your changes and ensure tests pass:
    ```bash
    go test -race ./...
+
+   # Integration tests need Redis and a single-node MongoDB replica set
+   # (the migrator uses transactions, which standalone MongoDB rejects):
+   make test_integration_full   # starts services, runs, tears down
    ```
 4. Open a pull request against `v2` with a clear description
 

@@ -1,4 +1,4 @@
-.PHONY: test test_coverage clean lint fmt vet
+.PHONY: test test_coverage clean lint fmt vet test_services_up test_services_down test_integration test_integration_full
 
 # Go parameters
 GOCMD=go
@@ -33,10 +33,25 @@ all: test
 test:
 	$(GOTEST) -v -race $(TEST_PACKAGES)
 
-# Run integration tests (requires external services like Redis)
-# Start them first with: cd examples && docker compose up -d
+# Start/stop the service stack the integration tests need.
+# MongoDB runs as a single-node replica set because the migrator uses
+# transactions, which standalone MongoDB rejects.
+test_services_up:
+	docker compose -f docker-compose.test.yml up -d --wait
+
+test_services_down:
+	docker compose -f docker-compose.test.yml down -v
+
+# Run integration tests (requires the service stack above to be running)
 test_integration:
 	$(GOTEST) -v -race -tags=integration $(TEST_PACKAGES)
+
+# Start services, run integration tests, tear services down again
+test_integration_full: test_services_up
+	$(GOTEST) -race -tags=integration $(TEST_PACKAGES); \
+	status=$$?; \
+	$(MAKE) test_services_down; \
+	exit $$status
 
 # Run all tests (unit + integration)
 test_all:
