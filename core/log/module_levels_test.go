@@ -3,6 +3,7 @@ package log
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -80,4 +81,39 @@ func TestModuleLevels_LevelFor(t *testing.T) {
 	if m.levelFor("gorm") != zapcore.WarnLevel {
 		t.Error("gorm override not applied")
 	}
+}
+
+func TestWithDefaultModuleLevels(t *testing.T) {
+	t.Run("fx defaults to warn so wiring narration is suppressed", func(t *testing.T) {
+		got := withDefaultModuleLevels(nil)
+		assert.Equal(t, zapcore.WarnLevel, got[fxModuleName])
+	})
+
+	t.Run("explicit override wins over the default", func(t *testing.T) {
+		got := withDefaultModuleLevels(map[string]zapcore.Level{
+			fxModuleName: zapcore.DebugLevel,
+		})
+		assert.Equal(t, zapcore.DebugLevel, got[fxModuleName],
+			"LOG_MODULE_LEVELS=fx:debug must re-enable Fx detail")
+	})
+
+	t.Run("unrelated overrides are preserved", func(t *testing.T) {
+		got := withDefaultModuleLevels(map[string]zapcore.Level{
+			"job": zapcore.DebugLevel,
+		})
+		assert.Equal(t, zapcore.DebugLevel, got["job"])
+		assert.Equal(t, zapcore.WarnLevel, got[fxModuleName])
+	})
+
+	t.Run("fx errors still pass the default gate", func(t *testing.T) {
+		levels := &moduleLevels{
+			global:    zapcore.InfoLevel,
+			overrides: withDefaultModuleLevels(nil),
+		}
+		assert.Equal(t, zapcore.WarnLevel, levels.levelFor(fxModuleName))
+		assert.True(t, zapcore.ErrorLevel >= levels.levelFor(fxModuleName),
+			"Fx failures must still be logged")
+		assert.False(t, zapcore.DebugLevel >= levels.levelFor(fxModuleName),
+			"Fx debug narration must be dropped")
+	})
 }

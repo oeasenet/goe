@@ -395,11 +395,31 @@ func Cron(expression string) contract.Schedule {
 	}
 }
 
+// scheduleErrorer is implemented by schedules that could not be constructed, and
+// by the combinators that wrap them. Cron() cannot return an error without
+// breaking its single-value signature, so a parse failure is carried on the
+// schedule itself and surfaced by RegisterSchedule instead of silently never
+// firing.
+type scheduleErrorer interface {
+	scheduleErr() error
+}
+
+// scheduleErr reports the construction error of s, unwrapping combinators, or
+// nil if s is valid.
+func scheduleErr(s contract.Schedule) error {
+	if e, ok := s.(scheduleErrorer); ok {
+		return e.scheduleErr()
+	}
+	return nil
+}
+
 // neverSchedule is returned when a cron expression is invalid
 type neverSchedule struct {
 	err  error
 	expr string
 }
+
+func (s *neverSchedule) scheduleErr() error { return s.err }
 
 func (s *neverSchedule) Next(after time.Time) time.Time {
 	// Return a time far in the future (effectively never)
@@ -445,6 +465,8 @@ func (s *betweenSchedule) Cron() string {
 	return s.inner.Cron()
 }
 
+func (s *betweenSchedule) scheduleErr() error { return scheduleErr(s.inner) }
+
 // Between restricts a schedule to only run between specific hours
 //
 // Example:
@@ -487,6 +509,8 @@ func (s *skipDaysSchedule) String() string {
 func (s *skipDaysSchedule) Cron() string {
 	return s.inner.Cron()
 }
+
+func (s *skipDaysSchedule) scheduleErr() error { return scheduleErr(s.inner) }
 
 // SkipWeekends restricts a schedule to skip Saturday and Sunday
 //

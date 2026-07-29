@@ -182,6 +182,13 @@ half-configured server is never served.
 | `LOG_STACKTRACE` | bool | `false` | Include stack traces for error logs |
 | `LOG_MODULE_LEVELS` | string | `""` | Per-module level overrides, comma-separated `module:level` pairs (e.g. `gorm:warn,job:debug`). Overrides `LOG_LEVEL` for those modules, up or down. |
 
+**Module defaults.** The `fx` module (Uber Fx dependency injection) defaults to
+`warn` rather than following `LOG_LEVEL`. Fx logs one line per constructor
+supplied, provided, decorated and run, plus every lifecycle hook — dozens of
+lines of graph detail that previously buried your own output whenever
+`LOG_LEVEL=debug` was set. Provide and invoke *failures* are still logged. Set
+`LOG_MODULE_LEVELS=fx:debug` to see the wiring when diagnosing injection itself.
+
 **Per-module logging.** `LOG_LEVEL` sets the global baseline; `LOG_MODULE_LEVELS`
 adjusts individual modules. Valid levels: `debug`, `info`, `warn`, `error`. Module
 names: `log`, `app`, `db`, `gorm`, `mongo`, `mongo-migrate`, `cache`, `lock`,

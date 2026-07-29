@@ -21,6 +21,7 @@ var (
 	ErrManagerNotRunning = errors.New("job manager is not running")
 	ErrScheduleExists    = errors.New("scheduled job with this name already exists")
 	ErrScheduleNotFound  = errors.New("scheduled job not found")
+	ErrInvalidSchedule   = errors.New("invalid scheduled job")
 )
 
 // promoteScript atomically moves due jobs from the scheduled sorted set to the
@@ -143,6 +144,27 @@ func (m *Manager) RegisterHandler(name string, handler contract.JobHandler) {
 
 // RegisterSchedule registers a recurring scheduled job
 func (m *Manager) RegisterSchedule(job *contract.ScheduledJob) error {
+	// Validate before taking the lock. Without these checks a nil Schedule
+	// panicked inside the scheduler goroutine, which has no recover and so took
+	// the process down, and a mistyped cron expression registered happily and
+	// then never fired — silently, since Cron() turns a parse failure into a
+	// schedule whose next run is in the year 9999.
+	if job == nil {
+		return fmt.Errorf("%w: job must not be nil", ErrInvalidSchedule)
+	}
+	if job.Name == "" {
+		return fmt.Errorf("%w: name must not be empty", ErrInvalidSchedule)
+	}
+	if job.Handler == nil {
+		return fmt.Errorf("%w: %s: handler must not be nil", ErrInvalidSchedule, job.Name)
+	}
+	if job.Schedule == nil {
+		return fmt.Errorf("%w: %s: schedule must not be nil", ErrInvalidSchedule, job.Name)
+	}
+	if err := scheduleErr(job.Schedule); err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrInvalidSchedule, job.Name, err)
+	}
+
 	m.schedulesMu.Lock()
 	defer m.schedulesMu.Unlock()
 
@@ -181,6 +203,18 @@ func (m *Manager) UnregisterSchedule(name string) error {
 	}
 
 	delete(m.schedules, name)
+
+	// Drop the shared last-run marker so re-registering the schedule later
+	// anchors afresh rather than inheriting a stale occurrence. Guarded because
+	// the schedule registry is usable without a Redis client, and unregistering
+	// should not depend on one.
+	if m.redis != nil {
+		if err := m.redis.Del(context.Background(), m.scheduleLastRunKey(name)).Err(); err != nil {
+			m.logger.Warn("Failed to clear schedule last-run time",
+				"name", name, "error", err)
+		}
+	}
+
 	m.logger.Debug("Unregistered scheduled job", "name", name)
 	return nil
 }
@@ -509,6 +543,17 @@ func (m *Manager) Stats(ctx context.Context) (*contract.JobStats, error) {
 	return stats, nil
 }
 
+// scheduleLastRunTTL bounds how long a schedule's last-run marker survives
+// without being refreshed, so markers for schedules that have been removed do
+// not accumulate in Redis.
+const scheduleLastRunTTL = 30 * 24 * time.Hour
+
+// scheduleLastRunKey returns the Redis key holding the last dispatch time for a
+// named schedule.
+func (m *Manager) scheduleLastRunKey(name string) string {
+	return m.config.KeyPrefix + "schedule:lastrun:" + name
+}
+
 // runScheduler runs the scheduler for recurring jobs.
 // In multi-instance deployments, a distributed lock ensures only one instance
 // dispatches scheduled jobs per tick. The atomic uniqueness check in Dispatch
@@ -516,9 +561,6 @@ func (m *Manager) Stats(ctx context.Context) (*contract.JobStats, error) {
 func (m *Manager) runScheduler(ctx context.Context) {
 	ticker := time.NewTicker(m.config.SchedulerInterval)
 	defer ticker.Stop()
-
-	// Track last run times
-	lastRuns := make(map[string]time.Time)
 
 	for {
 		select {
@@ -538,43 +580,104 @@ func (m *Manager) runScheduler(ctx context.Context) {
 				continue // another instance is handling this tick
 			}
 
-			m.schedulesMu.RLock()
-			for name, sched := range m.schedules {
-				lastRun := lastRuns[name]
-				nextRun := sched.Schedule.Next(lastRun)
-
-				if nextRun.After(lastRun) && !nextRun.After(now) {
-					// Time to dispatch this job
-					def := &contract.JobDefinition{
-						Name:        name,
-						Payload:     sched.Payload,
-						Queue:       sched.Queue,
-						MaxAttempts: sched.MaxAttempts,
-						Timeout:     sched.Timeout,
-						Tags:        sched.Tags,
-					}
-
-					// If no overlap allowed, use job name as unique key
-					if !sched.Overlap {
-						def.UniqueKey = fmt.Sprintf("scheduled:%s", name)
-						def.UniqueFor = time.Hour // Prevent overlap for up to 1 hour
-					}
-
-					_, err := m.Dispatch(ctx, def)
-					if err != nil && !errors.Is(err, ErrJobAlreadyExists) {
-						m.logger.Error("Failed to dispatch scheduled job",
-							"name", name,
-							"error", err,
-						)
-					} else if err == nil {
-						m.logger.Debug("Dispatched scheduled job", "name", name)
-					}
-
-					lastRuns[name] = now
-				}
-			}
-			m.schedulesMu.RUnlock()
+			m.dispatchDueSchedules(ctx, now)
 		}
+	}
+}
+
+// dispatchDueSchedules dispatches every schedule whose next occurrence has
+// arrived. The caller must hold the scheduler tick lock.
+//
+// Last-run times live in Redis rather than in process memory. Keeping them in a
+// map meant an unseen schedule had a zero last-run, and Schedule.Next(zeroTime)
+// returns a moment in year 1 — always in the past — so every schedule fired
+// immediately on the first tick regardless of its period. A daily 03:00 report
+// went out on every deploy. Sharing the marker also stops two replicas from
+// each dispatching the same occurrence from their own private map.
+func (m *Manager) dispatchDueSchedules(ctx context.Context, now time.Time) {
+	// Snapshot under the read lock: Dispatch performs Redis round-trips, and
+	// holding the read lock across them would stall RegisterSchedule and
+	// UnregisterSchedule, which need the write lock.
+	m.schedulesMu.RLock()
+	due := make([]*contract.ScheduledJob, 0, len(m.schedules))
+	for _, sched := range m.schedules {
+		due = append(due, sched)
+	}
+	m.schedulesMu.RUnlock()
+
+	for _, sched := range due {
+		name := sched.Name
+		key := m.scheduleLastRunKey(name)
+
+		raw, err := m.redis.Get(ctx, key).Result()
+		switch {
+		case errors.Is(err, redis.Nil):
+			// First time this schedule has been seen by any instance. Anchor it
+			// to now so the first dispatch happens at its next legitimate
+			// occurrence rather than immediately. Schedules are not backfilled.
+			if err := m.redis.Set(ctx, key, now.Format(time.RFC3339Nano), scheduleLastRunTTL).Err(); err != nil {
+				m.logger.Error("Failed to anchor schedule last-run time",
+					"name", name, "error", err)
+			}
+			continue
+		case err != nil:
+			m.logger.Error("Failed to read schedule last-run time",
+				"name", name, "error", err)
+			continue
+		}
+
+		lastRun, parseErr := time.Parse(time.RFC3339Nano, raw)
+		if parseErr != nil {
+			// Corrupt marker: re-anchor rather than firing off a zero-time run.
+			m.logger.Error("Invalid schedule last-run time; re-anchoring",
+				"name", name, "value", raw, "error", parseErr)
+			if err := m.redis.Set(ctx, key, now.Format(time.RFC3339Nano), scheduleLastRunTTL).Err(); err != nil {
+				m.logger.Error("Failed to re-anchor schedule last-run time",
+					"name", name, "error", err)
+			}
+			continue
+		}
+
+		nextRun := sched.Schedule.Next(lastRun)
+		if !nextRun.After(lastRun) || nextRun.After(now) {
+			continue // not due yet
+		}
+
+		def := &contract.JobDefinition{
+			Name:        name,
+			Payload:     sched.Payload,
+			Queue:       sched.Queue,
+			MaxAttempts: sched.MaxAttempts,
+			Timeout:     sched.Timeout,
+			Tags:        sched.Tags,
+		}
+
+		// If no overlap allowed, use job name as unique key. The worker clears
+		// this key when the job finishes, so it bounds concurrent runs rather
+		// than rate-limiting the schedule.
+		if !sched.Overlap {
+			def.UniqueKey = fmt.Sprintf("scheduled:%s", name)
+			def.UniqueFor = time.Hour
+		}
+
+		// Record the dispatch before attempting it. If Dispatch fails we still
+		// advance, so a persistently failing schedule retries on its next
+		// occurrence instead of every tick.
+		if err := m.redis.Set(ctx, key, now.Format(time.RFC3339Nano), scheduleLastRunTTL).Err(); err != nil {
+			m.logger.Error("Failed to record schedule last-run time",
+				"name", name, "error", err)
+		}
+
+		if _, err := m.Dispatch(ctx, def); err != nil {
+			if !errors.Is(err, ErrJobAlreadyExists) {
+				m.logger.Error("Failed to dispatch scheduled job",
+					"name", name,
+					"error", err,
+				)
+			}
+			continue
+		}
+		m.logger.Debug("Dispatched scheduled job", "name", name)
 	}
 }
 

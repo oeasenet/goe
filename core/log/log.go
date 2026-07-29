@@ -326,6 +326,7 @@ func NewModule(config contract.Config) *Module {
 	}
 
 	overrides, invalid := parseModuleLevels(config.GetString("LOG_MODULE_LEVELS"))
+	overrides = withDefaultModuleLevels(overrides)
 	logger := buildLogger(logConfig, overrides)
 	if len(invalid) > 0 {
 		logger.With(moduleFieldKey, "log").Warn(
@@ -334,8 +335,9 @@ func NewModule(config contract.Config) *Module {
 		)
 	}
 
-	// Get the underlying zap logger for Fx
-	zapLogger := logger.(*zapLogger).logger
+	// Get the underlying zap logger for Fx, tagged so that its entries are
+	// subject to per-module gating like every other module's.
+	zapLogger := logger.(*zapLogger).logger.With(zap.String(moduleFieldKey, fxModuleName))
 
 	return &Module{
 		logger: logger,

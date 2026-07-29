@@ -160,16 +160,14 @@ func New(opts ...Options) contract.Application {
 		),
 	}
 
-	instance.logger.Info("WithHTTP flag", "enabled", opt.WithHTTP)
-	instance.logger.Info("WithCache flag", "enabled", opt.WithCache)
-	instance.logger.Info("WithDB flag", "enabled", opt.WithDB)
-	instance.logger.Info("WithMongoDB flag", "enabled", opt.WithMongoDB)
-	instance.logger.Info("WithMigrate flag", "enabled", opt.WithMigrate)
-	instance.logger.Info("WithLock flag", "enabled", opt.WithLock)
-	instance.logger.Info("WithJob flag", "enabled", opt.WithJob)
-	instance.logger.Info("WithHealth flag", "enabled", opt.WithHealth)
-	instance.logger.Info("WithMetrics flag", "enabled", opt.WithMetrics)
-	instance.logger.Info("WithOTel flag", "enabled", opt.WithOTel)
+	// Which modules are enabled is wiring detail, not an operational event.
+	// Ten Info lines on every boot drowned out messages that matter.
+	instance.logger.Debug("Module flags",
+		"http", opt.WithHTTP, "cache", opt.WithCache, "db", opt.WithDB,
+		"mongodb", opt.WithMongoDB, "migrate", opt.WithMigrate, "lock", opt.WithLock,
+		"job", opt.WithJob, "health", opt.WithHealth, "metrics", opt.WithMetrics,
+		"otel", opt.WithOTel,
+	)
 	// Register the enabled built-in modules. Each call is a no-op when its
 	// Options flag is off, and the order is the order Fx will run their
 	// lifecycle hooks in — see moduleRegistry in modules.go.
@@ -230,7 +228,7 @@ func New(opts ...Options) contract.Application {
 				"or", "func(contract.Config, contract.Logger) contract.Module")
 		}
 
-		instance.logger.Info("Registering custom module", "name", module.Name())
+		instance.logger.Debug("Registering custom module", "name", module.Name())
 
 		// If module provides services, register them to DI (like built-in modules)
 		if provider, ok := module.(interface{ ProvideServices() []fx.Option }); ok {

@@ -89,6 +89,27 @@ func (l *testLogger) WithContext(ctx context.Context) contract.Logger { return l
 func (l *testLogger) WithError(err error) contract.Logger             { return l }
 func (l *testLogger) GetLogger() *zap.SugaredLogger                   { return nil }
 
+// waitForJobStatus polls until a job reaches the wanted status.
+//
+// Polling a handler-side counter is not sufficient: the counter flips while the
+// handler runs, but the terminal status is persisted afterwards. Asserting on
+// status right after a counter reached its target is a race, which is what made
+// the retry test flake.
+func waitForJobStatus(t *testing.T, m *Manager, jobID string, want contract.JobStatus) contract.Job {
+	t.Helper()
+	var last contract.Job
+	testutil.AssertEventually(t, func() bool {
+		job, err := m.Get(context.Background(), jobID)
+		if err != nil {
+			return false
+		}
+		last = job
+		return job.Status() == want
+	}, 30*time.Second, "job %s should reach status %s", jobID, want)
+	require.NotNil(t, last, "job %s was never retrievable", jobID)
+	return last
+}
+
 func TestManagerIntegration_DispatchAndProcess(t *testing.T) {
 	manager := newTestManager(t)
 
@@ -134,13 +155,11 @@ func TestManagerIntegration_DispatchAndProcess(t *testing.T) {
 		30*time.Second, "both jobs should be processed")
 	assert.Equal(t, int32(2), processedCount.Load())
 
-	// Verify job states
-	job1, err := manager.Get(ctx, job1ID)
-	require.NoError(t, err)
+	// Verify job states once each job has actually settled.
+	job1 := waitForJobStatus(t, manager, job1ID, contract.JobStatusCompleted)
 	assert.Equal(t, contract.JobStatusCompleted, job1.Status())
 
-	job2, err := manager.Get(ctx, job2ID)
-	require.NoError(t, err)
+	job2 := waitForJobStatus(t, manager, job2ID, contract.JobStatusCompleted)
 	assert.Equal(t, contract.JobStatusCompleted, job2.Status())
 }
 
@@ -218,13 +237,26 @@ func TestManagerIntegration_Retry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the retry sequence to settle on the successful third attempt.
-	testutil.AssertEventually(t, func() bool { return attempts.Load() == 3 },
-		30*time.Second, "job should be attempted three times")
+	//
+	// This has been observed to time out roughly once in thirty full-package
+	// runs, with the attempt count stalled below three, and has never reproduced
+	// in isolation. The cause is not yet established, so on failure dump the
+	// job's persisted state rather than leaving a bare timeout to interpret.
+	if !testutil.AssertEventually(t, func() bool { return attempts.Load() == 3 },
+		30*time.Second, "job should be attempted three times") {
+		if j, getErr := manager.Get(context.Background(), jobID); getErr == nil {
+			t.Errorf("retry stalled: attempts=%d status=%s job_attempts=%d lastErr=%q",
+				attempts.Load(), j.Status(), j.Attempts(), j.LastError())
+		} else {
+			t.Errorf("retry stalled: attempts=%d and job %s not retrievable: %v",
+				attempts.Load(), jobID, getErr)
+		}
+	}
 	assert.Equal(t, int32(3), attempts.Load(), "Job should have been attempted 3 times")
 
-	// Verify final state is completed
-	job, err := manager.Get(ctx, jobID)
-	require.NoError(t, err)
+	// Verify final state is completed. The attempt counter above flips inside the
+	// handler, before the worker persists the terminal status, so wait for that.
+	job := waitForJobStatus(t, manager, jobID, contract.JobStatusCompleted)
 	assert.Equal(t, contract.JobStatusCompleted, job.Status())
 }
 

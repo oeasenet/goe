@@ -54,7 +54,7 @@ func (r *moduleRegistry) addCache() {
 		r.cache = cache.NewModule(instance.config, instance.logger)
 		instance.cacheManager = r.cache.Provide()
 
-		instance.logger.Info("Registering Cache module")
+		instance.logger.Debug("Registering Cache module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.CacheManager { return instance.cacheManager }),
@@ -77,7 +77,7 @@ func (r *moduleRegistry) addDB() {
 		r.db = db.NewDBModule(instance.config, instance.logger) // Pass config and logger
 		instance.db = r.db.Provide()                            // Store the contract.DB instance
 
-		instance.logger.Info("Registering DB module")
+		instance.logger.Debug("Registering DB module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.DB { return instance.db }),
@@ -101,7 +101,7 @@ func (r *moduleRegistry) addMongoDB() {
 		r.mongodb = mongodb.NewDBModule(instance.config, instance.logger)
 		instance.mongoDB = r.mongodb.Provide()
 
-		instance.logger.Info("Registering MongoDB module")
+		instance.logger.Debug("Registering MongoDB module")
 
 		r.fxOptions = append(r.fxOptions,
 			// Provide contract.MongoDB for dependency injection
@@ -133,7 +133,7 @@ func (r *moduleRegistry) addMigrate() {
 			instance.logger.Fatal("Failed to create migration module", "error", err)
 		}
 
-		instance.logger.Info("Registering MongoDB Migration module")
+		instance.logger.Debug("Registering MongoDB Migration module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Module(r.migrate.Name(),
@@ -171,7 +171,7 @@ func (r *moduleRegistry) addLock() {
 		}
 		instance.lockManager = r.lock.Provide()
 
-		instance.logger.Info("Registering Lock module")
+		instance.logger.Debug("Registering Lock module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.LockManager { return instance.lockManager }),
@@ -198,7 +198,7 @@ func (r *moduleRegistry) addJob() {
 		}
 		instance.jobManager = r.job.Provide()
 
-		instance.logger.Info("Registering Job module")
+		instance.logger.Debug("Registering Job module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.JobManager { return instance.jobManager }),
@@ -221,7 +221,7 @@ func (r *moduleRegistry) addHealth() {
 		r.health = health.NewModule(instance.config, instance.logger)
 		instance.healthManager = r.health.Manager()
 
-		instance.logger.Info("Registering Health module")
+		instance.logger.Debug("Registering Health module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.HealthManager { return instance.healthManager }),
@@ -244,7 +244,7 @@ func (r *moduleRegistry) addMetrics() {
 		r.metrics = metrics.NewModule(instance.config, instance.logger)
 		instance.metricsManager = r.metrics.Manager()
 
-		instance.logger.Info("Registering Metrics module")
+		instance.logger.Debug("Registering Metrics module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.MetricsManager { return instance.metricsManager }),
@@ -271,7 +271,7 @@ func (r *moduleRegistry) addOTel() {
 		}
 		instance.otelProvider = r.otel.Provider()
 
-		instance.logger.Info("Registering OpenTelemetry module")
+		instance.logger.Debug("Registering OpenTelemetry module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.OTelProvider { return instance.otelProvider }),
@@ -294,7 +294,7 @@ func (r *moduleRegistry) addHTTP() {
 		r.http = http.NewModule(instance.config, instance.logger, r.opt.HTTP...)
 		instance.http = r.http.Provide()
 
-		instance.logger.Info("Registering HTTP module")
+		instance.logger.Debug("Registering HTTP module")
 
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.HTTPKernel { return instance.http }),

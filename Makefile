@@ -43,12 +43,17 @@ test_services_down:
 	docker compose -f docker-compose.test.yml down -v
 
 # Run integration tests (requires the service stack above to be running)
+#
+# -p 1 serializes packages. They share one Redis and one MongoDB, so running
+# them concurrently — which is the default — makes them compete for the same
+# single-threaded Redis while the race detector is already slowing everything
+# down. That produced roughly one spurious failure every nine full-suite runs.
 test_integration:
-	$(GOTEST) -v -race -tags=integration $(TEST_PACKAGES)
+	$(GOTEST) -v -race -p 1 -tags=integration $(TEST_PACKAGES)
 
 # Start services, run integration tests, tear services down again
 test_integration_full: test_services_up
-	$(GOTEST) -race -tags=integration $(TEST_PACKAGES); \
+	$(GOTEST) -race -p 1 -tags=integration $(TEST_PACKAGES); \
 	status=$$?; \
 	$(MAKE) test_services_down; \
 	exit $$status
