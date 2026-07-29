@@ -417,6 +417,59 @@ func (*stubViews) Load() error { return nil }
 
 func (*stubViews) Render(_ io.Writer, _ string, _ any, _ ...string) error { return nil }
 
+func TestOptions_ListenerNetworkDefaultsToDualStack(t *testing.T) {
+	// Fiber defaults ListenerNetwork to tcp4. GOE bound dual-stack before
+	// options existed, so the default must stay tcp or IPv6 clients silently
+	// stop being served.
+	k, _ := newTestKernel(t, nil)
+	assert.Equal(t, fiber.NetworkTCP, k.listenCfg.ListenerNetwork)
+
+	k, _ = newTestKernel(t, nil, WithListenerNetwork(fiber.NetworkTCP4))
+	assert.Equal(t, fiber.NetworkTCP4, k.listenCfg.ListenerNetwork, "override must still work")
+}
+
+func TestOptions_ListenPathAcceptsIPv6(t *testing.T) {
+	var boundAddr net.Addr
+	k, _ := newTestKernel(t, nil,
+		WithHost("::1"),
+		WithPort(0),
+		WithDisableStartupMessage(true),
+		WithListenerAddrFunc(func(a net.Addr) { boundAddr = a }),
+	)
+	require.Empty(t, k.optErrs)
+	assert.Equal(t, "[::1]:0", k.addr(), "IPv6 hosts must be bracketed")
+
+	k.App().Get("/ping", func(c fiber.Ctx) error { return c.SendString("pong") })
+
+	module := &Module{kernel: k}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	require.NoError(t, module.OnStart(ctx))
+	t.Cleanup(func() { _ = module.OnStop(context.Background()) })
+	require.NotNil(t, boundAddr)
+
+	resp, err := http.Get("http://" + boundAddr.String() + "/ping")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestOptions_TLSMinVersionRejectsValuesFiberPanicsOn(t *testing.T) {
+	// Fiber panics for anything other than TLS 1.2/1.3, so these must be
+	// rejected as startup errors rather than reaching Fiber.
+	for _, version := range []uint16{tls.VersionTLS10, tls.VersionTLS11, 0x9999} {
+		k, _ := newTestKernel(t, nil, WithTLSMinVersion(version))
+		require.NotEmptyf(t, k.optErrs, "version %#04x must be rejected", version)
+		assert.Contains(t, errors.Join(k.optErrs...).Error(), "WithTLSMinVersion")
+	}
+
+	for _, version := range []uint16{tls.VersionTLS12, tls.VersionTLS13} {
+		k, _ := newTestKernel(t, nil, WithTLSMinVersion(version))
+		assert.Emptyf(t, k.optErrs, "version %#04x must be accepted", version)
+	}
+}
+
 func TestOptions_ListenPathStartsAndStops(t *testing.T) {
 	var boundAddr net.Addr
 	k, _ := newTestKernel(t, nil,

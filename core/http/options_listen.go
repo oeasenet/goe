@@ -83,16 +83,20 @@ func WithTLSConfigFunc(fn func(*tls.Config)) Option {
 	}
 }
 
-// WithTLSMinVersion sets fiber.ListenConfig.TLSMinVersion, for example
-// tls.VersionTLS13.
+// WithTLSMinVersion sets fiber.ListenConfig.TLSMinVersion.
+//
+// Only tls.VersionTLS12 and tls.VersionTLS13 are accepted: Fiber panics on any
+// other value, so this is rejected here as a startup error instead.
 func WithTLSMinVersion(version uint16) Option {
 	return func(s *settings) error {
 		switch version {
-		case tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13:
+		case tls.VersionTLS12, tls.VersionTLS13:
 			s.listen.TLSMinVersion = version
 			return nil
 		default:
-			return fmt.Errorf("WithTLSMinVersion: unsupported version %#04x; use a crypto/tls VersionTLS constant", version)
+			return fmt.Errorf(
+				"WithTLSMinVersion: unsupported version %#04x; Fiber accepts only tls.VersionTLS12 or tls.VersionTLS13",
+				version)
 		}
 	}
 }

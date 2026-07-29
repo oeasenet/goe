@@ -32,6 +32,11 @@ const (
 // Deprecated: Use contract.ShutdownHook instead
 type Hook = contract.ShutdownHook
 
+// Manager satisfies contract.ShutdownManager. Asserting it here means the
+// interface is checked by the compiler rather than being a declaration nothing
+// enforces, so the two cannot drift apart.
+var _ contract.ShutdownManager = (*Manager)(nil)
+
 // hookEntry stores a hook with its priority and name
 type hookEntry struct {
 	name     string

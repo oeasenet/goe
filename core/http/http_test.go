@@ -814,17 +814,16 @@ func (m *MockApplication) Run() {
 }
 
 func TestHTTP_HandlerHelpers(t *testing.T) {
-	t.Run("new field", func(t *testing.T) {
-		field := NewField("key", "value")
-		assert.Equal(t, "key", field.Key())
-		assert.Equal(t, "value", field.Value())
-	})
-
-	t.Run("register routes helper", func(t *testing.T) {
-		registrar := RegisterRoutes(func(r RouteRegistrar) {
-			// This is just a function wrapper, test that it returns something
-		})
-		assert.NotNil(t, registrar)
+	// RouteRegistrar is an fx.In struct, so its value comes from the container.
+	// The contract that matters is that it carries the dependencies route
+	// registration needs; an invoker taking it must be usable as-is.
+	t.Run("route registrar carries registration dependencies", func(t *testing.T) {
+		var invoker any = func(r RouteRegistrar) {
+			_ = r.HTTP
+			_ = r.Config
+			_ = r.Logger
+		}
+		assert.NotNil(t, invoker)
 	})
 }
 

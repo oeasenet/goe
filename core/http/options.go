@@ -82,6 +82,12 @@ func defaultSettings(validator fiber.StructValidator, errorHandler fiber.ErrorHa
 			PassLocalsToContext: true,
 			PassLocalsToViews:   true,
 		},
+		listen: fiber.ListenConfig{
+			// Fiber defaults this to tcp4. GOE has always bound dual-stack, so
+			// it is pinned to tcp here to keep IPv6 clients working; override
+			// with WithListenerNetwork.
+			ListenerNetwork: fiber.NetworkTCP,
+		},
 		host:             "0.0.0.0",
 		port:             8080,
 		requestIDEnabled: true,

@@ -43,46 +43,6 @@ type Middleware = fiber.Handler
 // ErrorHandler handles HTTP errors
 type ErrorHandler = fiber.ErrorHandler
 
-// HTTPConfig represents HTTP configuration
-type HTTPConfig struct {
-	// Host to bind the server to
-	Host string
-
-	// Port to bind the server to
-	Port int
-
-	// Prefork enables use of SO_REUSEPORT socket option
-	Prefork bool
-
-	// ServerHeader sets the Server header
-	ServerHeader string
-
-	// StrictRouting enables strict routing
-	StrictRouting bool
-
-	// CaseSensitive enables case sensitive routing
-	CaseSensitive bool
-
-	// BodyLimit sets the maximum allowed size for a request body
-	BodyLimit int
-
-	// ReadTimeout is the amount of time allowed to read the full request
-	ReadTimeout string
-
-	// WriteTimeout is the amount of time allowed to write the full response
-	WriteTimeout string
-
-	// IdleTimeout is the maximum amount of time to wait for the next request
-	IdleTimeout string
-
-	// TrustedProxies contains the list of trusted proxy IPs
-	TrustedProxies []string
-}
-
-// RouteInfo contains information about a registered route
-type RouteInfo struct {
-	Method  string
-	Path    string
-	Name    string
-	Handler Handler
-}
+// HTTP server configuration lives in the core/http package as Options, which
+// are applied over the FIBER_*/HTTP_* environment variables. See
+// http.New and the With* constructors there.

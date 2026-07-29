@@ -70,7 +70,7 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	}
 
 	// Layer 1 and 2: GOE defaults, then the environment.
-	base := defaultSettings(validator, defaultErrorHandler(klog))
+	base := defaultSettings(validator, defaultErrorHandler())
 	base.applyEnv(config)
 
 	if engine := config.GetString("VIEWS_ENGINE"); engine != "" && engine != "html" {
@@ -200,8 +200,11 @@ func isNilError(err error) bool {
 	}
 }
 
-// defaultErrorHandler creates a default error handler
-func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
+// defaultErrorHandler creates a default error handler.
+//
+// Errors are not logged here: the access-log middleware already records status
+// and path for every request, so logging again would duplicate every 5xx.
+func defaultErrorHandler() fiber.ErrorHandler {
 	return func(ctx fiber.Ctx, err error) error {
 		// Fiber v3.4 hardened its DefaultErrorHandler against typed-nil errors
 		// (gofiber/fiber#4407, #4372). GOE replaces that handler, so it has to
@@ -226,16 +229,6 @@ func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 			message = err.Error()
 		}
 		ctx.Status(respCode)
-
-		// Log error for 5xx errors, removing this because fiber already has the similar thing
-		//if respCode >= 500 {
-		//	logger.Error("HTTP Error",
-		//		"error", err.Error(),
-		//		"path", ctx.Path(),
-		//		"method", ctx.Method(),
-		//		"status", respCode,
-		//	)
-		//}
 
 		// If the format is forced to json or text through query parameter, then return the response in that format
 		if ctx.Query("format") == "json" {
@@ -450,25 +443,6 @@ func (m *Module) ValidateConfig() error {
 	return v.Validate()
 }
 
-// field implementation for HTTP module
-type field struct {
-	key   string
-	value any
-}
-
-func (f *field) Key() string {
-	return f.key
-}
-
-func (f *field) Value() any {
-	return f.value
-}
-
-// NewField creates a new field for structured logging
-func NewField(key string, value any) contract.Field {
-	return &field{key: key, value: value}
-}
-
 // HandlerParams is used for dependency injection in HTTP handlers
 type HandlerParams struct {
 	fx.In
@@ -488,21 +462,20 @@ func NewHandler(fn func(c fiber.Ctx, params HandlerParams) error) func(params Ha
 	}
 }
 
-// RouteRegistrar is a helper for registering routes with DI
+// RouteRegistrar bundles the dependencies route registration usually needs, so
+// an invoker can take a single parameter instead of listing them out.
+//
+//	goe.New(goe.Options{
+//	    Invokers: []any{
+//	        func(r http.RouteRegistrar) {
+//	            r.HTTP.App().Get("/", myHandler)
+//	        },
+//	    },
+//	})
 type RouteRegistrar struct {
 	fx.In
 
 	HTTP   contract.HTTPKernel
 	Config contract.Config
 	Logger contract.Logger
-}
-
-// RegisterRoutes is a helper function that can be used to register routes
-// Example usage:
-//
-//	fx.Invoke(http.RegisterRoutes(func(r http.RouteRegistrar) {
-//	    r.HTTP.App().Get("/", myHandler)
-//	}))
-func RegisterRoutes(fn func(RouteRegistrar)) any {
-	return fn
 }

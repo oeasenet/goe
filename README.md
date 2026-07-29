@@ -174,6 +174,8 @@ wrap. See [CONFIGURATION.md](CONFIGURATION.md#configuring-in-go-code) and
 
 ## Documentation
 
+Upgrading? See [MIGRATION.md](MIGRATION.md) for breaking changes.
+
 Full documentation is available on DeepWiki:
 
 **[deepwiki.com/oeasenet/goe](https://deepwiki.com/oeasenet/goe)**
