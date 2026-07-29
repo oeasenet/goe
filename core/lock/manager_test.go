@@ -11,6 +11,8 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -36,6 +38,8 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_Health(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -59,6 +63,8 @@ func TestManager_Health(t *testing.T) {
 }
 
 func TestManager_NewMutex(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -101,6 +107,8 @@ func TestManager_NewMutex(t *testing.T) {
 }
 
 func TestManager_NewMutexWithOptions(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -147,6 +155,8 @@ func TestManager_NewMutexWithOptions(t *testing.T) {
 }
 
 func TestManager_Stats(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -204,6 +214,8 @@ func TestManager_Stats(t *testing.T) {
 }
 
 func TestManager_Close(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -234,8 +246,11 @@ func TestManager_Close(t *testing.T) {
 func TestManager_InvalidConnection(t *testing.T) {
 	logger := &testLogger{t: t}
 
+	// Port 1 is reserved and refuses immediately. An unresolvable hostname was
+	// used here before, which cost ~1.8s of DNS timeout and would silently stop
+	// testing anything on a resolver that wildcards NXDOMAIN.
 	config := &Config{
-		RedisURL: "redis://invalid-host:6379/0",
+		RedisURL: "redis://127.0.0.1:1/0",
 	}
 
 	_, err := NewManager(config, logger)
@@ -243,6 +258,8 @@ func TestManager_InvalidConnection(t *testing.T) {
 }
 
 func TestManager_RedlockMode(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	// Test Redlock mode with multiple URLs
@@ -301,6 +318,8 @@ func TestManager_RedlockMode(t *testing.T) {
 }
 
 func TestManager_SinglePoolLock(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -341,6 +360,8 @@ func TestManager_SinglePoolLock(t *testing.T) {
 }
 
 func TestCreatePoolFromURL_SingleRedis(t *testing.T) {
+	requireRedis(t)
+
 	config := &Config{
 		RedisURL: "redis://" + testRedisAddr + "/0",
 	}
@@ -360,6 +381,8 @@ func TestCreatePoolFromURL_SingleRedis(t *testing.T) {
 }
 
 func TestCreatePoolFromURL_Redlock(t *testing.T) {
+	requireRedis(t)
+
 	config := &Config{
 		RedisURLs: []string{
 			"redis://" + testRedisAddr + "/0",
@@ -449,6 +472,8 @@ func TestCreatePoolFromURL_RedlockWithNonSingleURL(t *testing.T) {
 }
 
 func TestManager_PoolsMethod(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	config := &Config{
@@ -477,6 +502,8 @@ func TestManager_PoolsMethod(t *testing.T) {
 }
 
 func TestManager_ModeMethod(t *testing.T) {
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
 	// Test single mode
@@ -494,19 +521,23 @@ func TestManager_ModeMethod(t *testing.T) {
 }
 
 func TestManager_DefaultURL(t *testing.T) {
+	// An empty RedisURL defaults to localhost:6379, so this only means anything
+	// when a local Redis is actually reachable. Without the gate it spent ~1.7s
+	// waiting for a connection to fail and then asserted nothing.
+	requireRedis(t)
+
 	logger := &testLogger{t: t}
 
-	// Test with empty URL (should use default)
 	config := &Config{
-		RedisURL:          "", // Will default to localhost:6379
+		RedisURL:          "", // defaults to localhost:6379
 		DefaultExpiry:     8 * time.Second,
 		DefaultTries:      32,
 		DefaultRetryDelay: 500 * time.Millisecond,
 		DefaultKeyPrefix:  "test:lock:",
 	}
 
-	// This may fail if localhost:6379 isn't the test Redis
-	_, err := NewManager(config, logger)
-	// Just verify it doesn't panic - connection error is expected if not localhost
-	_ = err
+	manager, err := NewManager(config, logger)
+	require.NoError(t, err, "empty RedisURL should fall back to a working local default")
+	require.NotNil(t, manager)
+	_ = manager.Close(context.Background())
 }

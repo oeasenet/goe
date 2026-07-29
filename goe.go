@@ -4,25 +4,17 @@ import (
 	"context"
 	"maps"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
-	"go.oease.dev/goe/v2/core/mongodb"
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/app"
-	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/config"
-	"go.oease.dev/goe/v2/core/db"
 	"go.oease.dev/goe/v2/core/health"
 	"go.oease.dev/goe/v2/core/http"
-	"go.oease.dev/goe/v2/core/job"
-	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
-	"go.oease.dev/goe/v2/core/metrics"
-	"go.oease.dev/goe/v2/core/otel"
 	"go.oease.dev/goe/v2/core/shutdown"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -49,57 +41,6 @@ var (
 		mu              sync.RWMutex
 	}
 )
-
-// Options represents the application options
-type Options struct {
-	Modules         []any // Module constructors (functions that return contract.Module)
-	Providers       []any
-	Invokers        []any
-	WithHTTP        bool           // Enable HTTP module
-	WithCache       bool           // Enable Cache module
-	WithDB          bool           // Enable DB module
-	WithMongoDB     bool           // Enable Mongo DB module
-	WithMigrate     bool           // Enable MongoDB Migration module (requires WithMongoDB)
-	WithLock        bool           // Enable Lock module (distributed mutex)
-	WithJob         bool           // Enable Job module (background job processing)
-	WithHealth      bool           // Enable Health module (health checks)
-	WithMetrics     bool           // Enable Metrics module (Prometheus metrics)
-	WithOTel        bool           // Enable OpenTelemetry module (distributed tracing)
-	ConfigOverrides map[string]any // Override any environment variables
-
-	// HTTP configures the HTTP kernel from Go code instead of environment
-	// variables. A non-nil value implies WithHTTP, so the module does not have
-	// to be enabled separately.
-	//
-	// Options are applied after the environment, so anything set here wins over
-	// the matching FIBER_*/HTTP_*/VIEWS_* variable while the environment still
-	// supplies everything left unset.
-	//
-	//	goe.New(goe.Options{
-	//	    HTTP: []goehttp.Option{
-	//	        goehttp.WithPort(8080),
-	//	        goehttp.WithBodyLimit(16 << 20),
-	//	    },
-	//	})
-	//
-	// See the core/http package for the full option list.
-	HTTP []http.Option
-
-	// HTTPPort overrides the HTTP port.
-	//
-	// Deprecated: use HTTP with goehttp.WithPort instead. This field still
-	// works, but it is applied as an environment override, so WithPort takes
-	// precedence over it.
-	HTTPPort int
-
-	// Shutdown configuration
-	ShutdownTimeout time.Duration // Total shutdown timeout (default: 30s)
-	DrainTimeout    time.Duration // HTTP drain timeout (default: 5s)
-
-	// Lifecycle hooks - these are executed through Fx's lifecycle system
-	OnStart []func(context.Context) error // Functions to run after all modules start
-	OnStop  []func(context.Context) error // Functions to run before modules stop
-}
 
 // New creates a new Goe application
 func New(opts ...Options) contract.Application {
@@ -229,161 +170,16 @@ func New(opts ...Options) contract.Application {
 	instance.logger.Info("WithHealth flag", "enabled", opt.WithHealth)
 	instance.logger.Info("WithMetrics flag", "enabled", opt.WithMetrics)
 	instance.logger.Info("WithOTel flag", "enabled", opt.WithOTel)
-
-	// Add Cache module if enabled
-	var cacheModule *cache.Module
-	if opt.WithCache {
-		cacheModule = cache.NewModule(instance.config, instance.logger)
-		instance.cacheManager = cacheModule.Provide()
-
-		instance.logger.Info("Registering Cache module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.CacheManager { return instance.cacheManager }),
-			fx.Module(cacheModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: cacheModule.OnStart,
-						OnStop:  cacheModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add DB module if enabled
-	var dbModule *db.DatabaseModule
-	if opt.WithDB {
-		dbModule = db.NewDBModule(instance.config, instance.logger) // Pass config and logger
-		instance.db = dbModule.Provide()                            // Store the contract.DB instance
-
-		instance.logger.Info("Registering DB module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.DB { return instance.db }),
-			// Register DB module with its lifecycle hooks
-			fx.Module(dbModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: dbModule.OnStart,
-						OnStop:  dbModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add MongoDB module if enabled
-	var mongodbModule *mongodb.DatabaseModule
-	if opt.WithMongoDB {
-		mongodbModule = mongodb.NewDBModule(instance.config, instance.logger)
-		instance.mongoDB = mongodbModule.Provide()
-
-		instance.logger.Info("Registering MongoDB module")
-
-		fxOptions = append(fxOptions,
-			// Provide contract.MongoDB for dependency injection
-			fx.Provide(func() contract.MongoDB { return instance.mongoDB }),
-			// Register MongoDB module with its lifecycle hooks
-			fx.Module(mongodbModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: mongodbModule.OnStart,
-						OnStop:  mongodbModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add MongoDB Migration module if enabled (requires WithMongoDB)
-	var migrateModule *migrate.Module
-	if opt.WithMigrate {
-		if !opt.WithMongoDB {
-			instance.logger.Fatal("Migration module requires MongoDB. Set WithMongoDB: true")
-		}
-
-		var err error
-		migrateModule, err = migrate.NewModule(instance.config, instance.logger, instance.mongoDB)
-		if err != nil {
-			instance.logger.Fatal("Failed to create migration module", "error", err)
-		}
-
-		instance.logger.Info("Registering MongoDB Migration module")
-
-		fxOptions = append(fxOptions,
-			fx.Module(migrateModule.Name(),
-				// Declare explicit Fx dependency on contract.MongoDB to guarantee
-				// MongoDB's OnStart (which establishes connections) runs before
-				// the migration module's OnStart (which needs the DB connection).
-				fx.Invoke(func(lc fx.Lifecycle, _ contract.MongoDB) {
-					lc.Append(fx.Hook{
-						OnStart: func(ctx context.Context) error {
-							if err := migrateModule.OnStart(ctx); err != nil {
-								return err
-							}
-							// Set instance.migrator after OnStart creates the migrator
-							// (migrator is created in OnStart because MongoDB connections
-							// are only available after MongoDB module's OnStart)
-							instance.migrator = migrateModule.Provide()
-							return nil
-						},
-						OnStop: migrateModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add Lock module if enabled
-	var lockModule *lock.Module
-	if opt.WithLock {
-		var err error
-		lockModule, err = lock.NewModule(instance.config, instance.logger)
-		if err != nil {
-			instance.logger.Fatal("Failed to create lock module", "error", err)
-		}
-		instance.lockManager = lockModule.Provide()
-
-		instance.logger.Info("Registering Lock module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.LockManager { return instance.lockManager }),
-			fx.Module(lockModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: lockModule.OnStart,
-						OnStop:  lockModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add Job module if enabled
-	var jobModule *job.Module
-	if opt.WithJob {
-		var err error
-		jobModule, err = job.NewModule(instance.config, instance.logger)
-		if err != nil {
-			instance.logger.Fatal("Failed to create job module", "error", err)
-		}
-		instance.jobManager = jobModule.Provide()
-
-		instance.logger.Info("Registering Job module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.JobManager { return instance.jobManager }),
-			fx.Module(jobModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: jobModule.OnStart,
-						OnStop:  jobModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
+	// Register the enabled built-in modules. Each call is a no-op when its
+	// Options flag is off, and the order is the order Fx will run their
+	// lifecycle hooks in — see moduleRegistry in modules.go.
+	reg := &moduleRegistry{opt: opt, fxOptions: fxOptions}
+	reg.addCache()
+	reg.addDB()
+	reg.addMongoDB()
+	reg.addMigrate()
+	reg.addLock()
+	reg.addJob()
 
 	// Create shutdown manager with configured timeouts
 	shutdownTimeout := opt.ShutdownTimeout
@@ -403,97 +199,16 @@ func New(opts ...Options) contract.Application {
 	instance.shutdownManager = shutdown.NewManager(instance.logger, shutdownTimeout, drainTimeout)
 
 	// Always provide shutdown manager for dependency injection
-	fxOptions = append(fxOptions,
+	reg.fxOptions = append(reg.fxOptions,
 		fx.Provide(func() *shutdown.Manager { return instance.shutdownManager }),
 	)
 
-	// Add Health module if enabled
-	var healthModule *health.Module
-	if opt.WithHealth {
-		healthModule = health.NewModule(instance.config, instance.logger)
-		instance.healthManager = healthModule.Manager()
+	reg.addHealth()
+	reg.addMetrics()
+	reg.addOTel()
+	reg.addHTTP()
 
-		instance.logger.Info("Registering Health module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.HealthManager { return instance.healthManager }),
-			fx.Module(healthModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: healthModule.OnStart,
-						OnStop:  healthModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add Metrics module if enabled
-	var metricsModule *metrics.Module
-	if opt.WithMetrics {
-		metricsModule = metrics.NewModule(instance.config, instance.logger)
-		instance.metricsManager = metricsModule.Manager()
-
-		instance.logger.Info("Registering Metrics module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.MetricsManager { return instance.metricsManager }),
-			fx.Module(metricsModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: metricsModule.OnStart,
-						OnStop:  metricsModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add OpenTelemetry module if enabled
-	var otelModule *otel.Module
-	if opt.WithOTel {
-		var err error
-		otelModule, err = otel.NewModule(context.Background(), instance.config, instance.logger)
-		if err != nil {
-			instance.logger.Fatal("Failed to create OpenTelemetry module", "error", err)
-		}
-		instance.otelProvider = otelModule.Provider()
-
-		instance.logger.Info("Registering OpenTelemetry module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.OTelProvider { return instance.otelProvider }),
-			fx.Module(otelModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: otelModule.OnStart,
-						OnStop:  otelModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
-
-	// Add HTTP module if enabled
-	var httpModule *http.Module
-	if opt.WithHTTP {
-		httpModule = http.NewModule(instance.config, instance.logger, opt.HTTP...)
-		instance.http = httpModule.Provide()
-
-		instance.logger.Info("Registering HTTP module")
-
-		fxOptions = append(fxOptions,
-			fx.Provide(func() contract.HTTPKernel { return instance.http }),
-			fx.Module(httpModule.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: httpModule.OnStart,
-						OnStop:  httpModule.OnStop,
-					})
-				}),
-			),
-		)
-	}
+	fxOptions = reg.fxOptions
 
 	// Add custom modules - Handle them exactly like built-in modules
 	for _, moduleConstructor := range opt.Modules {
@@ -541,7 +256,7 @@ func New(opts ...Options) contract.Application {
 
 	// Add cache provider
 	if opt.WithCache {
-		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return cacheModule.ProvideCache() }))
+		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return reg.cache.ProvideCache() }))
 	}
 
 	// Add custom providers
@@ -552,7 +267,7 @@ func New(opts ...Options) contract.Application {
 	// Add HTTP service injection and module routes BEFORE the HTTP server starts
 	if opt.WithHTTP {
 		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
-			fiberApp := httpModule.Provide().App()
+			fiberApp := reg.http.Provide().App()
 
 			// Set up service middleware immediately when all dependencies are available
 			// This ensures the middleware is registered before the HTTP server starts listening
@@ -560,20 +275,20 @@ func New(opts ...Options) contract.Application {
 			instance.logger.Debug("HTTP service middleware registered")
 
 			// Register OpenTelemetry tracing middleware (first, to capture all requests)
-			if opt.WithOTel && otelModule != nil {
-				otelModule.RegisterMiddleware(fiberApp)
+			if opt.WithOTel && reg.otel != nil {
+				reg.otel.RegisterMiddleware(fiberApp)
 				instance.logger.Debug("OpenTelemetry middleware registered")
 			}
 
 			// Register Prometheus metrics middleware
-			if opt.WithMetrics && metricsModule != nil {
-				metricsModule.RegisterMiddleware(fiberApp)
+			if opt.WithMetrics && reg.metrics != nil {
+				reg.metrics.RegisterMiddleware(fiberApp)
 				instance.logger.Debug("Metrics middleware registered")
 			}
 
 			// Register health check routes
-			if opt.WithHealth && healthModule != nil {
-				healthModule.RegisterRoutes(fiberApp)
+			if opt.WithHealth && reg.health != nil {
+				reg.health.RegisterRoutes(fiberApp)
 				instance.logger.Debug("Health routes registered")
 
 				// Auto-register health checkers for enabled modules
@@ -592,8 +307,8 @@ func New(opts ...Options) contract.Application {
 			}
 
 			// Register metrics endpoint
-			if opt.WithMetrics && metricsModule != nil {
-				metricsModule.RegisterRoutes(fiberApp)
+			if opt.WithMetrics && reg.metrics != nil {
+				reg.metrics.RegisterRoutes(fiberApp)
 				instance.logger.Debug("Metrics routes registered")
 			}
 		}))
@@ -638,336 +353,4 @@ func New(opts ...Options) contract.Application {
 	}
 
 	return instance.app
-}
-
-// checkAndProvideServices inspects a module for common service provider methods
-// and automatically registers them with Fx DI (like built-in modules do)
-func checkAndProvideServices(module contract.Module) []fx.Option {
-	var providers []fx.Option
-	moduleValue := reflect.ValueOf(module)
-
-	// Common service provider method patterns used by GOE modules
-	serviceProviderMethods := []string{
-		"Provide",           // Generic service provider
-		"ProvideService",    // Generic service provider
-		"ProvideClient",     // For client modules (like gRPC, HTTP clients)
-		"ProvideManager",    // For manager services
-		"ProvideHandler",    // For handler services
-		"ProvideRepository", // For data access modules
-		"ProvideCache",      // For cache services
-		"ProvideDB",         // For database services
-		"ProvideLogger",     // For logger services
-		"ProvideConfig",     // For config services
-	}
-
-	// Check each potential service provider method
-	for _, methodName := range serviceProviderMethods {
-		if method := moduleValue.MethodByName(methodName); method.IsValid() {
-			methodType := method.Type()
-
-			// Method should have no parameters and return one value (the service)
-			if methodType.NumIn() == 0 && methodType.NumOut() == 1 {
-				// Create a provider function with the correct return type
-				returnType := methodType.Out(0)
-
-				// Create a function with the correct signature using reflection
-				providerFunc := reflect.MakeFunc(
-					reflect.FuncOf([]reflect.Type{}, []reflect.Type{returnType}, false),
-					func(args []reflect.Value) []reflect.Value {
-						return method.Call([]reflect.Value{})
-					},
-				)
-
-				providers = append(providers, fx.Provide(providerFunc.Interface()))
-			}
-		}
-	}
-
-	return providers
-}
-
-// Run runs the application
-func Run() {
-	instance.mu.RLock()
-	app := instance.app
-	instance.mu.RUnlock()
-
-	if app == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	app.Container().Run()
-}
-
-// App returns the global application instance
-func App() contract.Application {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.app == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return instance.app
-}
-
-// Config returns the global config instance
-func Config() contract.Config {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.config == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return instance.config
-}
-
-// Log returns the global logger instance.
-// Panics if the application has not been initialized.
-func Log() contract.Logger {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.logger == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return instance.logger
-}
-
-// LogOrNil returns the global logger instance, or nil if not yet initialized.
-// Use this when logging is best-effort and a panic would be worse than silence.
-func LogOrNil() contract.Logger {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	return instance.logger
-}
-
-// Context returns the application context
-func Context() context.Context {
-	return App().Context()
-}
-
-// IsRunning returns true if the application is running
-func IsRunning() bool {
-	return App().IsRunning()
-}
-
-// GetEnvironment returns the current environment
-func GetEnvironment() string {
-	return App().Environment()
-}
-
-// HTTP returns the global HTTP kernel instance
-func HTTP() contract.HTTPKernel {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.http == nil {
-		panic("HTTP module not initialized. Set WithHTTP: true in goe.New() options")
-	}
-
-	return instance.http
-}
-
-// Cache returns the global cache manager instance
-func Cache() contract.CacheManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.cacheManager == nil {
-		panic("Cache module not initialized. Set WithCache: true in goe.New() options")
-	}
-
-	return instance.cacheManager
-}
-
-// DB returns the global DB instance
-func DB() contract.DB {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.db == nil {
-		panic("DB module not initialized. Set WithDB: true in goe.New() options, and ensure DB connection is configured.")
-	}
-
-	return instance.db
-}
-
-// MongoDB returns the global MongoDB instance
-func MongoDB() contract.MongoDB {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.mongoDB == nil {
-		panic("MongoDB module not initialized. Set WithMongoDB: true in goe.New() options, and ensure MongoDB connection is configured.")
-	}
-
-	return instance.mongoDB
-}
-
-// Mongo is a convenient alias for MongoDB() for shorter access
-func Mongo() contract.MongoDB {
-	return MongoDB()
-}
-
-// Migrate returns the global MongoDB migration instance.
-// Use this to run migrations, check status, or manage schema versions.
-//
-// Example:
-//
-//	// Run all pending migrations
-//	result, err := goe.Migrate().Up(ctx)
-//
-//	// Check migration status
-//	status, err := goe.Migrate().Status(ctx)
-//
-//	// Rollback last migration
-//	result, err := goe.Migrate().Down(ctx, 1)
-func Migrate() *migrate.Migrator {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.migrator == nil {
-		panic("Migration module not initialized. Set WithMigrate: true and WithMongoDB: true in goe.New() options")
-	}
-
-	return instance.migrator
-}
-
-// Health returns the global health manager instance
-func Health() contract.HealthManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.healthManager == nil {
-		panic("Health module not initialized. Set WithHealth: true in goe.New() options")
-	}
-
-	return instance.healthManager
-}
-
-// Metrics returns the global metrics manager instance
-func Metrics() contract.MetricsManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.metricsManager == nil {
-		panic("Metrics module not initialized. Set WithMetrics: true in goe.New() options")
-	}
-
-	return instance.metricsManager
-}
-
-// OTel returns the global OpenTelemetry provider instance
-func OTel() contract.OTelProvider {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.otelProvider == nil {
-		panic("OpenTelemetry module not initialized. Set WithOTel: true in goe.New() options")
-	}
-
-	return instance.otelProvider
-}
-
-// Lock returns the global lock manager instance.
-// Use this to create distributed mutex locks for coordinating access to
-// shared resources across multiple processes or machines.
-//
-// Example:
-//
-//	mutex := goe.Lock().NewMutex("my-resource")
-//	if err := mutex.Lock(ctx); err != nil {
-//	    return err
-//	}
-//	defer mutex.Unlock(ctx)
-//	// ... critical section ...
-func Lock() contract.LockManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.lockManager == nil {
-		panic("Lock module not initialized. Set WithLock: true in goe.New() options")
-	}
-
-	return instance.lockManager
-}
-
-// Job returns the global job manager instance.
-// Use this to dispatch background jobs, register handlers, and manage job schedules.
-//
-// Example - Dispatching a job:
-//
-//	job := contract.NewJobDefinition("send-email", map[string]string{
-//	    "to": "user@example.com",
-//	    "subject": "Welcome!",
-//	})
-//	jobID, err := goe.Job().Dispatch(ctx, job)
-//
-// Example - Registering a handler:
-//
-//	goe.Job().RegisterHandler("send-email", contract.JobHandlerFunc(func(ctx context.Context, job contract.Job) error {
-//	    payload := job.Payload().(map[string]string)
-//	    // Send the email...
-//	    return nil
-//	}))
-//
-// Example - Scheduling a recurring job:
-//
-//	goe.Job().RegisterSchedule(&contract.ScheduledJob{
-//	    Name:     "cleanup-expired",
-//	    Schedule: job.Daily(),
-//	    Handler:  myCleanupHandler,
-//	})
-func Job() contract.JobManager {
-	instance.mu.RLock()
-	defer instance.mu.RUnlock()
-
-	if instance.jobManager == nil {
-		panic("Job module not initialized. Set WithJob: true in goe.New() options")
-	}
-
-	return instance.jobManager
-}
-
-// AddModule adds a module to the global application instance
-func AddModule(module contract.Module) error {
-	instance.mu.RLock()
-	app := instance.app
-	instance.mu.RUnlock()
-
-	if app == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return app.AddModule(module)
-}
-
-// AddProvider adds a provider to the global application instance
-func AddProvider(provider contract.Provider) error {
-	instance.mu.RLock()
-	app := instance.app
-	instance.mu.RUnlock()
-
-	if app == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return app.AddProvider(provider)
-}
-
-// AddInvoker adds an invoker to the global application instance
-func AddInvoker(invoker contract.Invoker) error {
-	instance.mu.RLock()
-	app := instance.app
-	instance.mu.RUnlock()
-
-	if app == nil {
-		panic("Application not initialized. Call goe.New() first")
-	}
-
-	return app.AddInvoker(invoker)
 }

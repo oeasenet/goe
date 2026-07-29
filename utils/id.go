@@ -1,11 +1,23 @@
+// Identifier generators: NanoID, UUIDv7 and XID.
+
 package utils
 
 import (
 	"crypto/rand"
 	"errors"
 	"math"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/rs/xid"
 )
 
+// GenerateNanoId returns a cryptographically random, URL-safe identifier built
+// from an alphanumeric alphabet. The default length is 32 characters; pass a
+// single argument to choose another.
+//
+// It panics if the underlying random source fails, which in practice means the
+// operating system's entropy pool is unavailable.
 func GenerateNanoId(length ...int) string {
 	// defaultAlphabet is the alphabet used for ID characters by default.
 	const defaultAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -67,4 +79,21 @@ func GenerateNanoId(length ...int) string {
 		panic(err)
 	}
 	return result
+}
+
+// GenerateUUIDv7 returns a UUID version 7 with the dashes stripped, or an empty
+// string if one could not be generated. Version 7 is time-ordered, so the values
+// sort chronologically — useful as a database primary key.
+func GenerateUUIDv7() string {
+	uuidWithDashes, err := uuid.NewV7()
+	if err != nil {
+		return ""
+	}
+	return strings.ReplaceAll(uuidWithDashes.String(), "-", "")
+}
+
+// GenerateXid returns a globally unique, 20-character, time-sortable identifier.
+// XIDs are shorter than UUIDs and encode a timestamp, machine and process id.
+func GenerateXid() string {
+	return xid.New().String()
 }

@@ -18,11 +18,23 @@ COVERAGE_MODE=atomic
 # Default target
 all: test
 
+# Test tagging convention
+# ------------------------
+# A test file carries `//go:build integration` if and only if it REQUIRES an
+# external service (Redis, MongoDB, Postgres). Everything else belongs in the
+# default lane, whatever it is named.
+#
+# Tests that can use a service but do not need one — such as core/lock — stay in
+# the default lane and skip themselves via a single package-level probe. That way
+# they run automatically wherever the service happens to be available, without
+# costing anything when it is not. Point them elsewhere with GOE_TEST_REDIS_ADDR.
+
 # Run unit tests only (excludes integration tests)
 test:
 	$(GOTEST) -v -race $(TEST_PACKAGES)
 
 # Run integration tests (requires external services like Redis)
+# Start them first with: cd examples && docker compose up -d
 test_integration:
 	$(GOTEST) -v -race -tags=integration $(TEST_PACKAGES)
 

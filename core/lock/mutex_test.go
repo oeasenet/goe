@@ -107,10 +107,11 @@ func (l *testLogger) GetLogger() *zap.SugaredLogger {
 	return nil
 }
 
-const testRedisAddr = "192.168.215.2:6379"
-
 // getTestRedisClient creates a Redis client for testing
 func getTestRedisClient(t *testing.T) *redis.Client {
+	t.Helper()
+	requireRedis(t)
+
 	client := redis.NewClient(&redis.Options{
 		Addr: testRedisAddr,
 		DB:   0,
@@ -138,6 +139,9 @@ func getTestPool(t *testing.T) Pool {
 // Note: In real Redlock, you'd use independent Redis servers
 // For testing, we use the same server to verify the algorithm logic
 func getTestPools(t *testing.T, count int) []Pool {
+	t.Helper()
+	requireRedis(t)
+
 	pools := make([]Pool, count)
 	for i := range count {
 		client := redis.NewClient(&redis.Options{
@@ -633,6 +637,8 @@ func TestMutex_RetryDelay(t *testing.T) {
 
 // TestMutex_ClockDrift tests clock drift compensation
 func TestMutex_ClockDrift(t *testing.T) {
+	requireRedis(t)
+
 	pool := getTestPool(t)
 	defer func() { _ = pool.Close() }()
 

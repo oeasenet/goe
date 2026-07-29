@@ -1,6 +1,6 @@
 # GOE Examples Makefile
 
-.PHONY: help start stop clean hello-world todo-api event-driven custom-module
+.PHONY: help start stop clean hello-world todo-api custom-module production-essentials code-first-config
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -28,11 +28,11 @@ hello-world: ## Run the hello-world example
 todo-api: start ## Run the todo-api example (starts Docker first)
 	cd 02-todo-api && go run .
 
-event-driven: start ## Run the event-driven example (starts Docker first)
-	cd 03-event-driven && go run .
-
 custom-module: ## Run the custom-module example
 	cd 04-custom-module && go run .
+
+production-essentials: ## Run the production-essentials example
+	cd 05-production-essentials && go run .
 
 code-first-config: ## Run the code-first-config example
 	cd 06-code-first-config && go run .
@@ -55,15 +55,6 @@ test-todo: ## Test todo-api endpoints
 	curl -s http://localhost:3000/todos | jq .
 	@echo "\n\nGetting stats..."
 	curl -s http://localhost:3000/todos/stats/summary | jq .
-
-test-events: ## Test event-driven endpoints
-	@echo "Creating an order (publishes event)..."
-	curl -s -X POST http://localhost:3000/orders -H "Content-Type: application/json" \
-		-d '{"customer_id":"cust_123","items":[{"product":"Widget","quantity":2,"price":29.99}]}' | jq .
-	@echo "\n\nChecking event stats..."
-	curl -s http://localhost:3000/events/stats | jq .
-	@echo "\n\nChecking event health..."
-	curl -s http://localhost:3000/events/health | jq .
 
 test-module: ## Test custom-module endpoints
 	@echo "Testing health..."
