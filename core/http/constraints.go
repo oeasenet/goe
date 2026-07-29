@@ -17,11 +17,22 @@ var (
 // These constraints can be used in route definitions like:
 //   app.Get("/users/:id<uuid>", handler)
 //   app.Get("/posts/:page<uint>", handler)
+//
+// Fiber v3.4 unified built-in and custom constraints behind fiber.ConstraintHandler,
+// but app.RegisterCustomConstraint still takes the fiber.CustomConstraint interface
+// (Name + Execute), which Fiber wraps internally. Each constraint below implements
+// that interface directly rather than embedding it, so the compiler — not a nil
+// interface at request time — enforces the contract if Fiber's signature ever changes.
+
+var (
+	_ fiber.CustomConstraint = (*UUIDConstraint)(nil)
+	_ fiber.CustomConstraint = (*UIntConstraint)(nil)
+	_ fiber.CustomConstraint = (*SlugConstraint)(nil)
+	_ fiber.CustomConstraint = (*EmailConstraint)(nil)
+)
 
 // UUIDConstraint validates that a route parameter is a valid UUID
-type UUIDConstraint struct {
-	fiber.CustomConstraint
-}
+type UUIDConstraint struct{}
 
 // Name returns the constraint name for use in route definitions
 func (*UUIDConstraint) Name() string {
@@ -35,9 +46,7 @@ func (*UUIDConstraint) Execute(param string, args ...string) bool {
 }
 
 // UIntConstraint validates that a route parameter is a valid unsigned integer
-type UIntConstraint struct {
-	fiber.CustomConstraint
-}
+type UIntConstraint struct{}
 
 // Name returns the constraint name for use in route definitions
 func (*UIntConstraint) Name() string {
@@ -55,9 +64,7 @@ func (*UIntConstraint) Execute(param string, args ...string) bool {
 
 // SlugConstraint validates that a route parameter is a valid URL slug
 // (lowercase alphanumeric with hyphens)
-type SlugConstraint struct {
-	fiber.CustomConstraint
-}
+type SlugConstraint struct{}
 
 // Name returns the constraint name for use in route definitions
 func (*SlugConstraint) Name() string {
@@ -73,9 +80,7 @@ func (*SlugConstraint) Execute(param string, args ...string) bool {
 }
 
 // EmailConstraint validates that a route parameter looks like an email
-type EmailConstraint struct {
-	fiber.CustomConstraint
-}
+type EmailConstraint struct{}
 
 // Name returns the constraint name for use in route definitions
 func (*EmailConstraint) Name() string {

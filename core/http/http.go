@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net"
+	"reflect"
 	"slices"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	htmltpl "github.com/gofiber/template/html/v3"
+	"github.com/gofiber/utils/v2"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 	"go.oease.dev/goe/v2/validation"
@@ -254,18 +256,45 @@ func (k *kernel) Shutdown() error {
 	return k.app.Shutdown()
 }
 
+// isNilError reports whether err is nil or holds a typed-nil value. A handler
+// that returns a nil pointer of a concrete error type produces a non-nil error
+// interface whose Error() panics when it dereferences its receiver.
+func isNilError(err error) bool {
+	if err == nil {
+		return true
+	}
+	switch v := reflect.ValueOf(err); v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 // defaultErrorHandler creates a default error handler
 func defaultErrorHandler(logger contract.Logger) fiber.ErrorHandler {
 	return func(ctx fiber.Ctx, err error) error {
+		// Fiber v3.4 hardened its DefaultErrorHandler against typed-nil errors
+		// (gofiber/fiber#4407, #4372). GOE replaces that handler, so it has to
+		// carry the same guard: without it a typed-nil error panics here, and
+		// this handler runs outside the recover middleware on Fiber's own path.
+		if isNilError(err) {
+			err = nil
+		}
+
 		// Status code defaults to 500
 		respCode := fiber.StatusInternalServerError
 		// Set error message
-		message := err.Error()
-		// Check if it's a fiber.Error type
+		message := utils.StatusMessage(respCode)
+		// Check if it's a fiber.Error type. errors.As can match a wrapped
+		// typed-nil *fiber.Error, so e itself must be checked as well.
 		var e *fiber.Error
-		if errors.As(err, &e) {
+		switch matched := errors.As(err, &e); {
+		case matched && e != nil:
 			respCode = e.Code
 			message = e.Message
+		case err != nil && !matched:
+			message = err.Error()
 		}
 		ctx.Status(respCode)
 

@@ -184,25 +184,34 @@ func (g *Group) Handle(method, path string, handler Handler[Services]) fiber.Rou
 
 // GET registers a GET route with dependency injection
 func (g *Group) GET(path string, handler Handler[Services]) fiber.Router {
-	return g.Handle("GET", path, handler)
+	return g.Handle(fiber.MethodGet, path, handler)
 }
 
 // POST registers a POST route with dependency injection
 func (g *Group) POST(path string, handler Handler[Services]) fiber.Router {
-	return g.Handle("POST", path, handler)
+	return g.Handle(fiber.MethodPost, path, handler)
 }
 
 // PUT registers a PUT route with dependency injection
 func (g *Group) PUT(path string, handler Handler[Services]) fiber.Router {
-	return g.Handle("PUT", path, handler)
+	return g.Handle(fiber.MethodPut, path, handler)
 }
 
 // DELETE registers a DELETE route with dependency injection
 func (g *Group) DELETE(path string, handler Handler[Services]) fiber.Router {
-	return g.Handle("DELETE", path, handler)
+	return g.Handle(fiber.MethodDelete, path, handler)
 }
 
 // PATCH registers a PATCH route with dependency injection
 func (g *Group) PATCH(path string, handler Handler[Services]) fiber.Router {
-	return g.Handle("PATCH", path, handler)
+	return g.Handle(fiber.MethodPatch, path, handler)
+}
+
+// QUERY registers a QUERY route with dependency injection.
+//
+// QUERY (RFC 10008) is a safe, idempotent method that carries its query
+// expression in the request body — read it with c.Body() rather than c.Query().
+// It is enabled by default in Fiber v3.4+ via fiber.DefaultMethods.
+func (g *Group) QUERY(path string, handler Handler[Services]) fiber.Router {
+	return g.Handle(fiber.MethodQuery, path, handler)
 }

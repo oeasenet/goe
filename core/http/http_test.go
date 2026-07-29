@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http/httptest"
@@ -535,6 +536,23 @@ func TestHTTP_ErrorHandler(t *testing.T) {
 		panic("Test panic")
 	})
 
+	// A handler returning a nil pointer of a concrete error type yields a
+	// non-nil error interface whose Error() dereferences a nil receiver.
+	app.Get("/typed-nil", func(c fiber.Ctx) error {
+		var e *derefError
+		return e
+	})
+
+	app.Get("/typed-nil-fiber", func(c fiber.Ctx) error {
+		var e *fiber.Error
+		return e
+	})
+
+	app.Get("/wrapped-typed-nil-fiber", func(c fiber.Ctx) error {
+		var e *fiber.Error
+		return fmt.Errorf("wrapped: %w", e)
+	})
+
 	t.Run("fiber error handling", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/error", nil)
 		resp, err := app.Test(req)
@@ -574,7 +592,30 @@ func TestHTTP_ErrorHandler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), "Bad Request")
 	})
+
+	// Mirrors the typed-nil hardening Fiber added to its own DefaultErrorHandler
+	// in v3.4 (gofiber/fiber#4407, #4372). Without the guard these routes panic
+	// inside the error handler instead of rendering a 500.
+	for _, tc := range []string{"/typed-nil", "/typed-nil-fiber", "/wrapped-typed-nil-fiber"} {
+		t.Run("typed-nil error"+tc, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tc+"?format=text", nil)
+			resp, err := app.Test(req)
+
+			assert.NoError(t, err)
+			assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, "Internal Server Error", string(body))
+		})
+	}
 }
+
+// derefError is an error whose Error() dereferences its receiver, so calling it
+// on a typed-nil value panics.
+type derefError struct{ msg string }
+
+func (e *derefError) Error() string { return e.msg }
 
 func TestHTTP_Middleware(t *testing.T) {
 	config := &MockConfig{}
@@ -892,6 +933,25 @@ func TestHTTP_GroupRouter(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+	})
+
+	// QUERY (RFC 10008) carries the query expression in the request body and is
+	// enabled by default from Fiber v3.4 onwards.
+	t.Run("group QUERY method", func(t *testing.T) {
+		group.QUERY("/test", func(c fiber.Ctx, deps Services) error {
+			assert.NotNil(t, deps.App)
+			return c.Send(c.Body())
+		})
+
+		req := httptest.NewRequest(fiber.MethodQuery, "/api/test", bytes.NewBufferString("select * where id = 1"))
+		resp, err := app.Test(req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "select * where id = 1", string(body))
 	})
 }
 
