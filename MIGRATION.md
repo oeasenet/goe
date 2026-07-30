@@ -5,7 +5,7 @@ your application does. Releases with neither are not listed here.
 
 ---
 
-## Unreleased
+## v2.2.2
 
 No code edits required. Two defaults changed and one startup warning was added,
 all around trusted proxies.
