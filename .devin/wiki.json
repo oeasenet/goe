@@ -1,13 +1,13 @@
 {
   "repo_notes": [
     {
-      "content": ""
+      "content": "Module path is go.oease.dev/goe/v2 (import the /v2 suffix); requires Go 1.26+. Current version is 2.2.0 (see version.go). The framework is Uber Fx for dependency injection plus GoFiber v3 for HTTP, with optional modules for SQL (GORM), MongoDB, MongoDB migrations, caching, background jobs, distributed locking, health, metrics and OpenTelemetry.\n\nMIGRATION.md is the authoritative record of breaking changes; consult it before documenting any API as current.\n\nRemoved APIs — do NOT document these as available:\n- The eventing system was removed in 2.0.2; the job system replaced it.\n- 2.2.0 removed contract.HTTPConfig, contract.RouteInfo, http.RegisterRoutes and http.NewField (all were inert or duplicated: code referencing them compiled but had no effect).\n- 2.2.0 removed contract.ValidationProvider, contract.ValidationMiddleware, validation.NewProvider, validation.NewMiddlewareProvider, http.Services.Validator, http.GetValidator, http.ServiceProvider.Validator and http.Module.ProvideValidator. contract.HTTPValidator was reduced to a single Validate(i any) error method.\n\nTwo things commonly get documented wrongly:\n1. Request validation is NOT an injected service. Fiber's Ctx.Bind calls a fiber.StructValidator that the HTTP kernel installs by default, so `validate` struct tags are enforced by Bind itself. The top-level validation package is deprecated in favour of Bind.\n2. HTTP settings can be configured in Go code via goe.Options.HTTP ([]http.Option), not only through environment variables. Options are applied after the environment, so code wins and env fills the gaps."
     }
   ],
   "pages": [
     {
       "title": "Overview",
-      "purpose": "Introduce the goe framework, summarise its architecture, list its major capabilities, and explain how the key subsystems relate to each other",
+      "purpose": "Introduce the goe framework, summarise its architecture (Uber Fx dependency injection plus GoFiber v3 HTTP), list its major capabilities, and explain how the subsystems relate: a config and log core, an HTTP kernel, and opt-in modules for SQL, MongoDB, migrations, caching, jobs, locking, health, metrics and tracing.",
       "page_notes": [
         {
           "content": ""
@@ -25,7 +25,7 @@
     },
     {
       "title": "Installation",
-      "purpose": "Explain the go get command, Go version requirement, module path, and any build-time prerequisites",
+      "purpose": "Explain `go get go.oease.dev/goe/v2`, the Go 1.26+ requirement, the /v2 module path suffix, and that no build-time codegen or CLI is needed.",
       "parent": "Getting Started",
       "page_notes": [
         {
@@ -35,7 +35,7 @@
     },
     {
       "title": "Quick Start Tutorial",
-      "purpose": "Walk through a minimal working application using goe.New and goe.Run with HTTP, configuration, and logging enabled",
+      "purpose": "Walk through a minimal working application using goe.New(goe.Options{...}) and goe.Run(), enabling HTTP and showing route registration through Invokers, plus the injected contract.Logger and contract.Config.",
       "parent": "Getting Started",
       "page_notes": [
         {
@@ -45,17 +45,17 @@
     },
     {
       "title": "Project Structure",
-      "purpose": "Describe the conventional layout of a goe project, the purpose of the core/, contract/, webresult/, and modules/ directories, and where user code lives",
+      "purpose": "Describe the repository layout and where user code lives: contract/ (interfaces), core/ (module implementations: app, cache, config, db, health, http, job, lock, log, metrics, mongodb, mongodb/migrate, otel, shutdown, plus core/internal), middlewares/ (optional spa and cachecontrol), webresult/ (JSON response helpers), utils/ (small standalone helpers), validation/ (deprecated), cdntrust/ (optional CDN trusted-proxy helper), and examples/.",
       "parent": "Getting Started",
       "page_notes": [
         {
-          "content": ""
+          "content": "There is no modules/ directory — optional middleware lives in middlewares/. Root-level Go files are the bootstrap: goe.go (New), options.go (Options), modules.go (built-in module registration), accessors.go (global accessors), hook.go, version.go."
         }
       ]
     },
     {
       "title": "Core Concepts",
-      "purpose": "Explain the foundational design principles of goe: dependency injection, the module contract, configuration loading, and the global accessor pattern",
+      "purpose": "Explain the foundational design of goe: dependency injection, the module contract, layered configuration, structured logging, and the global accessor pattern over a package-level singleton",
       "page_notes": [
         {
           "content": ""
@@ -64,57 +64,67 @@
     },
     {
       "title": "Application Bootstrap",
-      "purpose": "Detail the goe.New(Options) constructor, every field of the Options struct, the goe.Run() call, global accessor functions, and how the singleton instance is managed",
+      "purpose": "Detail goe.New(Options) and goe.Run(), every Options field (Modules, Providers, Invokers, the WithHTTP / WithCache / WithDB / WithMongoDB / WithMigrate / WithLock / WithJob / WithHealth / WithMetrics / WithOTel toggles, HTTP, ConfigOverrides, ShutdownTimeout, DrainTimeout, OnStart, OnStop), and the global accessors in accessors.go (App, Config, Log, LogOrNil, Context, IsRunning, GetEnvironment, HTTP, Cache, DB, MongoDB, Mongo, Migrate, Health, Metrics, OTel, Lock, Job, AddModule, AddProvider, AddInvoker).",
       "parent": "Core Concepts",
       "page_notes": [
         {
-          "content": ""
+          "content": "Options.HTTP is []http.Option; supplying it implies WithHTTP, so the boolean is not needed as well. Options.HTTPPort is deprecated in favour of http.WithPort. New() holds a package-level singleton, so accessors panic if called before New (LogOrNil returns nil instead)."
         }
       ]
     },
     {
       "title": "Dependency Injection with Fx",
-      "purpose": "Explain how go.uber.org/fx powers the DI container, how Providers and Invokers are declared and resolved, and how the framework-provided contract interfaces are injected",
+      "purpose": "Explain how go.uber.org/fx powers the container, how Providers and Invokers are declared and resolved, which contract interfaces the framework provides for injection, and the reflective convention by which a custom module's services are registered.",
       "parent": "Core Concepts",
       "page_notes": [
         {
-          "content": ""
+          "content": "Custom modules have their services auto-registered by checkAndProvideServices in modules.go, which looks for methods named exactly Provide, ProvideCache, ProvideClient, ProvideConfig, ProvideDB, ProvideHandler, ProvideLogger, ProvideManager, ProvideRepository or ProvideService. Fx event logging is tagged as the \"fx\" log module and defaults to warn."
         }
       ]
     },
     {
       "title": "Module System and Lifecycle",
-      "purpose": "Describe the contract.Module interface (Name, OnStart, OnStop, ValidateConfig, Provide), how built-in modules are registered, and the startup and shutdown ordering guarantee",
+      "purpose": "Describe contract.Module (Name, OnStart, OnStop), the optional ConfigValidator interface and the combined ModuleWithValidator, how built-in modules are registered in modules.go, and the startup/shutdown ordering guarantee provided by Fx lifecycle hooks.",
       "parent": "Core Concepts",
       "page_notes": [
         {
-          "content": ""
+          "content": "contract.Module has exactly three methods: Name, OnStart, OnStop. ValidateConfig is NOT part of it — it comes from contract.ConfigValidator, and ModuleWithValidator composes the two. Provide is not part of any interface; it is a reflective naming convention (see the DI page)."
         }
       ]
     },
     {
       "title": "Configuration Hierarchy",
-      "purpose": "Explain how config is loaded from .env, .local.env, .{GOE_ENV}.env and system environment variables, the priority order, typed accessors (GetString, GetInt, GetBool, GetDuration), hot-reload, and the ConfigSource extension point",
+      "purpose": "Explain configuration loading from .env, then .local.env, then .{GOE_ENV}.env, then system environment variables (highest priority), the typed accessors on contract.Config (Get, GetString, GetInt, GetInt64, GetFloat64, GetBool, GetDuration, GetStringSlice, GetStringMap, Set, Has, All, Reload), automatic reloading when env files change, the contract.ConfigSource extension point, and fail-fast startup validation via contract.ConfigValidator and ConfigValidationError.",
       "parent": "Core Concepts",
       "page_notes": [
         {
-          "content": ""
+          "content": "goe.Options.ConfigOverrides injects values into this layer programmatically. Set DISABLE_CONFIG_VALIDATION to skip startup validation (development only)."
         }
       ]
     },
     {
       "title": "Logging with Zap",
-      "purpose": "Cover the contract.Logger interface, the zap-backed implementation, log levels, JSON vs console format, file and stdout outputs, structured fields (With, WithContext, WithError), and the log.Module Fx integration",
+      "purpose": "Cover contract.Logger (Debug/Info/Warn/Error/Fatal plus the f- and w-suffixed variants, With, WithContext, WithError, GetLogger), the zap-backed implementation, LOG_LEVEL, text versus json format, console/stdout/stderr/file outputs, caller and stacktrace options, and per-module level overrides via LOG_MODULE_LEVELS.",
       "parent": "Core Concepts",
       "page_notes": [
         {
-          "content": ""
+          "content": "LOG_MODULE_LEVELS takes comma-separated module:level pairs and overrides LOG_LEVEL up or down per module (e.g. gorm:warn,job:debug,access:warn). Module names include log, app, db, gorm, mongo, mongo-migrate, cache, lock, job, http, access, health, metrics, otel and fx. The fx module defaults to warn rather than following LOG_LEVEL, because Fx logs a line per constructor supplied/provided/decorated/run; set fx:debug to see wiring."
+        }
+      ]
+    },
+    {
+      "title": "Graceful Shutdown",
+      "purpose": "Document the shutdown manager: contract.ShutdownManager (RegisterHook, UnregisterHook, Shutdown, DrainTimeout, Timeout, IsShutdown), contract.ShutdownHook, the priority constants that order teardown (PriorityHTTP, PriorityWorkers, PriorityEvent, PriorityDatabase, PriorityCache, PriorityTelemetry), and how goe.Options.ShutdownTimeout and DrainTimeout bound it.",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": "Higher priority values are torn down first, so HTTP stops accepting before databases close. The manager is always provided for injection, whether or not other modules are enabled."
         }
       ]
     },
     {
       "title": "HTTP Server",
-      "purpose": "Overview of the HTTP subsystem built on Fiber, listing the capabilities covered in sub-pages",
+      "purpose": "Overview of the HTTP subsystem built on GoFiber v3, listing the capabilities covered in the sub-pages",
       "page_notes": [
         {
           "content": ""
@@ -123,57 +133,77 @@
     },
     {
       "title": "HTTP Kernel Overview",
-      "purpose": "Describe the contract.HTTPKernel interface, the HTTPConfig struct fields, server startup/shutdown lifecycle, default middleware registration, and RegisterDefaultConstraints",
+      "purpose": "Describe contract.HTTPKernel (App, Listen, Shutdown, Validator, HTTPValidator), how http.New resolves its configuration in layers, the default middleware stack registered on the app (recover, then the request-id middleware, then the fiberzap access logger), RegisterDefaultConstraints, and the module lifecycle that binds and releases the listener.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "contract.HTTPConfig was REMOVED in 2.2.0 — do not document it. HTTP settings come from environment variables and/or []http.Option. The server starts via app.Listen(addr, fiber.ListenConfig) so that TLS, prefork and unix sockets work; the listener network is pinned to tcp (dual-stack) because Fiber's own default is tcp4. Kernel.Validator and Kernel.HTTPValidator are deprecated."
+        }
+      ]
+    },
+    {
+      "title": "Configuring the Server in Go Code",
+      "purpose": "Document the code-first configuration API in core/http: the http.Option type, the layered resolution order (GOE defaults, then FIBER_*/HTTP_*/VIEWS_* environment variables, then options, then escape hatches), and the option catalogue. Every field of fiber.Config and fiber.ListenConfig is exposed as With<FieldName> taking Fiber's own type, plus GOE-specific WithHost, WithPort, WithRequestID, WithRequestIDHeader and WithHTMLViews. Cover WithFiberConfig and WithListenConfig as escape hatches, and the TLS options (WithCertFile, WithCertKeyFile, WithTLSConfig, WithTLSMinVersion, WithAutoCertManager) which have no environment equivalent.",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": "Roughly 72 With* constructors exist. Options apply in slice order (last write wins) and escape hatches always run last. If any option returns an error, none are applied and startup aborts via ValidateConfig. Cross-field rules: WithTrustProxyConfig requires WithTrustProxy(true); WithCertFile requires WithCertKeyFile; WithValidatorSetup cannot be combined with WithStructValidator. A test reflects over both Fiber structs to ensure every field stays covered."
         }
       ]
     },
     {
       "title": "Routing and Handlers",
-      "purpose": "Explain how to register routes on fiber.App, use the Group wrapper, the RouteRegistrar DI pattern, RegisterRoutes helper, and the HandlerParams injection struct",
+      "purpose": "Explain registering routes on the underlying fiber.App, the http.Group wrapper and its DI-aware GET, POST, PUT, DELETE, PATCH and QUERY methods, the http.RouteRegistrar fx.In struct for use as an Invoker parameter, and the http.NewHandler / http.HandlerParams and http.AsHandler / http.Handler[T] helpers.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "http.RegisterRoutes was REMOVED in 2.2.0 — it was an identity function; pass the function straight to Options.Invokers instead. Group.QUERY supports the HTTP QUERY method (RFC 10008), added in Fiber v3.4, which carries its query expression in the request body."
         }
       ]
     },
     {
       "title": "Dependency Injection in Handlers",
-      "purpose": "Document the Services struct, InjectServices middleware, GetServices/GetConfig/GetLogger/GetCache/GetApp helpers, the AsHandler generic, and the Group DI routing methods",
+      "purpose": "Document the http.Services struct (App, Config, Logger, Cache), the InjectServices middleware, CreateServiceMiddleware and the ServiceProvider fx.In struct, the accessors GetServices, GetConfig, GetApp and GetCache, and WithReqCtx for a request-scoped logger.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "Services no longer carries a validator and http.GetValidator was removed in 2.2.0 — Fiber's Bind calls the validator directly. WithReqCtx(c) is the current way to get a logger enriched with request_id and, when a span is active, trace_id/span_id; GetLogger is a backward-compatible alias for it. These rely on Fiber's PassLocalsToContext, which GOE enables by default."
         }
       ]
     },
     {
       "title": "Middleware System",
-      "purpose": "Cover the default request-logger and recover middleware, how to add custom middleware, SetupServiceMiddleware, and the available optional middleware (OIDC, CacheControl)",
+      "purpose": "Cover the middleware GOE registers by default (Fiber's recover, the requestid middleware honouring HTTP_REQUEST_ID and HTTP_REQUEST_ID_HEADER, and the fiberzap access logger which maps 5xx to error, 4xx to warn and everything else to info under the \"access\" log module), how to add your own with app.Use, and the optional middleware shipped in middlewares/: spa and cachecontrol.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "There is no OIDC middleware in this repository — do not document one. The only packages under middlewares/ are spa and cachecontrol. Health and metrics routes are registered by their own modules, not by middleware."
         }
       ]
     },
     {
       "title": "Request Validation",
-      "purpose": "Explain the HTTPValidator interface, struct validation via go-playground/validator, built-in route constraints (uuid, uint, slug, email), and how validators are injected into handlers",
+      "purpose": "Explain that GOE installs a fiber.StructValidator (go-playground/validator/v10) on the app, so `validate` struct tags are enforced automatically by Ctx.Bind for JSON, Query, URI, Form, Header, Cookie, XML, CBOR and MsgPack. Cover customisation through http.WithValidatorSetup (register extra rules on the bundled validator) and http.WithStructValidator (replace it entirely), the reduced contract.HTTPValidator interface, and the built-in route parameter constraints uuid, uint, slug and email registered by RegisterDefaultConstraints.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "Validation is NOT injected and there is no validation middleware — Fiber owns the call site. Fiber ships no validator of its own: with StructValidator unset, Bind parses and skips validation silently, which is why GOE installs one. This follows https://docs.gofiber.io/guide/validation. Fiber only validates struct destinations, so binding into a map skips it; Bind().SkipValidation() opts out. The top-level validation package and its middleware/helpers are deprecated in favour of Bind. Route constraints are implemented against Fiber's CustomConstraint interface."
+        }
+      ]
+    },
+    {
+      "title": "Trusted Proxies and CDN Edge IPs",
+      "purpose": "Explain why a client address must be taken from a forwarded header when the app runs behind a proxy or CDN, and how Fiber only honours that header for trusted hops. Cover the FIBER_TRUST_PROXY / FIBER_TRUST_PROXIES / FIBER_TRUST_LINK_LOCAL / FIBER_TRUST_LOOPBACK / FIBER_TRUST_PRIVATE variables, the equivalent http.WithTrustProxy and http.WithTrustProxyConfig options, http.WithProxyHeader, and the optional cdntrust package which fetches published edge ranges for Cloudflare, Fastly and BunnyCDN and returns them as Fetch, TrustProxyConfig or Options.",
+      "parent": "HTTP Server",
+      "page_notes": [
+        {
+          "content": "cdntrust is entirely optional: nothing in GOE imports it, and it adds no module dependency. It fetches once at startup with no cache, retry or background refresh, so a network failure is returned as an error and the expected response is to abort startup rather than run with an unknown trust set. Redeploy periodically to pick up provider changes. Cloudflare and Fastly publish CIDR blocks; BunnyCDN publishes several hundred individual addresses, which Fiber accepts too. Only the CDN ranges are trusted — Private, Loopback, LinkLocal and UnixSocket are deliberately left unset."
         }
       ]
     },
     {
       "title": "Response Utilities",
-      "purpose": "Document the webresult package in full: the WebResult struct, Map and List type aliases, SendSucceed, SendFailed, and the fiber.Error generators (InvalidParam, Unauthorized, Forbidden, NotFound, SystemBusy)",
+      "purpose": "Document the webresult package: the WebResult struct, the Map and List type aliases, SendSucceed and SendFailed, and the *fiber.Error generators InvalidParam, Unauthorized, Forbidden, NotFound and SystemBusy.",
       "parent": "HTTP Server",
       "page_notes": [
         {
@@ -183,17 +213,17 @@
     },
     {
       "title": "Error Handling",
-      "purpose": "Cover the default Fiber error handler, the embedded error page HTML template and its data fields (Title, Code, Message, HomeLink), and how to customise error responses",
+      "purpose": "Cover GOE's default Fiber error handler: how it derives the status from a *fiber.Error, content negotiation between HTML, JSON and plain text including the ?format=json and ?format=text overrides, the embedded error_page.gohtml template and its ErrorPageData fields (Title, Code, Message, HomeLink), and how to replace the handler with http.WithErrorHandler.",
       "parent": "HTTP Server",
       "page_notes": [
         {
-          "content": ""
+          "content": "The handler guards against typed-nil errors, mirroring hardening Fiber added to its own DefaultErrorHandler in v3.4: without it a handler returning a nil pointer of a concrete error type would panic. It deliberately does not log, because the access-log middleware already records status and path for every request."
         }
       ]
     },
     {
       "title": "SPA and Static File Serving",
-      "purpose": "Document the spa middleware (Root, Index, NotFoundFile, MaxAge, Browse, Compress, ByteRange), the CacheControl middleware and CacheRule patterns, and how to serve a frontend app alongside an API",
+      "purpose": "Document the spa middleware and its Config (Next, Root, Index, NotFoundFile, MaxAge, Browse, ByteRange, Compress, CacheDuration), the cachecontrol middleware with its regex-based CacheRule list and DefaultCacheControl, and the http.Static / http.StaticFS helpers with http.StaticConfig for serving from disk or an embedded fs.FS.",
       "parent": "HTTP Server",
       "page_notes": [
         {
@@ -203,7 +233,7 @@
     },
     {
       "title": "Data Persistence",
-      "purpose": "Overview of the SQL, MongoDB, and migration modules, and how they fit into the application lifecycle",
+      "purpose": "Overview of the SQL, MongoDB and MongoDB migration modules, and how they fit into the application lifecycle",
       "page_notes": [
         {
           "content": ""
@@ -212,7 +242,7 @@
     },
     {
       "title": "SQL Database with GORM",
-      "purpose": "Cover DatabaseModule setup, supported drivers (MySQL, PostgreSQL, SQLite, SQL Server), multi-connection configuration, DSN construction, connection pooling, auto-migration, RegisterModelsForMigration, and the contract.DB interface",
+      "purpose": "Cover the GORM-backed DatabaseModule: supported drivers (MySQL, PostgreSQL, SQLite, SQL Server), default and named multi-connection configuration, DSN construction versus individual settings, connection pooling, auto-migration and RegisterModelsForMigration / RegisterModelsForMigrationOnConnection, and the contract.DB interface. Mention contract.DBModel as an embeddable base struct.",
       "parent": "Data Persistence",
       "page_notes": [
         {
@@ -222,7 +252,7 @@
     },
     {
       "title": "MongoDB Integration",
-      "purpose": "Describe the MongoDB DatabaseModule, default and named connections, pool settings (MIN_POOL_SIZE, MAX_POOL_SIZE, MAX_CONN_IDLE_TIME), debug command monitoring, the contract.MongoDB interface, and the utility functions for indexes, transactions, and bulk writes",
+      "purpose": "Describe the MongoDB DatabaseModule, default and named connections, pool settings (MONGO_MIN_POOL_SIZE, MONGO_MAX_POOL_SIZE, MONGO_MAX_CONN_IDLE_TIME), MONGO_DEBUG command monitoring under the \"mongo\" log module, the contract.MongoDB interface, and the utility helpers for indexes, transactions and bulk writes.",
       "parent": "Data Persistence",
       "page_notes": [
         {
@@ -232,17 +262,17 @@
     },
     {
       "title": "MongoDB Migrations",
-      "purpose": "Document the Migrator, Migration definition (New, Up, Down, Register), the contract.Migrator interface methods (Up, Down, Reset, Redo, Status, DryRun, VerifyChecksums), distributed locking via MongoLock, checksum verification, and the full set of migration helper functions",
+      "purpose": "Document the migration system: defining migrations with New/Up/Down and registering them (Register, MustRegister, Clear), the contract.Migrator interface (Up, UpTo, Down, DownTo, Reset, Redo, Status, Pending, Version, DryRun, VerifyChecksums, ClearDirty), distributed locking so only one instance migrates, checksum verification to detect edited migrations, and the collection-and-index helper functions.",
       "parent": "Data Persistence",
       "page_notes": [
         {
-          "content": ""
+          "content": "Migrations run inside a MongoDB transaction, which requires a replica set — a standalone server rejects them. MONGODB_MIGRATE_USE_TRANSACTIONS, MONGODB_MIGRATE_AUTO, MONGODB_MIGRATE_COLLECTION and the lock timeout settings control this. WithMigrate requires WithMongoDB."
         }
       ]
     },
     {
       "title": "Caching",
-      "purpose": "Overview of the caching subsystem, its driver model, and contract interfaces",
+      "purpose": "Overview of the caching subsystem, its driver model and contract interfaces",
       "page_notes": [
         {
           "content": ""
@@ -251,17 +281,17 @@
     },
     {
       "title": "Cache Module and Drivers",
-      "purpose": "Explain the CacheManager, supported built-in drivers (memory, Redis, Memcache, database backends), the Extend method for custom drivers, and all relevant configuration keys (CACHE_STORE, CACHE_DRIVER, CACHE_PREFIX, CACHE_TTL, per-store settings)",
+      "purpose": "Explain contract.CacheManager (Store, Driver, Extend), the two drivers GOE ships — memory (gofiber/storage/memory) and redis (gofiber/storage/redis) — how to register any other backend yourself with Extend and a contract.CacheStoreFactory, and the configuration keys (CACHE_STORE, CACHE_PREFIX, and per-store settings such as CACHE_REDIS_URL or CACHE_REDIS_HOST).",
       "parent": "Caching",
       "page_notes": [
         {
-          "content": ""
+          "content": "Only two drivers are actually implemented in this repository: \"memory\" and \"redis\". Do not document Memcache, DynamoDB, S3, Badger or other backends as built in — reaching them requires calling Extend with your own factory, since any gofiber/storage implementation satisfies contract.CacheStore. The README's \"10+ backends\" phrasing refers to that extensibility, not to shipped drivers."
         }
       ]
     },
     {
       "title": "Cache Operations",
-      "purpose": "Document every method on contract.Cache: Get, GetWithDefault, Set, Forever, Forget, Flush, Has, Remember, RememberForever, Pull, Add, Increment, Decrement, and the typed cache wrapper",
+      "purpose": "Document every method on contract.Cache: Get, GetWithDefault, Set, Forever, Forget, Flush, Has, Remember, RememberForever, Pull, Add, Increment, Decrement, Store and GetPrefix — including the Remember read-through pattern, whose concurrent calls for the same key are deduplicated with golang.org/x/sync/singleflight so the expensive function runs once.",
       "parent": "Caching",
       "page_notes": [
         {
@@ -271,17 +301,55 @@
     },
     {
       "title": "Background Jobs",
-      "purpose": "Overview of the Redis-backed background job processing system and how it differs from the event system",
+      "purpose": "Overview of the Redis-backed background job system: dispatching, worker pools, retries, scheduling and the dead letter queue",
       "page_notes": [
         {
-          "content": "Eventing system has been removed since 2.0.2 release. Job system took over what we implemented in the eventing system."
+          "content": "The eventing system was removed in the 2.0.2 release; the job system took over what it provided."
         }
       ]
     },
     {
       "title": "Job System Architecture",
-      "purpose": "Describe the Manager, Redis storage model, job state machine (pending→running→completed/failed/cancelled), the worker pool, the Promoter goroutine, the DLQ, and all configuration parameters",
+      "purpose": "Describe the job Manager, the Redis key layout, the job state machine (pending, running, completed, failed, cancelled), the per-queue worker pool, the promoter goroutine that moves delayed jobs to the ready queue via an atomic Lua script, the dead letter queue, contract.JobStats / QueueStats / WorkerStats / SchedulerStats, and the JOB_* configuration parameters.",
       "parent": "Background Jobs",
+      "page_notes": [
+        {
+          "content": "Long-running goroutines use a background context rather than the startup context, so workers, the promoter and the scheduler survive after startup completes. Promotion uses a Lua script so multiple instances cannot process the same job twice."
+        }
+      ]
+    },
+    {
+      "title": "Dispatching Jobs",
+      "purpose": "Cover contract.JobDefinition, the JobBuilder fluent API (NewJob, then OnQueue, WithDelay, At, In, InMinutes, InHours, Tomorrow, WithRetries, WithTimeout, Unique, UniqueFor, WithTag, WithTags, Build), the contract.JobManager methods (Dispatch, DispatchMany, Cancel, Get, RegisterHandler, Start, Stop, Health, Stats), RegisterHandler / contract.JobHandlerFunc, and uniqueness-based deduplication.",
+      "parent": "Background Jobs",
+      "page_notes": [
+        {
+          "content": "JobBuilder has no WithSchedule, MaxAttempts or Timeout method — retries and timeouts are WithRetries and WithTimeout, and recurring work goes through RegisterSchedule instead. A unique key is reserved atomically with SetNX at dispatch and cleared by the worker when the job reaches a terminal state, so it bounds concurrent runs rather than rate-limiting."
+        }
+      ]
+    },
+    {
+      "title": "Scheduled Jobs and Cron",
+      "purpose": "Document recurring work: contract.ScheduledJob (Name, Handler, Schedule, Queue, Payload, Timeout, MaxAttempts, Overlap, Tags), RegisterSchedule and UnregisterSchedule, and the contract.Schedule builders in core/job — Every, EveryMinute, EveryFiveMinutes, EveryTenMinutes, EveryFifteenMinutes, EveryThirtyMinutes, Hourly, HourlyAt, Daily, DailyAt, TwiceDaily, Weekly, WeeklyOn, Weekdays, Weekends, Monthly, MonthlyOn, LastDayOfMonth, Quarterly, Yearly, YearlyOn and Cron — plus the Between and SkipWeekends combinators.",
+      "parent": "Background Jobs",
+      "page_notes": [
+        {
+          "content": "Schedules do NOT fire at startup. Last-run times are stored in Redis under <KeyPrefix>schedule:lastrun:<name> so they are shared across replicas and survive restarts; the first sighting of a schedule anchors it to the current time and the first run happens at its next genuine occurrence. Missed occurrences are not backfilled. A distributed lock ensures only one instance dispatches per tick. RegisterSchedule validates its input and returns ErrInvalidSchedule for a nil Schedule or Handler, an empty name, or an unparseable cron expression (including one wrapped in Between or SkipWeekends) — previously a mistyped expression was accepted and the job silently never ran. Overlap defaults to false, which sets a unique key so a run is skipped while the previous one is still going."
+        }
+      ]
+    },
+    {
+      "title": "Distributed Locking",
+      "purpose": "Document the Redlock-based lock module: contract.LockManager (NewMutex, Health, Stats, Close), contract.Mutex (Name, Lock, TryLock, Unlock, Extend, Until, TTL), the mutex options (WithExpiry, WithTries, WithRetryDelay, WithRetryDelayFunc, WithDriftFactor, WithTimeoutFactor, WithValue, WithGenValueFunc, WithMetadata), the four pool modes reported by the manager — single, redlock, sentinel and cluster — and the LOCK_* configuration including TLS settings.",
+      "page_notes": [
+        {
+          "content": "Mode is chosen from configuration: one Redis URL gives \"single\", several give \"redlock\", and Sentinel or Cluster settings give those modes. True Redlock needs independent Redis instances, not several databases on one server."
+        }
+      ]
+    },
+    {
+      "title": "Observability",
+      "purpose": "Overview of the health, metrics and distributed-tracing modules and the endpoints they expose",
       "page_notes": [
         {
           "content": ""
@@ -289,12 +357,41 @@
       ]
     },
     {
-      "title": "Dispatching Jobs",
-      "purpose": "Cover JobDefinition, the JobBuilder fluent API (NewJob, OnQueue, WithDelay, WithSchedule, Unique, MaxAttempts, Timeout), Dispatch, DispatchMany, Cancel, and uniqueness deduplication",
-      "parent": "Background Jobs",
+      "title": "Health Checks",
+      "purpose": "Document contract.HealthManager (RegisterChecker, UnregisterChecker, LivenessCheck, ReadinessCheck, HealthCheck, GetCheckers), contract.HealthChecker and HealthCheckResult / HealthReport / HealthStatus, how to write a custom checker, and the endpoints the module registers on the Fiber app.",
+      "parent": "Observability",
+      "page_notes": [
+        {
+          "content": "The default endpoints are /.well-known/liveness, /.well-known/readiness and /.well-known/health, and the access logger skips them so probes do not fill the logs."
+        }
+      ]
+    },
+    {
+      "title": "Metrics",
+      "purpose": "Document contract.MetricsManager (Counter, Gauge, Histogram, Handler, MustRegister), the Prometheus-backed implementation, the metrics HTTP endpoint, the optional request-metrics middleware, and the METRICS_* configuration.",
+      "parent": "Observability",
       "page_notes": [
         {
           "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Distributed Tracing with OpenTelemetry",
+      "purpose": "Document contract.OTelProvider (TracerProvider, Tracer, TextMapPropagator, Shutdown, ForceFlush), contract.OTelConfig and its defaults, the OTLP gRPC and stdout exporters, sampling configuration, the HTTP tracing middleware, and how trace context reaches logs.",
+      "parent": "Observability",
+      "page_notes": [
+        {
+          "content": "When a span is active, http.WithReqCtx adds trace_id and span_id to the request-scoped logger, and the access log includes trace_id, which is what links logs to traces."
+        }
+      ]
+    },
+    {
+      "title": "Utilities",
+      "purpose": "Document the utils package: identifier generation (GenerateNanoId, GenerateUUIDv7, GenerateXid), AES encryption (UseAesEncryption and DataEncryptionUtils), and human-readable size conversion (HumanReadableSizeToBytes, ConvertBytesToHumanReadableSize).",
+      "page_notes": [
+        {
+          "content": "utils/deprecated.go holds ArrContainsStr, Convert, CopyIOZeroAlloc and FilePathToIOReader, all marked Deprecated with standard-library replacements — document them as deprecated, or omit them. Note in particular that FilePathToIOReader returns an io.Reader from os.Open, so the caller cannot close the file and the descriptor leaks; os.Open should be used instead."
         }
       ]
     }
