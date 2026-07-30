@@ -74,9 +74,20 @@ func defaultSettings(errorHandler fiber.ErrorHandler) settings {
 	return settings{
 		bundledValidator: bundled,
 		fiber: fiber.Config{
-			ServerHeader:        "Goe",
-			BodyLimit:           4 * 1024 * 1024,
-			Concurrency:         256 * 1024,
+			ServerHeader: "Goe",
+			BodyLimit:    4 * 1024 * 1024,
+			Concurrency:  256 * 1024,
+			// ProxyHeader is inert until TrustProxy is enabled (Fiber only reads
+			// it for trusted peers), so this default costs nothing when the app
+			// is not behind a proxy — and makes Ctx.IP() report the client, not
+			// the edge, the moment trusted proxies are configured. Every major
+			// CDN and reverse proxy sets X-Forwarded-For; use FIBER_PROXY_HEADER
+			// or WithProxyHeader for provider-specific headers.
+			// EnableIPValidation makes Fiber walk the chain right-to-left past
+			// trusted hops instead of returning the raw header, so a client
+			// prepending a forged X-Forwarded-For cannot spoof the logged IP.
+			ProxyHeader:         fiber.HeaderXForwardedFor,
+			EnableIPValidation:  true,
 			StreamRequestBody:   true,
 			ReadTimeout:         10 * time.Second,
 			WriteTimeout:        10 * time.Second,
@@ -350,6 +361,23 @@ func warnOnClobber(before loadBearing, cfg fiber.Config, logger contract.Logger)
 	}
 }
 
+// warnOnTrustWithoutProxyHeader flags a trust list that cannot change Ctx.IP:
+// Fiber only reads a client address from ProxyHeader, and only when one is set,
+// so trusted proxies without it keep reporting the socket peer — behind a CDN,
+// the edge's address rather than the client's. GOE defaults ProxyHeader to
+// X-Forwarded-For, so this can only fire when code cleared it explicitly. It
+// stays a warning rather than an error because the trust list alone still
+// governs X-Forwarded-Proto/Host handling, which is a legitimate configuration
+// on its own.
+func warnOnTrustWithoutProxyHeader(cfg fiber.Config, logger contract.Logger) {
+	if cfg.TrustProxy && trustProxyConfigured(cfg.TrustProxyConfig) && cfg.ProxyHeader == "" {
+		logger.Warn("Trusted proxies are enabled but ProxyHeader is empty, so Ctx.IP() keeps " +
+			"returning the peer address (the proxy or CDN edge, not the client). Set WithProxyHeader " +
+			"or FIBER_PROXY_HEADER to the header carrying the client address, " +
+			"such as X-Forwarded-For or CF-Connecting-IP")
+	}
+}
+
 // resolve runs the full pipeline: defaults -> env -> options -> validation ->
 // materialisation -> escape hatches -> clobber scan.
 //
@@ -374,6 +402,7 @@ func resolve(logger contract.Logger, base settings, opts []Option) (settings, []
 	before := snapshotLoadBearing(s.fiber)
 	s.applyHooks()
 	warnOnClobber(before, s.fiber, logger)
+	warnOnTrustWithoutProxyHeader(s.fiber, logger)
 
 	return s, errs
 }

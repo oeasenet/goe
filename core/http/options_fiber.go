@@ -180,7 +180,8 @@ func WithCompressedFileSuffixes(suffixes map[string]string) Option {
 }
 
 // WithProxyHeader sets fiber.Config.ProxyHeader, the header Ctx.IP reads the
-// client address from. Replaces FIBER_PROXY_HEADER.
+// client address from. Defaults to X-Forwarded-For, which stays inert until
+// trusted proxies are enabled. Replaces FIBER_PROXY_HEADER.
 func WithProxyHeader(header string) Option {
 	return func(s *settings) error { s.fiber.ProxyHeader = header; return nil }
 }
@@ -375,7 +376,9 @@ func WithTrustProxyConfig(cfg fiber.TrustProxyConfig) Option {
 }
 
 // WithEnableIPValidation sets fiber.Config.EnableIPValidation, which validates
-// addresses parsed out of proxy headers. Replaces FIBER_ENABLE_IP_VALIDATION.
+// addresses parsed out of proxy headers and walks X-Forwarded-For past trusted
+// hops rather than returning it raw. On by default in GOE. Replaces
+// FIBER_ENABLE_IP_VALIDATION.
 func WithEnableIPValidation(enabled bool) Option {
 	return func(s *settings) error { s.fiber.EnableIPValidation = enabled; return nil }
 }

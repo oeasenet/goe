@@ -199,9 +199,9 @@ cannot apply to a replacement.
 | `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB) |
 | `FIBER_STREAM_REQUEST_BODY` | bool | `true` | Stream request body to reduce memory usage |
 | `FIBER_CONCURRENCY` | int | `262144` | Maximum number of concurrent connections |
-| `FIBER_PROXY_HEADER` | string | - | Header used to obtain client IP (e.g., `X-Forwarded-For`) |
+| `FIBER_PROXY_HEADER` | string | `X-Forwarded-For` | Header used to obtain client IP; only consulted when trusted proxies are enabled |
 | `FIBER_REDUCE_MEMORY` | bool | `false` | Reduce memory usage at the cost of performance |
-| `FIBER_ENABLE_IP_VALIDATION` | bool | `false` | Enable IP address validation |
+| `FIBER_ENABLE_IP_VALIDATION` | bool | `true` | Validate proxy-header IPs and walk past trusted hops instead of returning the raw header |
 
 ### Trust Proxy Settings
 

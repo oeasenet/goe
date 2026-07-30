@@ -5,7 +5,7 @@
 // - Fetching published edge ranges with the optional cdntrust helper
 // - Failing startup when the fetch fails, rather than booting untrusted
 // - Composing the resulting options with the rest of your HTTP config
-// - Setting a provider-specific client-IP header
+// - Relying on the default X-Forwarded-For client-IP header, and when to override
 //
 // Run (requires internet access):
 //
@@ -52,9 +52,10 @@ func main() {
 	_ = goe.New(goe.Options{
 		HTTP: append(cdnOpts,
 			goehttp.WithPort(8080),
-			// Cloudflare reports the client in CF-Connecting-IP. Behind Fastly or
-			// a plain reverse proxy, leave this unset to use X-Forwarded-For.
-			goehttp.WithProxyHeader("CF-Connecting-IP"),
+			// No WithProxyHeader needed: GOE defaults it to X-Forwarded-For,
+			// which Cloudflare, Fastly and Bunny all set. Override only for a
+			// provider-specific header — e.g. WithProxyHeader("CF-Connecting-IP")
+			// when Cloudflare is the sole edge.
 		),
 		Invokers: []any{registerRoutes},
 	})

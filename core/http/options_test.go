@@ -207,6 +207,9 @@ func TestOptions_Precedence(t *testing.T) {
 		assert.Equal(t, 30*time.Second, cfg.IdleTimeout)
 		assert.True(t, cfg.StreamRequestBody)
 		assert.True(t, cfg.PassLocalsToContext)
+		// Inert until TrustProxy is enabled, then Ctx.IP() works out of the box.
+		assert.Equal(t, fiber.HeaderXForwardedFor, cfg.ProxyHeader)
+		assert.True(t, cfg.EnableIPValidation)
 	})
 
 	t.Run("code wins for booleans env set to true", func(t *testing.T) {
@@ -365,6 +368,66 @@ func TestOptions_ClobberWarning(t *testing.T) {
 		)
 		assert.Empty(t, warnings(logger),
 			"replacing the error handler is supported, not a mistake")
+	})
+}
+
+func TestOptions_TrustedProxyHeaderWarning(t *testing.T) {
+	trustRanges := WithTrustProxyConfig(fiber.TrustProxyConfig{Proxies: []string{"203.0.113.0/24"}})
+
+	t.Run("warns when trust is configured and the header is cleared", func(t *testing.T) {
+		_, logger := newTestKernel(t, nil, WithTrustProxy(true), trustRanges, WithProxyHeader(""))
+
+		msgs := strings.Join(warnings(logger), "\n")
+		assert.Contains(t, msgs, "ProxyHeader")
+		assert.Contains(t, msgs, "FIBER_PROXY_HEADER")
+	})
+
+	t.Run("warns when an escape hatch clears the header", func(t *testing.T) {
+		// The check must run on the final config, after hooks.
+		_, logger := newTestKernel(t, nil,
+			WithTrustProxy(true), trustRanges,
+			WithFiberConfig(func(c *fiber.Config) { c.ProxyHeader = "" }),
+		)
+		assert.Contains(t, strings.Join(warnings(logger), "\n"), "ProxyHeader")
+	})
+
+	t.Run("silent for env-configured trust thanks to the default header", func(t *testing.T) {
+		_, logger := newTestKernel(t, map[string]any{
+			"FIBER_TRUST_PROXY":   true,
+			"FIBER_TRUST_PROXIES": []string{"203.0.113.0/24"},
+		})
+		assert.Empty(t, warnings(logger))
+	})
+
+	t.Run("silent when a proxy header is set explicitly", func(t *testing.T) {
+		_, logger := newTestKernel(t, nil,
+			WithTrustProxy(true), trustRanges, WithProxyHeader("CF-Connecting-IP"),
+		)
+		assert.Empty(t, warnings(logger))
+	})
+
+	t.Run("silent when trust is enabled but no hop is configured", func(t *testing.T) {
+		// TrustProxy alone means "trust nobody" — a hardening posture, not a
+		// half-finished client-IP setup.
+		_, logger := newTestKernel(t, nil, WithTrustProxy(true), WithProxyHeader(""))
+		assert.Empty(t, warnings(logger))
+	})
+}
+
+func TestOptions_ProxyHeaderOverrides(t *testing.T) {
+	t.Run("env overrides the header and validation defaults", func(t *testing.T) {
+		k, _ := newTestKernel(t, map[string]any{
+			"FIBER_PROXY_HEADER":         "CF-Connecting-IP",
+			"FIBER_ENABLE_IP_VALIDATION": false,
+		})
+		cfg := k.App().Config()
+		assert.Equal(t, "CF-Connecting-IP", cfg.ProxyHeader)
+		assert.False(t, cfg.EnableIPValidation)
+	})
+
+	t.Run("code overrides the default header", func(t *testing.T) {
+		k, _ := newTestKernel(t, nil, WithProxyHeader("True-Client-IP"))
+		assert.Equal(t, "True-Client-IP", k.App().Config().ProxyHeader)
 	})
 }
 

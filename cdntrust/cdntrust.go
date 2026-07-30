@@ -187,8 +187,9 @@ func TrustProxyConfig(ctx context.Context, providers ...Provider) (fiber.TrustPr
 //	    HTTP: append(cdnOpts, goehttp.WithPort(8080)),
 //	})
 //
-// Set goehttp.WithProxyHeader if your CDN reports the client address in a header
-// other than X-Forwarded-For, such as Cloudflare's CF-Connecting-IP.
+// GOE defaults ProxyHeader to X-Forwarded-For, which these CDNs set, so client
+// addresses resolve without further configuration. Use goehttp.WithProxyHeader
+// only for a provider-specific header such as Cloudflare's CF-Connecting-IP.
 func Options(ctx context.Context, providers ...Provider) ([]goehttp.Option, error) {
 	cfg, err := TrustProxyConfig(ctx, providers...)
 	if err != nil {

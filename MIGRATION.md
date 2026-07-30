@@ -5,6 +5,42 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## Unreleased
+
+No code edits required. Two defaults changed and one startup warning was added,
+all around trusted proxies.
+
+### Behaviour: `ProxyHeader` now defaults to `X-Forwarded-For`
+
+`fiber.Config.ProxyHeader` was previously empty, so enabling trusted proxies
+(`FIBER_TRUST_PROXY`/`WithTrustProxy` plus a proxy list) still left `Ctx.IP()`
+returning the socket peer — behind a CDN, the edge's address rather than the
+client's. Fiber only consults the header for peers in the trusted list, so the
+new default is inert until trusted proxies are enabled.
+
+- Not behind a proxy, or trusted proxies never enabled: no change.
+- Trusted proxies enabled: `Ctx.IP()` and the access log `ip` field now report
+  the client address instead of the proxy's. If you relied on logging the
+  proxy's own address, restore it with `goehttp.WithProxyHeader("")`.
+
+### Behaviour: `EnableIPValidation` now defaults to true
+
+With validation off, Fiber returns the proxy header raw, so a client that
+prepends a forged `X-Forwarded-For` entry pollutes the resolved IP. With
+validation on, Fiber walks the chain right-to-left past trusted hops and
+returns the first address a trusted proxy vouched for. Set
+`FIBER_ENABLE_IP_VALIDATION=false` if you need the raw value.
+
+### New: startup warning when trust is configured without a proxy header
+
+Clearing `ProxyHeader` while trusted proxies are configured logs a warning at
+startup, because `Ctx.IP()` cannot report client addresses in that state. The
+configuration stays legal — the trust list alone still governs
+`X-Forwarded-Proto`/`X-Forwarded-Host` handling — so it warns rather than
+fails.
+
+---
+
 ## v2.2.0
 
 Everything below ships in one release. Two groups of breaking change, and three
