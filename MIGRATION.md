@@ -1,11 +1,27 @@
 # Migration Guide
 
-Breaking changes and how to move past them. Releases without breaking changes
-are not listed here.
+Breaking changes, and behaviour changes that need no code edit but will alter what
+your application does. Releases with neither are not listed here.
 
 ---
 
-## Unreleased
+## v2.2.0
+
+Everything below ships in one release. Two groups of breaking change, and three
+behaviour changes worth knowing about even though they need no code edits.
+
+**At a glance**
+
+| Change | Action needed |
+|---|---|
+| Request validation moved to `Ctx.Bind` | Replace `ValidateRequest`-style calls; drop redundant validation after `Bind` |
+| Four inert types/helpers removed | Compile error with a one-line fix, or none if you never referenced them |
+| `goe.Options.HTTPPort` deprecated | None — prefer `goehttp.WithPort` |
+| Scheduled jobs no longer fire at startup | None, unless you relied on the old behaviour |
+| Fx dependency-injection logs default to `warn` | None — set `LOG_MODULE_LEVELS=fx:debug` to restore |
+| HTTP server starts via `app.Listen` | None |
+
+---
 
 ### ⚠️ Breaking: request validation moved to Fiber's Bind
 
@@ -105,15 +121,14 @@ the HTTP kernel installs, so rules registered on it do not affect `Bind`. Use
 
 ---
 
-## v2.2.0
-
 ### ⚠️ Breaking: removed inert HTTP types and helpers
 
 Four exported symbols were removed. Every one of them was **dead on arrival** —
 nothing in GOE ever read them, so code that set them had no effect. They are
 listed individually below with a replacement.
 
-If you never referenced these names, this release is a drop-in upgrade.
+If you never referenced these four names, this group costs you nothing. (The
+validation change above is separate and may still apply.)
 
 #### `contract.HTTPConfig` — removed
 
@@ -214,6 +229,65 @@ goe.New(goe.Options{WithHTTP: true, HTTPPort: 8080})
 goe.New(goe.Options{HTTP: []goehttp.Option{goehttp.WithPort(8080)}})
 ```
 
+### Behaviour change: scheduled jobs no longer fire at startup
+
+**This was a bug, and the fix changes when your jobs run.**
+
+Last-run times were held in a process-local map, so a schedule the process had not
+seen yet had a zero last-run — and `Schedule.Next(zeroTime)` returns a moment in
+year 1, which is always in the past. Every schedule therefore dispatched
+immediately on the first scheduler tick, regardless of its period: a
+`DailyAt(3, 0)` report went out on every deploy, and each replica fired from its
+own private map, defeating the distributed tick lock.
+
+Last-run times now live in Redis under `<KeyPrefix>schedule:lastrun:<name>`, with a
+30-day refreshing TTL, cleared when a schedule is unregistered. The first time any
+instance sees a schedule it anchors to the current time and does *not* dispatch;
+the first run happens at the schedule's next genuine occurrence. Missed
+occurrences are not backfilled, matching cron.
+
+No code change is required. If you were relying — knowingly or not — on jobs
+running at boot, dispatch them explicitly instead:
+
+```go
+// Run once at startup, in addition to the schedule
+if _, err := goe.Job().Dispatch(ctx, &contract.JobDefinition{Name: "my-job"}); err != nil {
+    return err
+}
+```
+
+### Behaviour change: invalid schedules are now rejected at registration
+
+`RegisterSchedule` previously accepted a mistyped cron expression and the job
+simply never ran, because `Cron()` cannot return an error and turns a parse failure
+into a schedule whose next run is in the year 9999. It now returns
+`ErrInvalidSchedule`, naming the schedule and the parse error — including when the
+expression is wrapped in `Between` or `SkipWeekends`.
+
+A nil `Schedule` or `Handler`, or an empty name, is also rejected. A nil `Schedule`
+previously panicked inside the scheduler goroutine, which has no recover, taking
+the process down.
+
+If a schedule of yours was silently never running, this will now surface as a
+startup error. That is the point.
+
+### Behaviour change: Fx dependency-injection logs default to `warn`
+
+Fx emits a line for every constructor supplied, provided, decorated and run, plus
+each lifecycle hook. That was tied to the global log level, so raising
+`LOG_LEVEL=debug` for your own code buried it under dependency-graph narration —
+19 lines on a small app.
+
+`fx` is now a log module in its own right, defaulting to `warn`. Provide and invoke
+*failures* are still logged. To get the detail back when diagnosing wiring:
+
+```bash
+LOG_MODULE_LEVELS=fx:debug
+```
+
+GOE's own boot output was trimmed the same way: ten `WithX flag` lines collapsed
+into one debug line, and `Registering X module` moved to debug.
+
 ### Internal change: HTTP server startup
 
 No action required. Recorded here because it touches the startup path.
@@ -239,10 +313,25 @@ Existing behaviour is preserved deliberately:
 ### Note on versioning
 
 Removing exported symbols is normally a major-version change under semantic
-versioning. This ships as a **v2 minor** deliberately: all four removals are
-inert declarations — code referencing them compiled but had no runtime effect —
-so the practical blast radius is a compile error with a one-line fix, not changed
-behaviour. If you hit one of them, the replacement is listed above.
+versioning. This ships as a **v2 minor** deliberately, but the two groups of
+removal differ in how much they can actually affect you, so they are worth
+separating honestly:
+
+- **`contract.HTTPConfig`, `contract.RouteInfo`, `http.RegisterRoutes`,
+  `http.NewField`** were inert or duplicated. Code referencing them compiled but
+  had no runtime effect (or delegated straight to an identical function), so the
+  blast radius is a compile error with a one-line fix — not changed behaviour.
+
+- **The validation API** is a genuine functional removal. Nothing inside GOE used
+  `ValidateRequest`, `ValidateBody`, `ValidationProvider` or the injected
+  `Services.Validator`, but they worked, and your code may call them. Migration is
+  mechanical — replace them with `c.Bind()` — and `Bind` already validated for
+  anyone using it, so behaviour is unchanged in the common case.
+
+The `validation` package itself still compiles, so nothing breaks merely by
+upgrading; you get deprecation notices pointing at the replacements.
+
+If you would rather not take a functional removal in a minor, pin to `v2.1.x`.
 
 ---
 
