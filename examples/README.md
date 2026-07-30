@@ -105,6 +105,22 @@ curl -i http://localhost:8080/
 curl -s http://localhost:8080/config | jq .
 ```
 
+### [07-cdn-trusted-proxy](./07-cdn-trusted-proxy/)
+
+**Trusting a CDN's edge IPs so `Ctx.IP()` is the real client** - Demonstrating:
+- Fetching published edge ranges with the optional `cdntrust` helper
+- Failing startup on a fetch error rather than booting untrusted
+- Setting a provider-specific client-IP header
+
+```bash
+cd 07-cdn-trusted-proxy && go run .   # requires internet access
+
+curl -s http://localhost:8080/whoami | jq .
+
+# A forged header from an untrusted hop is ignored — client_ip does not change
+curl -s -H 'CF-Connecting-IP: 203.0.113.9' http://localhost:8080/whoami | jq .
+```
+
 ---
 
 ## Architecture Patterns
@@ -256,6 +272,7 @@ curl -s http://localhost:3000/todos | jq .
 3. **Study 04-custom-module** - Master module creation and lifecycle
 4. **Explore 05-production-essentials** - Learn about health checks, metrics, and tracing
 5. **Read 06-code-first-config** - Configure the server in Go rather than `.env`
+6. **See 07-cdn-trusted-proxy** - Trust a CDN's edges so client IPs are correct
 
 ---
 

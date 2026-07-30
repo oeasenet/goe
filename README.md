@@ -170,6 +170,26 @@ available as `With<FieldName>`, plus `WithFiberConfig` for anything GOE does not
 wrap. See [CONFIGURATION.md](CONFIGURATION.md#configuring-in-go-code) and
 [examples/06-code-first-config](examples/06-code-first-config/).
 
+### Behind a CDN
+
+Trust your CDN's edge IPs so `Ctx.IP()` reports the real client rather than the
+edge node, using published ranges:
+
+```go
+import "go.oease.dev/goe/v2/cdntrust"
+
+cdnOpts, err := cdntrust.Options(ctx, cdntrust.Cloudflare, cdntrust.Fastly)
+if err != nil {
+    log.Fatalf("cdn trust: %v", err) // don't start with an unknown trust set
+}
+
+goe.New(goe.Options{HTTP: append(cdnOpts, goehttp.WithPort(8080))})
+```
+
+Cloudflare, Fastly and BunnyCDN are supported. The fetch happens once at boot and
+is entirely optional — nothing in GOE imports `cdntrust`, so it costs you nothing
+unless you use it.
+
 <br/>
 
 ## Documentation

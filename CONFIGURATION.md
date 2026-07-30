@@ -213,6 +213,55 @@ cannot apply to a replacement.
 | `FIBER_TRUST_LOOPBACK` | bool | `true` | Trust loopback addresses when `FIBER_TRUST_PROXY` is enabled |
 | `FIBER_TRUST_PRIVATE` | bool | `true` | Trust private network addresses when `FIBER_TRUST_PROXY` is enabled |
 
+### Trusting a CDN's edge IPs
+
+Behind a CDN, every request arrives from an edge node, so the client address is in
+a forwarded header rather than the socket. Fiber only honours that header for hops
+you have declared trustworthy — otherwise anyone could forge it. The optional
+`cdntrust` package fetches those ranges from each provider's published source:
+
+```go
+import "go.oease.dev/goe/v2/cdntrust"
+
+ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+defer cancel()
+
+cdnOpts, err := cdntrust.Options(ctx, cdntrust.Cloudflare, cdntrust.Fastly)
+if err != nil {
+    log.Fatalf("cdn trust: %v", err) // do not start with an unknown trust set
+}
+
+goe.New(goe.Options{
+    HTTP: append(cdnOpts,
+        goehttp.WithPort(8080),
+        goehttp.WithProxyHeader("CF-Connecting-IP"), // Cloudflare's client header
+    ),
+})
+```
+
+Supported providers: `cdntrust.Cloudflare`, `cdntrust.Fastly`, `cdntrust.BunnyCDN`
+(Cloudflare and Fastly publish CIDR blocks; Bunny publishes several hundred
+individual edge addresses, which Fiber accepts equally).
+
+**It fetches once, at boot, and can stop the app from starting.** There is no
+cache, no retry and no background refresh — one request per provider. A network
+failure is returned as an error, and the expected response is to abort startup:
+booting with an unknown trust set means either ignoring the forwarded header
+entirely or trusting the wrong hops. Because the list is a point-in-time snapshot,
+redeploy periodically to pick up provider changes. If you would rather tolerate a
+failed fetch, pin the ranges in config and use `WithTrustProxyConfig` directly.
+
+The package is genuinely optional: nothing in GOE imports it, so neither the code
+nor the network calls exist in your binary unless you use it. It adds no
+dependency beyond what GOE already requires.
+
+Only the CDN ranges are trusted. `LinkLocal`, `Loopback`, `Private` and
+`UnixSocket` are deliberately left off — trusting a private range alongside the
+CDN would let anything inside your network forge a client address. Set those
+fields yourself if your topology needs them.
+
+See [examples/07-cdn-trusted-proxy](examples/07-cdn-trusted-proxy/).
+
 ### View Engine Settings
 
 | Variable | Type | Default | Description |

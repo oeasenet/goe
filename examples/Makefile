@@ -1,6 +1,6 @@
 # GOE Examples Makefile
 
-.PHONY: help start stop clean hello-world todo-api custom-module production-essentials code-first-config
+.PHONY: help start stop clean hello-world todo-api custom-module production-essentials code-first-config cdn-trusted-proxy
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ production-essentials: ## Run the production-essentials example
 
 code-first-config: ## Run the code-first-config example
 	cd 06-code-first-config && go run .
+
+cdn-trusted-proxy: ## Run the cdn-trusted-proxy example (requires internet)
+	cd 07-cdn-trusted-proxy && go run .
 
 # Test commands
 test-hello: ## Test hello-world endpoints
