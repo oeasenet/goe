@@ -1,8 +1,10 @@
 package job
 
 import (
+	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"go.oease.dev/goe/v2/contract"
 )
 
@@ -80,6 +82,25 @@ func DefaultConfig() *Config {
 		DLQTTL:             7 * 24 * time.Hour, // 7 days
 		MetricsEnabled:     true,
 	}
+}
+
+// RedactedTarget returns the Redis endpoint the manager actually connects to,
+// safe for logging. Priority mirrors NewManager: URL, then hosts, then the
+// legacy addr. The URL form is reduced to host:port so credentials embedded in
+// JOB_REDIS_URL never reach the logs; an unparseable URL is reported as such
+// rather than echoed, for the same reason.
+func (c *Config) RedactedTarget() string {
+	if c.RedisURL != "" {
+		opt, err := redis.ParseURL(c.RedisURL)
+		if err != nil {
+			return "<invalid JOB_REDIS_URL>"
+		}
+		return opt.Addr
+	}
+	if len(c.RedisHosts) > 0 {
+		return strings.Join(c.RedisHosts, ",")
+	}
+	return c.RedisAddr
 }
 
 // LoadConfig loads configuration from GOE config

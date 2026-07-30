@@ -58,7 +58,7 @@ func (m *Module) OnStart(ctx context.Context) error {
 	}
 
 	m.logger.Info("Job module started",
-		"redis_addr", m.config.GetString("JOB_REDIS_ADDR"),
+		"redis_addr", m.manager.config.RedactedTarget(),
 		"concurrency", m.manager.config.Concurrency,
 		"default_queue", m.manager.config.DefaultQueue,
 		"scheduler_enabled", m.manager.config.SchedulerEnabled,
