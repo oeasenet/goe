@@ -42,11 +42,13 @@ var (
 	}
 )
 
-// New creates a new Goe application
+// New creates a new Goe application.
+//
+// The global goe.* accessors (Log, Config, DB, ...) are usable from the user
+// code New runs — custom module constructors, providers, and invokers — not
+// just after New returns. Accessors for modules that are not enabled panic
+// with a descriptive message.
 func New(opts ...Options) contract.Application {
-	instance.mu.Lock()
-	defer instance.mu.Unlock()
-
 	// Merge options
 	opt := Options{}
 
@@ -79,6 +81,174 @@ func New(opts ...Options) contract.Application {
 	if opt.HTTP != nil {
 		opt.WithHTTP = true
 	}
+
+	// Assemble config, logger, app, and the built-in modules under the
+	// instance lock, then release it. Everything after this call may execute
+	// user code (module constructors, providers, invokers), and user code may
+	// call the goe.* accessors: with the write lock still held, each of those
+	// calls would block on instance.mu forever — a silent freeze with zero
+	// diagnostics, because fx runs the whole graph inside app.Register below.
+	application, cfg, logger, reg := buildCore(opt)
+
+	fxOptions := reg.fxOptions
+
+	// Add custom modules - Handle them exactly like built-in modules
+	for _, moduleConstructor := range opt.Modules {
+		constructor := moduleConstructor // Capture loop variable
+
+		// Create module instance directly with dependencies (like built-in modules)
+		var module contract.Module
+		var moduleProviders []fx.Option
+
+		// Handle different constructor signatures
+		switch cons := constructor.(type) {
+		case func(contract.Logger, contract.Config) contract.Module:
+			module = cons(logger, cfg)
+		case func(contract.Config, contract.Logger) contract.Module:
+			module = cons(cfg, logger)
+		default:
+			logger.Fatal("Invalid module constructor signature",
+				"expected", "func(contract.Logger, contract.Config) contract.Module",
+				"or", "func(contract.Config, contract.Logger) contract.Module")
+		}
+
+		logger.Debug("Registering custom module", "name", module.Name())
+
+		// If module provides services, register them to DI (like built-in modules)
+		if provider, ok := module.(interface{ ProvideServices() []fx.Option }); ok {
+			// Module can provide multiple services
+			moduleProviders = append(moduleProviders, provider.ProvideServices()...)
+		} else {
+			// Check for common service provider methods
+			moduleProviders = append(moduleProviders, checkAndProvideServices(module)...)
+		}
+
+		// Register module exactly like built-in modules
+		allOptions := append(moduleProviders, fx.Module(module.Name(),
+			fx.Invoke(func(lc fx.Lifecycle) {
+				lc.Append(fx.Hook{
+					OnStart: module.OnStart,
+					OnStop:  module.OnStop,
+				})
+			}),
+		))
+
+		fxOptions = append(fxOptions, allOptions...)
+	}
+
+	// Add cache provider
+	if opt.WithCache {
+		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return reg.cache.ProvideCache() }))
+	}
+
+	// Add custom providers
+	for _, provider := range opt.Providers {
+		fxOptions = append(fxOptions, fx.Provide(provider))
+	}
+
+	// Add HTTP service injection and module routes BEFORE the HTTP server starts
+	if opt.WithHTTP {
+		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
+			fiberApp := reg.http.Provide().App()
+
+			// Set up service middleware immediately when all dependencies are available
+			// This ensures the middleware is registered before the HTTP server starts listening
+			fiberApp.Use(http.CreateServiceMiddleware(provider))
+			logger.Debug("HTTP service middleware registered")
+
+			// Register OpenTelemetry tracing middleware (first, to capture all requests)
+			if opt.WithOTel && reg.otel != nil {
+				reg.otel.RegisterMiddleware(fiberApp)
+				logger.Debug("OpenTelemetry middleware registered")
+			}
+
+			// Register Prometheus metrics middleware
+			if opt.WithMetrics && reg.metrics != nil {
+				reg.metrics.RegisterMiddleware(fiberApp)
+				logger.Debug("Metrics middleware registered")
+			}
+
+			// Register health check routes
+			if opt.WithHealth && reg.health != nil {
+				reg.health.RegisterRoutes(fiberApp)
+				logger.Debug("Health routes registered")
+
+				// Auto-register health checkers for enabled modules
+				if opt.WithDB && instance.db != nil {
+					instance.healthManager.RegisterChecker(health.NewDatabaseChecker(instance.db.Instance()))
+				}
+				if opt.WithCache && instance.cacheManager != nil {
+					instance.healthManager.RegisterChecker(health.NewCacheChecker(instance.cacheManager.Store()))
+				}
+				if opt.WithMongoDB && instance.mongoDB != nil {
+					instance.healthManager.RegisterChecker(health.NewMongoDBChecker(instance.mongoDB))
+				}
+				if opt.WithJob && instance.jobManager != nil {
+					instance.healthManager.RegisterChecker(health.NewJobChecker(instance.jobManager))
+				}
+			}
+
+			// Register metrics endpoint
+			if opt.WithMetrics && reg.metrics != nil {
+				reg.metrics.RegisterRoutes(fiberApp)
+				logger.Debug("Metrics routes registered")
+			}
+		}))
+	}
+
+	// Add custom invokers (which may register routes)
+	for _, invoker := range opt.Invokers {
+		fxOptions = append(fxOptions, fx.Invoke(invoker))
+	}
+
+	// Add lifecycle hooks
+	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {
+		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Execute all OnStart hooks
+					for i, hook := range opt.OnStart {
+						if err := hook(ctx); err != nil {
+							logger.Error("OnStart hook failed", "index", i, "error", err)
+							return err
+						}
+					}
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					// Execute all OnStop hooks in reverse order
+					for i := len(opt.OnStop) - 1; i >= 0; i-- {
+						if err := opt.OnStop[i](ctx); err != nil {
+							logger.Error("OnStop hook failed", "index", i, "error", err)
+							// Continue with other hooks even if one fails
+						}
+					}
+					return nil
+				},
+			})
+		}))
+	}
+
+	// Register all options with the application. Register builds the fx graph
+	// synchronously, so this is where providers and invokers actually run.
+	if err := application.Register(fxOptions...); err != nil {
+		logger.Fatal("Failed to create application", "error", err)
+	}
+
+	return application
+}
+
+// buildCore assembles the config, logger, application, shutdown manager, and
+// all enabled built-in modules, holding instance.mu for the duration. It is
+// the only phase of New that writes to the instance singleton.
+//
+// Nothing in here may call user code: the goe.* accessors take an RLock on
+// instance.mu, so user code invoked under the write lock would deadlock.
+// User-facing work (custom module constructors, providers, invokers) belongs
+// in New, after this returns and the lock is released.
+func buildCore(opt Options) (contract.Application, contract.Config, contract.Logger, *moduleRegistry) {
+	instance.mu.Lock()
+	defer instance.mu.Unlock()
 
 	// Create config first to read application settings
 	configModule := config.NewModule()
@@ -206,149 +376,5 @@ func New(opts ...Options) contract.Application {
 	reg.addOTel()
 	reg.addHTTP()
 
-	fxOptions = reg.fxOptions
-
-	// Add custom modules - Handle them exactly like built-in modules
-	for _, moduleConstructor := range opt.Modules {
-		constructor := moduleConstructor // Capture loop variable
-
-		// Create module instance directly with dependencies (like built-in modules)
-		var module contract.Module
-		var moduleProviders []fx.Option
-
-		// Handle different constructor signatures
-		switch cons := constructor.(type) {
-		case func(contract.Logger, contract.Config) contract.Module:
-			module = cons(instance.logger, instance.config)
-		case func(contract.Config, contract.Logger) contract.Module:
-			module = cons(instance.config, instance.logger)
-		default:
-			instance.logger.Fatal("Invalid module constructor signature",
-				"expected", "func(contract.Logger, contract.Config) contract.Module",
-				"or", "func(contract.Config, contract.Logger) contract.Module")
-		}
-
-		instance.logger.Debug("Registering custom module", "name", module.Name())
-
-		// If module provides services, register them to DI (like built-in modules)
-		if provider, ok := module.(interface{ ProvideServices() []fx.Option }); ok {
-			// Module can provide multiple services
-			moduleProviders = append(moduleProviders, provider.ProvideServices()...)
-		} else {
-			// Check for common service provider methods
-			moduleProviders = append(moduleProviders, checkAndProvideServices(module)...)
-		}
-
-		// Register module exactly like built-in modules
-		allOptions := append(moduleProviders, fx.Module(module.Name(),
-			fx.Invoke(func(lc fx.Lifecycle) {
-				lc.Append(fx.Hook{
-					OnStart: module.OnStart,
-					OnStop:  module.OnStop,
-				})
-			}),
-		))
-
-		fxOptions = append(fxOptions, allOptions...)
-	}
-
-	// Add cache provider
-	if opt.WithCache {
-		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return reg.cache.ProvideCache() }))
-	}
-
-	// Add custom providers
-	for _, provider := range opt.Providers {
-		fxOptions = append(fxOptions, fx.Provide(provider))
-	}
-
-	// Add HTTP service injection and module routes BEFORE the HTTP server starts
-	if opt.WithHTTP {
-		fxOptions = append(fxOptions, fx.Invoke(func(provider http.ServiceProvider) {
-			fiberApp := reg.http.Provide().App()
-
-			// Set up service middleware immediately when all dependencies are available
-			// This ensures the middleware is registered before the HTTP server starts listening
-			fiberApp.Use(http.CreateServiceMiddleware(provider))
-			instance.logger.Debug("HTTP service middleware registered")
-
-			// Register OpenTelemetry tracing middleware (first, to capture all requests)
-			if opt.WithOTel && reg.otel != nil {
-				reg.otel.RegisterMiddleware(fiberApp)
-				instance.logger.Debug("OpenTelemetry middleware registered")
-			}
-
-			// Register Prometheus metrics middleware
-			if opt.WithMetrics && reg.metrics != nil {
-				reg.metrics.RegisterMiddleware(fiberApp)
-				instance.logger.Debug("Metrics middleware registered")
-			}
-
-			// Register health check routes
-			if opt.WithHealth && reg.health != nil {
-				reg.health.RegisterRoutes(fiberApp)
-				instance.logger.Debug("Health routes registered")
-
-				// Auto-register health checkers for enabled modules
-				if opt.WithDB && instance.db != nil {
-					instance.healthManager.RegisterChecker(health.NewDatabaseChecker(instance.db.Instance()))
-				}
-				if opt.WithCache && instance.cacheManager != nil {
-					instance.healthManager.RegisterChecker(health.NewCacheChecker(instance.cacheManager.Store()))
-				}
-				if opt.WithMongoDB && instance.mongoDB != nil {
-					instance.healthManager.RegisterChecker(health.NewMongoDBChecker(instance.mongoDB))
-				}
-				if opt.WithJob && instance.jobManager != nil {
-					instance.healthManager.RegisterChecker(health.NewJobChecker(instance.jobManager))
-				}
-			}
-
-			// Register metrics endpoint
-			if opt.WithMetrics && reg.metrics != nil {
-				reg.metrics.RegisterRoutes(fiberApp)
-				instance.logger.Debug("Metrics routes registered")
-			}
-		}))
-	}
-
-	// Add custom invokers (which may register routes)
-	for _, invoker := range opt.Invokers {
-		fxOptions = append(fxOptions, fx.Invoke(invoker))
-	}
-
-	// Add lifecycle hooks
-	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {
-		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle) {
-			lc.Append(fx.Hook{
-				OnStart: func(ctx context.Context) error {
-					// Execute all OnStart hooks
-					for i, hook := range opt.OnStart {
-						if err := hook(ctx); err != nil {
-							instance.logger.Error("OnStart hook failed", "index", i, "error", err)
-							return err
-						}
-					}
-					return nil
-				},
-				OnStop: func(ctx context.Context) error {
-					// Execute all OnStop hooks in reverse order
-					for i := len(opt.OnStop) - 1; i >= 0; i-- {
-						if err := opt.OnStop[i](ctx); err != nil {
-							instance.logger.Error("OnStop hook failed", "index", i, "error", err)
-							// Continue with other hooks even if one fails
-						}
-					}
-					return nil
-				},
-			})
-		}))
-	}
-
-	// Register all options with the application
-	if err := instance.app.Register(fxOptions...); err != nil {
-		instance.logger.Fatal("Failed to create application", "error", err)
-	}
-
-	return instance.app
+	return instance.app, instance.config, instance.logger, reg
 }

@@ -30,7 +30,8 @@ import (
 // function used to build them.
 //
 // The methods write to the package-level instance singleton, exactly as the
-// inlined code did. New holds instance.mu for the duration.
+// inlined code did. buildCore holds instance.mu while they run, and they must
+// not call user code: an accessor call under the write lock deadlocks.
 type moduleRegistry struct {
 	opt       Options
 	fxOptions []fx.Option
@@ -148,8 +149,14 @@ func (r *moduleRegistry) addMigrate() {
 							}
 							// Set instance.migrator after OnStart creates the migrator
 							// (migrator is created in OnStart because MongoDB connections
-							// are only available after MongoDB module's OnStart)
-							instance.migrator = r.migrate.Provide()
+							// are only available after MongoDB module's OnStart).
+							// This runs at app start, long after New released the write
+							// lock, and concurrent goroutines may already be reading via
+							// goe.Migrate() — so the write must take the lock.
+							migrator := r.migrate.Provide()
+							instance.mu.Lock()
+							instance.migrator = migrator
+							instance.mu.Unlock()
 							return nil
 						},
 						OnStop: r.migrate.OnStop,
