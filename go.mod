@@ -9,8 +9,8 @@ require (
 	github.com/gofiber/fiber/v3 v3.4.0
 	github.com/gofiber/storage/memory/v2 v2.1.2
 	github.com/gofiber/storage/redis/v3 v3.5.1
-	github.com/gofiber/template/html/v3 v3.0.6
-	github.com/gofiber/utils/v2 v2.4.0
+	github.com/gofiber/template/html/v3 v3.0.7
+	github.com/gofiber/utils/v2 v2.4.1
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.21.0
