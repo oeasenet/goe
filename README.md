@@ -147,10 +147,15 @@ See [`.example.env`](.example.env) for every available option with documentation
 
 ### Or configure in Go
 
-The HTTP server can be configured entirely in code, with no `.env` required:
+The HTTP, cache, job, and lock modules can be configured entirely in code, with
+no `.env` required:
 
 ```go
-import goehttp "go.oease.dev/goe/v2/core/http"
+import (
+    goecache "go.oease.dev/goe/v2/core/cache"
+    goehttp "go.oease.dev/goe/v2/core/http"
+    goejob "go.oease.dev/goe/v2/core/job"
+)
 
 goe.New(goe.Options{
     // Passing options enables the module — WithHTTP: true is not needed
@@ -160,14 +165,27 @@ goe.New(goe.Options{
         goehttp.WithCertFile("server.crt"),   // TLS, which has no env equivalent
         goehttp.WithCertKeyFile("server.key"),
     },
+    Cache: []goecache.Option{
+        goecache.WithStore("redis"),
+        goecache.WithTTL(30 * time.Minute),
+    },
+    Job: []goejob.Option{
+        goejob.WithConcurrency(10),
+        goejob.WithDefaultQueue("critical"),
+    },
 })
 ```
 
 Options sit above the environment: a field set in code wins, and every field
 left alone still reads from `.env`, so adding options to an existing app
-changes nothing else. Every field of `fiber.Config` and `fiber.ListenConfig` is
-available as `With<FieldName>`, plus `WithFiberConfig` for anything GOE does not
-wrap. See [CONFIGURATION.md](CONFIGURATION.md#configuring-in-go-code) and
+changes nothing else. For HTTP, every field of `fiber.Config` and
+`fiber.ListenConfig` is available as `With<FieldName>`; for cache, job, and
+lock every setting has a matching option — except credentials.
+`*_REDIS_USERNAME`, `*_REDIS_PASSWORD` and credential-capable URLs stay
+environment-only by design (lock's `WithRedisURL` even rejects URLs embedding
+`user:pass`), so secrets never end up in source while still applying to
+endpoints chosen in code. See
+[CONFIGURATION.md](CONFIGURATION.md#configuring-in-go-code) and
 [examples/06-code-first-config](examples/06-code-first-config/).
 
 ### Behind a CDN

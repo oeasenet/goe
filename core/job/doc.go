@@ -137,7 +137,11 @@
 //
 // Configure via environment variables:
 //
-//	JOB_REDIS_ADDR=localhost:6379      # Redis address
+//	JOB_REDIS_URL=redis://host:6379/0  # Redis URL (environment-only, wins over hosts)
+//	JOB_REDIS_HOSTS=host1:6379         # Redis hosts (used when no URL is set)
+//	JOB_REDIS_ADDR=localhost:6379      # Redis address (deprecated; use URL or HOSTS)
+//	JOB_REDIS_USERNAME=svc             # Redis username (environment-only)
+//	JOB_REDIS_PASSWORD=secret          # Redis password (environment-only)
 //	JOB_CONCURRENCY=5                  # Workers per queue
 //	JOB_DEFAULT_QUEUE=default          # Default queue name
 //	JOB_DEFAULT_MAX_ATTEMPTS=3         # Default retry attempts
@@ -145,6 +149,22 @@
 //	JOB_RETRY_BACKOFF_FACTOR=2.0       # Backoff multiplier
 //	JOB_SCHEDULER_ENABLED=true         # Enable scheduler
 //	JOB_DLQ_ENABLED=true               # Enable dead letter queue
+//
+// Or from Go code through goe.Options.Job — every Config field has a
+// matching With<FieldName> Option, and code wins over the environment:
+//
+//	goe.New(goe.Options{
+//	    Job: []job.Option{
+//	        job.WithConcurrency(10),
+//	        job.WithDefaultQueue("critical"),
+//	        job.WithDLQTTL(48 * time.Hour),
+//	    },
+//	})
+//
+// Credentials are the exception: JOB_REDIS_URL, JOB_REDIS_USERNAME and
+// JOB_REDIS_PASSWORD have no Option. Secrets stay in the environment and are
+// applied to whichever endpoint wins — including one chosen in code with
+// job.WithRedisHosts.
 //
 // # Job Status Flow
 //

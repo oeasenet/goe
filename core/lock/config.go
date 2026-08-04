@@ -29,6 +29,14 @@ type Config struct {
 	// When set, RedisURL is ignored and Redlock mode is used.
 	RedisURLs []string
 
+	// RedisUsername and RedisPassword are applied to every connection whose
+	// URL does not embed its own userinfo (URL credentials win). They are
+	// environment-only — LOCK_REDIS_USERNAME and LOCK_REDIS_PASSWORD have no
+	// code Option, by design: secrets never belong in source, and code-side
+	// URLs (WithRedisURL) reject embedded credentials for the same reason.
+	RedisUsername string
+	RedisPassword string
+
 	// Lock defaults
 	DefaultExpiry      time.Duration // Default lock expiry time (default: 8s)
 	DefaultTries       int           // Default retry attempts (default: 32)
@@ -61,6 +69,8 @@ func DefaultConfig() *Config {
 // Environment variables:
 //   - LOCK_REDIS_URL: Single Redis URL (supports all schemes)
 //   - LOCK_REDIS_URLS: Comma-separated URLs for Redlock
+//   - LOCK_REDIS_USERNAME: Username applied when the URL embeds none (env-only)
+//   - LOCK_REDIS_PASSWORD: Password applied when the URL embeds none (env-only)
 //   - LOCK_DEFAULT_EXPIRY: Lock expiry duration (e.g., "8s")
 //   - LOCK_DEFAULT_TRIES: Number of retry attempts
 //   - LOCK_DEFAULT_RETRY_DELAY: Delay between retries (e.g., "500ms")
@@ -79,6 +89,15 @@ func LoadConfig(config contract.Config) *Config {
 	// Multiple URLs for Redlock
 	if urls := config.GetStringSlice("LOCK_REDIS_URLS"); len(urls) > 0 {
 		cfg.RedisURLs = urls
+	}
+
+	// Credentials, applied to any URL that does not embed its own. These are
+	// environment-only on purpose; see the Config field documentation.
+	if username := config.GetString("LOCK_REDIS_USERNAME"); username != "" {
+		cfg.RedisUsername = username
+	}
+	if password := config.GetString("LOCK_REDIS_PASSWORD"); password != "" {
+		cfg.RedisPassword = password
 	}
 
 	// Lock default settings

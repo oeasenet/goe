@@ -188,12 +188,20 @@ func createSinglePool(u *url.URL, config *Config) ([]Pool, string, error) {
 		}
 	}
 
-	// Extract credentials
+	// Extract credentials; the environment fills whatever the URL leaves
+	// empty, so credential-free URLs (required for URLs set in code) still
+	// authenticate via LOCK_REDIS_USERNAME/LOCK_REDIS_PASSWORD.
 	if u.User != nil {
 		opts.Username = u.User.Username()
 		if password, ok := u.User.Password(); ok {
 			opts.Password = password
 		}
+	}
+	if opts.Username == "" {
+		opts.Username = config.RedisUsername
+	}
+	if opts.Password == "" {
+		opts.Password = config.RedisPassword
 	}
 
 	// Extract database number
@@ -270,6 +278,14 @@ func createSentinelPool(rawURL string, config *Config) ([]Pool, string, error) {
 		}
 	}
 
+	// URL userinfo wins; the environment fills whatever it leaves empty.
+	if username == "" {
+		username = config.RedisUsername
+	}
+	if password == "" {
+		password = config.RedisPassword
+	}
+
 	opts := &redis.FailoverOptions{
 		MasterName:    masterName,
 		SentinelAddrs: sentinelAddrs,
@@ -337,6 +353,14 @@ func createClusterPool(rawURL string, config *Config) ([]Pool, string, error) {
 		if !strings.Contains(addr, ":") {
 			addrs[i] = addr + ":6379"
 		}
+	}
+
+	// URL userinfo wins; the environment fills whatever it leaves empty.
+	if username == "" {
+		username = config.RedisUsername
+	}
+	if password == "" {
+		password = config.RedisPassword
 	}
 
 	opts := &redis.ClusterOptions{

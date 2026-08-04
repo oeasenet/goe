@@ -89,26 +89,42 @@ type queueStatsInternal struct {
 	failed    atomic.Int64
 }
 
-// NewManager creates a new job manager
-func NewManager(config *Config, logger contract.Logger) (*Manager, error) {
-	// Create Redis client
-	var redisClient redis.UniversalClient
-
+// newRedisClient builds the Redis client for the resolved configuration.
+// Priority mirrors LoadConfig: a URL wins over hosts. Credentials from
+// JOB_REDIS_USERNAME/JOB_REDIS_PASSWORD fill in whenever the URL does not
+// embed its own, so credential-free URLs (and endpoints chosen in code) still
+// authenticate from the environment.
+func newRedisClient(config *Config) (redis.UniversalClient, error) {
 	if config.RedisURL != "" {
 		opt, err := redis.ParseURL(config.RedisURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
 		}
 		opt.PoolSize = config.RedisPoolSize
-		redisClient = redis.NewClient(opt)
-	} else {
-		redisClient = redis.NewUniversalClient(&redis.UniversalOptions{
-			Addrs:    config.RedisHosts,
-			Username: config.RedisUsername,
-			Password: config.RedisPassword,
-			DB:       config.RedisDB,
-			PoolSize: config.RedisPoolSize,
-		})
+		if opt.Username == "" {
+			opt.Username = config.RedisUsername
+		}
+		if opt.Password == "" {
+			opt.Password = config.RedisPassword
+		}
+		return redis.NewClient(opt), nil
+	}
+
+	return redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:    config.RedisHosts,
+		Username: config.RedisUsername,
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
+		PoolSize: config.RedisPoolSize,
+	}), nil
+}
+
+// NewManager creates a new job manager
+func NewManager(config *Config, logger contract.Logger) (*Manager, error) {
+	// Create Redis client
+	redisClient, err := newRedisClient(config)
+	if err != nil {
+		return nil, err
 	}
 
 	// Test connection

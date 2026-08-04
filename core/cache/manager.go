@@ -55,7 +55,7 @@ func (m *manager) Store(name ...string) contract.Cache {
 	}
 
 	// Get driver factory
-	driverName := storeConfig.Driver()
+	driverName := m.resolveDriverLocked(storeName, storeConfig)
 	factory, exists := m.drivers[driverName]
 	if !exists {
 		panic(fmt.Sprintf("cache driver [%s] is not supported", driverName))
@@ -84,12 +84,41 @@ func (m *manager) Store(name ...string) contract.Cache {
 
 // Driver returns the default driver name
 func (m *manager) Driver() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	defaultStore := m.getDefaultStore()
-	storeConfig := m.getStoreConfig(defaultStore)
-	if storeConfig != nil {
-		return storeConfig.Driver()
+	return m.resolveDriverLocked(defaultStore, m.getStoreConfig(defaultStore))
+}
+
+// resolveDriverLocked resolves the driver for a store: an explicitly
+// configured driver wins; otherwise a store named after a registered driver
+// uses that driver (so CACHE_STORE=redis or WithStore("redis") means the
+// redis driver, not a silent fall-through to memory); anything else defaults
+// to memory. Callers must hold m.mu (read or write).
+func (m *manager) resolveDriverLocked(storeName string, sc *storeConfig) string {
+	if driver := sc.configuredDriver(); driver != "" {
+		return driver
+	}
+	if _, registered := m.drivers[storeName]; registered {
+		return storeName
 	}
 	return "memory"
+}
+
+// storeDriverStatus reports how a store's driver resolves, for startup
+// validation: the resolved driver name, whether it was explicitly configured
+// (rather than derived from the store name or defaulted), and whether it is
+// registered.
+func (m *manager) storeDriverStatus(storeName string) (driver string, explicit, registered bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	sc := m.getStoreConfig(storeName)
+	explicit = sc.configuredDriver() != ""
+	driver = m.resolveDriverLocked(storeName, sc)
+	_, registered = m.drivers[driver]
+	return driver, explicit, registered
 }
 
 // Extend registers a custom cache driver
@@ -110,7 +139,7 @@ func (m *manager) getDefaultStore() string {
 }
 
 // getStoreConfig returns configuration for a specific store
-func (m *manager) getStoreConfig(name string) contract.CacheStoreConfig {
+func (m *manager) getStoreConfig(name string) *storeConfig {
 	// Create config from environment variables
 	return &storeConfig{
 		config: m.config,
@@ -124,18 +153,24 @@ type storeConfig struct {
 	name   string
 }
 
-// Driver returns the driver name
-func (s *storeConfig) Driver() string {
-	// Try store-specific driver first
+// configuredDriver returns the explicitly configured driver for this store —
+// the store-specific key first, then the default driver key — or "" when
+// neither is set. The manager layers the registered-driver-name fallback on
+// top; see resolveDriverLocked.
+func (s *storeConfig) configuredDriver() string {
 	driver := s.config.GetString(fmt.Sprintf("CACHE_%s_DRIVER", s.name))
 	if driver == "" {
-		// Fall back to default driver
 		driver = s.config.GetString("CACHE_DRIVER")
 	}
-	if driver == "" {
-		driver = "memory"
-	}
 	return driver
+}
+
+// Driver returns the driver name, satisfying contract.CacheStoreConfig.
+func (s *storeConfig) Driver() string {
+	if driver := s.configuredDriver(); driver != "" {
+		return driver
+	}
+	return "memory"
 }
 
 // Connection returns connection parameters

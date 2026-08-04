@@ -433,19 +433,54 @@ MongoDB migrations provide schema versioning, distributed locking, and automatic
 
 ## Job System (Background Processing)
 
-The job system provides Redis-backed background job processing with scheduling, retries, and dead letter queues. Enable with `WithJob: true`.
+The job system provides Redis-backed background job processing with scheduling, retries, and dead letter queues. Enable with `WithJob: true` or by passing job options.
+
+### Configuring in Go code
+
+Every `JOB_*` variable below — except the connection URL and credentials — has a
+code equivalent. Pass options through `goe.Options.Job` (which also enables the
+module) and they take precedence over the environment; anything left unset keeps
+its environment value:
+
+```go
+import goejob "go.oease.dev/goe/v2/core/job"
+
+goe.New(goe.Options{
+    Job: []goejob.Option{
+        goejob.WithRedisHosts("redis.internal:6379"),
+        goejob.WithConcurrency(10),
+        goejob.WithDefaultQueue("critical"),
+        goejob.WithDLQTTL(48 * time.Hour),
+    },
+})
+```
+
+The naming rule is mechanical: every field of `job.Config` is exposed as
+`With<FieldName>` (`JOB_MAX_CONCURRENCY` → `WithMaxConcurrency`). Options apply
+in the order given; an invalid option aborts startup inside `goe.New` with every
+problem listed at once, before any Redis connection is attempted.
+
+**Credentials stay in the environment.** `JOB_REDIS_URL` (which can embed
+`user:pass`), `JOB_REDIS_USERNAME` and `JOB_REDIS_PASSWORD` have no option on
+purpose — secrets never belong in source. They compose with code: an endpoint
+chosen with `WithRedisHosts` still authenticates with the environment's
+username and password.
 
 ### Redis Connection
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `JOB_REDIS_URL` | string | - | Redis connection URL (e.g., `redis://localhost:6379/0`) |
+| `JOB_REDIS_URL` | string | - | Redis connection URL (e.g., `redis://localhost:6379/0`). Environment-only; takes priority over hosts |
 | `JOB_REDIS_HOSTS` | []string | `localhost:6379` | Comma-separated Redis hosts (fallback if URL not provided) |
-| `JOB_REDIS_USERNAME` | string | - | Redis username |
-| `JOB_REDIS_PASSWORD` | string | - | Redis password |
+| `JOB_REDIS_USERNAME` | string | - | Redis username. Environment-only; applies to hosts **and** to a URL that embeds no userinfo |
+| `JOB_REDIS_PASSWORD` | string | - | Redis password. Environment-only; applies to hosts **and** to a URL that embeds no userinfo |
 | `JOB_REDIS_DB` | int | `0` | Redis database number |
 | `JOB_REDIS_POOL_SIZE` | int | `10` | Redis connection pool size |
 | `JOB_REDIS_ADDR` | string | - | **Deprecated**: Use `JOB_REDIS_URL` or `JOB_REDIS_HOSTS` |
+
+> Credentials embedded in `JOB_REDIS_URL` win over `JOB_REDIS_USERNAME`/`JOB_REDIS_PASSWORD`.
+> A credential-free URL plus the separate credential variables now works — earlier releases
+> silently ignored the separate variables whenever a URL was set.
 
 ### Worker Settings
 
@@ -494,14 +529,51 @@ The job system provides Redis-backed background job processing with scheduling, 
 
 ## Cache
 
+### Configuring in Go code
+
+Every `CACHE_*` variable below — except the connection URL and credentials —
+has a code equivalent. Pass options through `goe.Options.Cache` (which also
+enables the module) and they take precedence over the environment:
+
+```go
+import goecache "go.oease.dev/goe/v2/core/cache"
+
+goe.New(goe.Options{
+    Cache: []goecache.Option{
+        goecache.WithStore("redis"),
+        goecache.WithTTL(30 * time.Minute),
+        goecache.WithRedisHost("redis.internal"),
+    },
+})
+```
+
+The naming rule is mechanical: the environment key with the `CACHE_` prefix
+dropped (`CACHE_REDIS_POOL_SIZE` → `WithRedisPoolSize`). Store-scoped keys take
+the store name as their first argument: `WithStoreDriver("sessions", "redis")`
+is `CACHE_sessions_DRIVER`, and `WithStorePrefix`/`WithStoreTTL` follow suit.
+Under the hood options become a configuration overlay, so custom drivers
+registered through `Extend` read code-configured values exactly as they read
+environment variables. An invalid option discards every option and fails
+startup validation with all problems listed at once.
+
+**Credentials stay in the environment.** `CACHE_REDIS_URL` (which can embed
+`user:pass`), `CACHE_REDIS_USERNAME` and `CACHE_REDIS_PASSWORD` have no option
+on purpose — secrets never belong in source. They compose with code: an
+endpoint chosen with `WithRedisHost` still authenticates with the environment's
+username and password.
+
 ### General Settings
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CACHE_STORE` | string | `memory` | Cache store. **Only `memory` and `redis` are supported**; any other value is rejected at startup. |
-| `CACHE_DRIVER` | string | `memory` | Backing driver (`memory` or `redis`); resolved from `CACHE_{STORE}_DRIVER`, then `CACHE_DRIVER`, then `memory` |
+| `CACHE_STORE` | string | `memory` | Cache store. A store named after a registered driver (`memory`, `redis`, or a custom driver added via `Extend`) uses that driver directly; any other name must have a driver configured, or startup is rejected. |
+| `CACHE_DRIVER` | string | `memory` | Backing driver; resolved from `CACHE_{STORE}_DRIVER`, then `CACHE_DRIVER`, then the store name itself if it is a registered driver, then `memory` |
 | `CACHE_PREFIX` | string | `{APP_NAME}` | Prefix for all cache keys |
 | `CACHE_TTL` | duration | `2h` | Default cache TTL |
+
+> **Behavior fix:** `CACHE_STORE=redis` alone now uses the redis driver. Earlier
+> releases required `CACHE_DRIVER=redis` alongside it and silently fell back to
+> the memory driver otherwise. An explicitly configured driver still wins.
 
 ### Memory Store
 
@@ -513,11 +585,11 @@ The job system provides Redis-backed background job processing with scheduling, 
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CACHE_REDIS_URL` | string | - | Redis connection URL (overrides individual settings) |
+| `CACHE_REDIS_URL` | string | - | Redis connection URL (overrides individual settings). Environment-only |
 | `CACHE_REDIS_HOST` | string | `127.0.0.1` | Redis host |
 | `CACHE_REDIS_PORT` | int | `6379` | Redis port |
-| `CACHE_REDIS_USERNAME` | string | - | Redis username (Redis 6+) |
-| `CACHE_REDIS_PASSWORD` | string | - | Redis password |
+| `CACHE_REDIS_USERNAME` | string | - | Redis username (Redis 6+). Environment-only; applies to host/port **and** to a URL that embeds no userinfo |
+| `CACHE_REDIS_PASSWORD` | string | - | Redis password. Environment-only; applies to host/port **and** to a URL that embeds no userinfo |
 | `CACHE_REDIS_DATABASE` | int | `0` | Redis database number |
 | `CACHE_REDIS_CLIENT_NAME` | string | - | Client name for Redis connection |
 | `CACHE_REDIS_POOL_SIZE` | int | - | Connection pool size |
@@ -531,17 +603,51 @@ The job system provides Redis-backed background job processing with scheduling, 
 | `CACHE_REDIS_MASTER_NAME` | string | - | Sentinel master name |
 | `CACHE_REDIS_IS_CLUSTER_MODE` | bool | `false` | Enable Redis Cluster mode |
 
+> Credentials embedded in `CACHE_REDIS_URL` win over `CACHE_REDIS_USERNAME`/`CACHE_REDIS_PASSWORD`.
+> A credential-free URL plus the separate credential variables now works — the credentials are
+> injected into the URL (scheme, database and query parameters untouched); earlier releases
+> silently ignored the separate variables whenever a URL was set.
+
 ### Other store types
 
-> Only `memory` and `redis` have registered drivers. Any other `CACHE_STORE` value
-> (`postgres`, `mysql`, `memcache`, `mongodb`, `dynamodb`, `s3`, `badger`, `sqlite3`) is
-> **rejected at startup** by config validation.
+> Only `memory` and `redis` ship as built-in drivers. A `CACHE_STORE` that neither names a
+> registered driver nor has one configured via `CACHE_{STORE}_DRIVER`/`CACHE_DRIVER` is
+> **rejected at startup** by config validation. Custom drivers registered through
+> `goe.Cache().Extend(name, factory)` count as registered — a store may name one directly.
 
 ---
 
 ## Lock System (Distributed Mutex)
 
-The lock system provides distributed locking using Redis with support for single instance, Sentinel, Cluster, and Redlock algorithms.
+The lock system provides distributed locking using Redis with support for single instance, Sentinel, Cluster, and Redlock algorithms. Enable with `WithLock: true` or by passing lock options.
+
+### Configuring in Go code
+
+Every `LOCK_*` variable below — except the credentials — has a code
+equivalent. Pass options through `goe.Options.Lock` (which also enables the
+module) and they take precedence over the environment:
+
+```go
+import goelock "go.oease.dev/goe/v2/core/lock"
+
+goe.New(goe.Options{
+    Lock: []goelock.Option{
+        goelock.WithRedisURL("redis-sentinel://mymaster@s1:26379,s2:26379/0"),
+        goelock.WithDefaultExpiry(10 * time.Second),
+        goelock.WithKeyPrefix("myapp:lock:"),
+    },
+})
+```
+
+The naming rule is mechanical: every field of `lock.Config` is exposed as
+`With<FieldName>` (`LOCK_DEFAULT_EXPIRY` → `WithDefaultExpiry`). An invalid
+option aborts startup inside `goe.New` with every problem listed at once,
+before any Redis connection is attempted.
+
+**Credentials stay in the environment.** `WithRedisURL` and `WithRedisURLs`
+**reject** URLs that embed `user:pass` — the URL in code declares the topology,
+and `LOCK_REDIS_USERNAME`/`LOCK_REDIS_PASSWORD` from the environment supply the
+secret, whatever the mode (single, sentinel, cluster, redlock).
 
 ### Redis Connection
 
@@ -555,11 +661,16 @@ The connection URL scheme determines the mode:
 |----------|------|---------|-------------|
 | `LOCK_REDIS_URL` | string | `redis://localhost:6379/0` | Primary Redis connection URL (database is taken from the URL path) |
 | `LOCK_REDIS_URLS` | []string | - | Multiple URLs for the Redlock algorithm |
+| `LOCK_REDIS_USERNAME` | string | - | Redis username. Environment-only; applies to any URL that embeds no userinfo |
+| `LOCK_REDIS_PASSWORD` | string | - | Redis password. Environment-only; applies to any URL that embeds no userinfo |
 
 > The lock connection is configured **only** via `LOCK_REDIS_URL` (or `LOCK_REDIS_URLS` for
 > Redlock), with the pool size from `LOCK_POOL_SIZE`. `LOCK_REDIS_ADDR`, `LOCK_REDIS_HOST`,
 > `LOCK_REDIS_HOSTS`, `LOCK_REDIS_DB`, and `LOCK_REDIS_POOL_SIZE` are **not used** (and no longer
 > validated) — setting only one of them is rejected, so use the URL form.
+>
+> Credentials embedded in the URL win over `LOCK_REDIS_USERNAME`/`LOCK_REDIS_PASSWORD`; the
+> separate variables fill in whenever the URL carries none, in every connection mode.
 
 ### Lock Defaults
 

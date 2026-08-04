@@ -68,6 +68,9 @@ func New(opts ...Options) contract.Application {
 		opt.WithMetrics = o.WithMetrics
 		opt.WithOTel = o.WithOTel
 		opt.HTTP = o.HTTP
+		opt.Cache = o.Cache
+		opt.Job = o.Job
+		opt.Lock = o.Lock
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
 		opt.ShutdownTimeout = o.ShutdownTimeout
@@ -76,10 +79,19 @@ func New(opts ...Options) contract.Application {
 		opt.OnStop = o.OnStop
 	}
 
-	// Supplying HTTP options is an unambiguous request for the HTTP module, so
-	// enabling it separately would only be a way to get it wrong.
+	// Supplying a module's options is an unambiguous request for that module,
+	// so enabling it separately would only be a way to get it wrong.
 	if opt.HTTP != nil {
 		opt.WithHTTP = true
+	}
+	if opt.Cache != nil {
+		opt.WithCache = true
+	}
+	if opt.Job != nil {
+		opt.WithJob = true
+	}
+	if opt.Lock != nil {
+		opt.WithLock = true
 	}
 
 	// Assemble config, logger, app, and the built-in modules under the

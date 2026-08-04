@@ -2,10 +2,12 @@ package cache
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/gofiber/storage/memory/v2"
 	"github.com/gofiber/storage/redis/v3"
+	goredis "github.com/redis/go-redis/v9"
 	"go.oease.dev/goe/v2/contract"
 )
 
@@ -24,6 +26,12 @@ func MemoryStoreFactory(config contract.Config) (contract.CacheStore, error) {
 
 // RedisStoreFactory creates Fiber Redis store instances
 func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
+	return redis.New(buildRedisConfig(config)), nil
+}
+
+// buildRedisConfig maps CACHE_REDIS_* configuration onto the Fiber Redis
+// storage config.
+func buildRedisConfig(config contract.Config) redis.Config {
 	// Build Redis configuration from environment
 	redisConfig := redis.Config{
 		Reset: config.GetBool("CACHE_REDIS_RESET"),
@@ -31,7 +39,17 @@ func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
 
 	// Check if URL is provided
 	if url := config.GetString("CACHE_REDIS_URL"); url != "" {
-		redisConfig.URL = url
+		// The URL flows through to the Fiber storage as-is — with one
+		// exception. The storage ignores the discrete Username/Password
+		// fields once a URL is set, which would silently drop credentials
+		// supplied through CACHE_REDIS_USERNAME/CACHE_REDIS_PASSWORD (the
+		// only way to pair a secret with a credential-free URL). When that
+		// combination occurs the credentials are injected into the URL's
+		// userinfo; everything else about the URL — scheme, host, database,
+		// query parameters — is preserved.
+		redisConfig.URL = injectURLCredentials(url,
+			config.GetString("CACHE_REDIS_USERNAME"),
+			config.GetString("CACHE_REDIS_PASSWORD"))
 	} else {
 		// Use individual configuration
 		host := config.GetString("CACHE_REDIS_HOST")
@@ -80,7 +98,33 @@ func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
 	// Cluster mode
 	redisConfig.IsClusterMode = config.GetBool("CACHE_REDIS_IS_CLUSTER_MODE")
 
-	return redis.New(redisConfig), nil
+	return redisConfig
+}
+
+// injectURLCredentials returns rawURL with username/password embedded as
+// userinfo, when there is something to embed and the URL carries none of its
+// own. URL-embedded credentials win, and a URL go-redis cannot parse is
+// returned untouched so the storage reports it exactly as before.
+func injectURLCredentials(rawURL, username, password string) string {
+	if username == "" && password == "" {
+		return rawURL
+	}
+
+	opt, err := goredis.ParseURL(rawURL)
+	if err != nil || opt.Username != "" || opt.Password != "" {
+		return rawURL
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if password == "" {
+		u.User = url.User(username)
+	} else {
+		u.User = url.UserPassword(username, password)
+	}
+	return u.String()
 }
 
 // RegisterBuiltinDrivers registers all built-in cache drivers

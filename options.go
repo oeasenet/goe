@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	"go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/http"
+	"go.oease.dev/goe/v2/core/job"
+	"go.oease.dev/goe/v2/core/lock"
 )
 
 // Options represents the application options
@@ -41,6 +44,67 @@ type Options struct {
 	//
 	// See the core/http package for the full option list.
 	HTTP []http.Option
+
+	// Cache configures the cache module from Go code instead of environment
+	// variables. A non-nil value implies WithCache, so the module does not
+	// have to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching CACHE_* variable while the environment still supplies
+	// everything left unset. Credentials are the exception: CACHE_REDIS_URL,
+	// CACHE_REDIS_USERNAME and CACHE_REDIS_PASSWORD have no option and stay
+	// environment-only.
+	//
+	//	goe.New(goe.Options{
+	//	    Cache: []cache.Option{
+	//	        cache.WithStore("redis"),
+	//	        cache.WithTTL(30 * time.Minute),
+	//	    },
+	//	})
+	//
+	// See the core/cache package for the full option list.
+	Cache []cache.Option
+
+	// Job configures the background job system from Go code instead of
+	// environment variables. A non-nil value implies WithJob, so the module
+	// does not have to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching JOB_* variable while the environment still supplies
+	// everything left unset. Credentials are the exception: JOB_REDIS_URL,
+	// JOB_REDIS_USERNAME and JOB_REDIS_PASSWORD have no option and stay
+	// environment-only.
+	//
+	//	goe.New(goe.Options{
+	//	    Job: []job.Option{
+	//	        job.WithConcurrency(10),
+	//	        job.WithDefaultQueue("critical"),
+	//	    },
+	//	})
+	//
+	// See the core/job package for the full option list.
+	Job []job.Option
+
+	// Lock configures the distributed lock system from Go code instead of
+	// environment variables. A non-nil value implies WithLock, so the module
+	// does not have to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching LOCK_* variable while the environment still supplies
+	// everything left unset. Credentials are the exception: lock.WithRedisURL
+	// rejects URLs that embed user:pass — LOCK_REDIS_USERNAME and
+	// LOCK_REDIS_PASSWORD stay environment-only and apply to whichever
+	// topology the URL declares.
+	//
+	//	goe.New(goe.Options{
+	//	    Lock: []lock.Option{
+	//	        lock.WithDefaultExpiry(10 * time.Second),
+	//	        lock.WithKeyPrefix("myapp:lock:"),
+	//	    },
+	//	})
+	//
+	// See the core/lock package for the full option list.
+	Lock []lock.Option
 
 	// HTTPPort overrides the HTTP port.
 	//

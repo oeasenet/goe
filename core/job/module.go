@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"errors"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
@@ -12,15 +13,27 @@ type Module struct {
 	manager *Manager
 	logger  contract.Logger
 	config  contract.Config
+
+	// connectionSetInCode records that an Option supplied the Redis endpoint,
+	// so ValidateConfig does not demand a JOB_REDIS_* environment variable.
+	connectionSetInCode bool
 }
 
-// NewModule creates a new job module
-func NewModule(config contract.Config, logger contract.Logger) (*Module, error) {
+// NewModule creates a new job module.
+//
+// Configuration resolves in layers: defaults, then JOB_* environment
+// variables, then opts. Anything set through an Option wins over the
+// environment. Option errors abort construction before any Redis connection
+// is attempted, and every error is reported at once.
+func NewModule(config contract.Config, logger contract.Logger, opts ...Option) (*Module, error) {
 	// Tag once; the manager and workers share this module-scoped logger.
 	logger = logger.With("module", "job")
 
-	// Load job configuration
-	jobConfig := LoadConfig(config)
+	// Resolve job configuration: defaults -> environment -> code.
+	jobConfig, connectionSetInCode, optErrs := resolveConfig(config, opts)
+	if len(optErrs) > 0 {
+		return nil, errors.Join(optErrs...)
+	}
 
 	// Create manager
 	manager, err := NewManager(jobConfig, logger)
@@ -29,9 +42,10 @@ func NewModule(config contract.Config, logger contract.Logger) (*Module, error) 
 	}
 
 	return &Module{
-		manager: manager,
-		logger:  logger,
-		config:  config,
+		manager:             manager,
+		logger:              logger,
+		config:              config,
+		connectionSetInCode: connectionSetInCode,
 	}, nil
 }
 
@@ -95,8 +109,10 @@ func (m *Module) ProvideJobManager() contract.JobManager {
 func (m *Module) ValidateConfig() error {
 	v := configvalidator.NewConfigValidator(m.config, "job")
 
-	// Require at least one Redis configuration
-	hasJobConfig := m.config.Has("JOB_REDIS_URL") ||
+	// Require at least one Redis configuration — from the environment or from
+	// a WithRedisHosts option in code.
+	hasJobConfig := m.connectionSetInCode ||
+		m.config.Has("JOB_REDIS_URL") ||
 		m.config.Has("JOB_REDIS_ADDR") ||
 		m.config.Has("JOB_REDIS_HOST") ||
 		m.config.Has("JOB_REDIS_HOSTS")

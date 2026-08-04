@@ -52,7 +52,7 @@ func (r *moduleRegistry) addCache() {
 	// Add Cache module if enabled
 
 	if r.opt.WithCache {
-		r.cache = cache.NewModule(instance.config, instance.logger)
+		r.cache = cache.NewModule(instance.config, instance.logger, r.opt.Cache...)
 		instance.cacheManager = r.cache.Provide()
 
 		instance.logger.Debug("Registering Cache module")
@@ -172,7 +172,7 @@ func (r *moduleRegistry) addLock() {
 
 	if r.opt.WithLock {
 		var err error
-		r.lock, err = lock.NewModule(instance.config, instance.logger)
+		r.lock, err = lock.NewModule(instance.config, instance.logger, r.opt.Lock...)
 		if err != nil {
 			instance.logger.Fatal("Failed to create lock module", "error", err)
 		}
@@ -199,7 +199,7 @@ func (r *moduleRegistry) addJob() {
 
 	if r.opt.WithJob {
 		var err error
-		r.job, err = job.NewModule(instance.config, instance.logger)
+		r.job, err = job.NewModule(instance.config, instance.logger, r.opt.Job...)
 		if err != nil {
 			instance.logger.Fatal("Failed to create job module", "error", err)
 		}

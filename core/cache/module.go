@@ -2,9 +2,11 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.oease.dev/goe/v2/contract"
+	goeconfig "go.oease.dev/goe/v2/core/config"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
@@ -12,12 +14,31 @@ import (
 type Module struct {
 	manager contract.CacheManager
 	logger  contract.Logger
-	config  contract.Config
+
+	// config is the effective configuration: the base config with the Option
+	// overlay applied. The manager and every driver factory read through it,
+	// so code-configured values behave exactly like environment variables.
+	config contract.Config
+
+	// optErrs holds failures from Option application. They are reported by
+	// ValidateConfig so that startup aborts; the module fell back to the
+	// environment-only configuration, which is never actually served.
+	optErrs []error
 }
 
-// NewModule creates a new cache module
-func NewModule(config contract.Config, logger contract.Logger) *Module {
-	// Create cache manager
+// NewModule creates a new cache module.
+//
+// Configuration resolves in layers: CACHE_* environment variables, then opts.
+// Anything set through an Option wins over the environment. If any option
+// fails, every option is discarded, the environment-only configuration stays
+// in effect, and ValidateConfig aborts startup with all collected errors.
+func NewModule(config contract.Config, logger contract.Logger, opts ...Option) *Module {
+	overrides, optErrs := resolveOverrides(opts)
+	if len(optErrs) == 0 && len(overrides) > 0 {
+		config = goeconfig.NewConfigWrapper(config, overrides)
+	}
+
+	// Create cache manager on the effective configuration
 	manager := NewManager(config)
 
 	// Register all built-in drivers (Fiber storage drivers)
@@ -27,6 +48,7 @@ func NewModule(config contract.Config, logger contract.Logger) *Module {
 		manager: manager,
 		logger:  logger.With("module", "cache"),
 		config:  config,
+		optErrs: optErrs,
 	}
 }
 
@@ -77,17 +99,40 @@ func (m *Module) ProvideCache() contract.Cache {
 
 // ValidateConfig validates the cache module configuration
 func (m *Module) ValidateConfig() error {
+	// Option failures are reported first and abort startup. The module fell
+	// back to the environment-only configuration when this happened, so
+	// returning here guarantees a half-configured cache is never served.
+	if len(m.optErrs) > 0 {
+		return errors.Join(m.optErrs...)
+	}
+
 	v := configvalidator.NewConfigValidator(m.config, "cache")
 
 	// Cache store is optional, defaults to memory
 	store := m.config.GetString("CACHE_STORE")
 	if store != "" {
-		// Only memory and redis have registered drivers (see RegisterBuiltinDrivers).
-		validStores := []string{"memory", "redis"}
-		v.Optional("CACHE_STORE", "Cache store type", configvalidator.ValidateOneOf(validStores...))
+		// The store must resolve to a registered driver: either the store
+		// names a driver directly ("memory", "redis", or a custom driver
+		// added through Extend), or a CACHE_{store}_DRIVER / CACHE_DRIVER
+		// key configures one. Anything else would panic on first Store()
+		// use, so it is rejected at startup instead.
+		driver, explicit, registered := m.manager.(*manager).storeDriverStatus(store)
+		switch {
+		case !registered:
+			v.Optional("CACHE_STORE", "Cache store type", func(any) error {
+				return fmt.Errorf("store %q uses driver %q, which is not registered", store, driver)
+			})
+		case !explicit && driver != store:
+			v.Optional("CACHE_STORE", "Cache store type", func(any) error {
+				return fmt.Errorf("store %q does not name a registered driver and none is configured; "+
+					"set CACHE_DRIVER/CACHE_%s_DRIVER or cache.WithDriver/cache.WithStoreDriver", store, store)
+			})
+		}
 
-		// Redis works with localhost defaults; validate the real keys only when set.
-		if store == "redis" {
+		// Redis works with localhost defaults; validate the real keys only
+		// when set. Keyed on the resolved driver so named stores backed by
+		// redis are covered too.
+		if driver == "redis" {
 			if m.config.Has("CACHE_REDIS_PORT") {
 				v.Optional("CACHE_REDIS_PORT", "Redis port", configvalidator.ValidatePort)
 			}

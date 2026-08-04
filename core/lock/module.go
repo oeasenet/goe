@@ -2,6 +2,7 @@ package lock
 
 import (
 	"context"
+	"errors"
 
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
@@ -12,12 +13,24 @@ type Module struct {
 	manager contract.LockManager
 	logger  contract.Logger
 	config  contract.Config
+
+	// connectionSetInCode records that an Option supplied the Redis URL(s),
+	// so ValidateConfig does not demand a LOCK_REDIS_* environment variable.
+	connectionSetInCode bool
 }
 
 // NewModule creates a new lock module.
-func NewModule(config contract.Config, logger contract.Logger) (*Module, error) {
-	// Load lock configuration
-	lockConfig := LoadConfig(config)
+//
+// Configuration resolves in layers: defaults, then LOCK_* environment
+// variables, then opts. Anything set through an Option wins over the
+// environment. Option errors abort construction before any Redis connection
+// is attempted, and every error is reported at once.
+func NewModule(config contract.Config, logger contract.Logger, opts ...Option) (*Module, error) {
+	// Resolve lock configuration: defaults -> environment -> code.
+	lockConfig, connectionSetInCode, optErrs := resolveConfig(config, opts)
+	if len(optErrs) > 0 {
+		return nil, errors.Join(optErrs...)
+	}
 
 	// Create manager
 	manager, err := NewManager(lockConfig, logger)
@@ -26,9 +39,10 @@ func NewModule(config contract.Config, logger contract.Logger) (*Module, error) 
 	}
 
 	return &Module{
-		manager: manager,
-		logger:  logger.With("module", "lock"),
-		config:  config,
+		manager:             manager,
+		logger:              logger.With("module", "lock"),
+		config:              config,
+		connectionSetInCode: connectionSetInCode,
 	}, nil
 }
 
@@ -80,8 +94,10 @@ func (m *Module) ValidateConfig() error {
 	v := configvalidator.NewConfigValidator(m.config, "lock")
 
 	// The lock connection is driven only by LOCK_REDIS_URL or LOCK_REDIS_URLS
-	// (see LoadConfig). Require an explicit URL — a lone ADDR/HOST would be ignored.
-	hasLockConfig := m.config.Has("LOCK_REDIS_URL") || m.config.Has("LOCK_REDIS_URLS")
+	// (see LoadConfig), or by WithRedisURL/WithRedisURLs in code. Require an
+	// explicit URL — a lone ADDR/HOST would be ignored.
+	hasLockConfig := m.connectionSetInCode ||
+		m.config.Has("LOCK_REDIS_URL") || m.config.Has("LOCK_REDIS_URLS")
 	if !hasLockConfig {
 		v.Require("LOCK_REDIS_URL", "Redis connection URL for the lock system (e.g. redis://host:6379/0)")
 	}

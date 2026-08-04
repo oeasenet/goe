@@ -1,11 +1,13 @@
-// Package main demonstrates configuring the HTTP server from Go code instead
-// of environment variables.
+// Package main demonstrates configuring GOE modules from Go code instead of
+// environment variables.
 //
 // This example shows:
 // - Configuring Fiber through goe.Options.HTTP rather than FIBER_*/HTTP_* vars
+// - Configuring the cache through goe.Options.Cache rather than CACHE_* vars
 // - How code, environment and GOE defaults layer together
 // - Reaching settings that have no environment equivalent, such as TLS
 // - The escape hatch for anything GOE does not wrap
+// - Where credentials live: always the environment, never code
 //
 // Run:
 //
@@ -15,12 +17,16 @@
 //
 //	curl -i http://localhost:8080/
 //	curl -i http://localhost:8080/config
+//	curl -i http://localhost:8080/cache
 package main
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2"
 	"go.oease.dev/goe/v2/contract"
+	goecache "go.oease.dev/goe/v2/core/cache"
 	goehttp "go.oease.dev/goe/v2/core/http"
 )
 
@@ -62,13 +68,53 @@ func main() {
 			}),
 		},
 
+		// The same pattern configures the cache, job, and lock modules, and
+		// passing options enables the module just like WithCache: true would.
+		// The option name is always the environment key with the module
+		// prefix dropped: CACHE_TTL is WithTTL, CACHE_REDIS_HOST is
+		// WithRedisHost.
+		Cache: []goecache.Option{
+			// The memory driver keeps this example runnable without Redis. A
+			// store named after a registered driver uses that driver, so
+			// goecache.WithStore("redis") is all a Redis-backed cache needs.
+			goecache.WithStore("memory"),
+			goecache.WithPrefix("example06"),
+			goecache.WithTTL(5 * time.Minute),
+
+			// A production setup points at Redis the same way:
+			//
+			//	goecache.WithStore("redis"),
+			//	goecache.WithRedisHost("redis.internal"),
+			//	goecache.WithRedisPort(6380),
+			//
+			// Credentials are the deliberate exception: there is no
+			// WithRedisPassword. CACHE_REDIS_USERNAME/CACHE_REDIS_PASSWORD
+			// come from the environment and apply to the endpoint chosen
+			// here — secrets never live in source.
+		},
+
+		// Job and lock follow the same rules (they need a running Redis, so
+		// they stay disabled in this example):
+		//
+		//	Job: []goejob.Option{
+		//	    goejob.WithRedisHosts("redis.internal:6379"), // JOB_REDIS_PASSWORD still applies
+		//	    goejob.WithConcurrency(10),
+		//	    goejob.WithDefaultQueue("critical"),
+		//	},
+		//	Lock: []goelock.Option{
+		//	    // Topology in code; lock.WithRedisURL rejects user:pass in the
+		//	    // URL — LOCK_REDIS_USERNAME/LOCK_REDIS_PASSWORD supply it.
+		//	    goelock.WithRedisURL("redis-sentinel://mymaster@s1:26379,s2:26379/0"),
+		//	    goelock.WithDefaultExpiry(10 * time.Second),
+		//	},
+
 		Invokers: []any{registerRoutes},
 	})
 
 	goe.Run()
 }
 
-func registerRoutes(kernel contract.HTTPKernel, logger contract.Logger) {
+func registerRoutes(kernel contract.HTTPKernel, cache contract.Cache, logger contract.Logger) {
 	app := kernel.App()
 
 	app.Get("/", func(c fiber.Ctx) error {
@@ -89,6 +135,18 @@ func registerRoutes(kernel contract.HTTPKernel, logger contract.Logger) {
 			"case_sensitive": cfg.CaseSensitive, // from WithCaseSensitive
 			"read_timeout":   cfg.ReadTimeout.String(),
 			"note":           "read_timeout was not set in code, so it comes from HTTP_READ_TIMEOUT or the GOE default",
+		})
+	})
+
+	// The cache configured through goe.Options.Cache, exercised end to end.
+	app.Get("/cache", func(c fiber.Ctx) error {
+		visits, err := cache.Increment("visits")
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{
+			"visits": visits,
+			"note":   "counter lives in the memory store configured in code (WithStore, WithPrefix, WithTTL)",
 		})
 	})
 

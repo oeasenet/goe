@@ -107,6 +107,17 @@ func (c *Config) RedactedTarget() string {
 func LoadConfig(config contract.Config) *Config {
 	cfg := DefaultConfig()
 
+	// Credentials are read unconditionally: they are environment-only (there
+	// is no code Option for them) and must apply to whichever endpoint wins —
+	// a URL, hosts from the environment, or hosts set in code. A URL that
+	// embeds its own user:pass still wins over these (see newRedisClient).
+	if username := config.GetString("JOB_REDIS_USERNAME"); username != "" {
+		cfg.RedisUsername = username
+	}
+	if password := config.GetString("JOB_REDIS_PASSWORD"); password != "" {
+		cfg.RedisPassword = password
+	}
+
 	// Redis connection - priority: URL > individual parameters > legacy addr
 	if url := config.GetString("JOB_REDIS_URL"); url != "" {
 		cfg.RedisURL = url
@@ -114,12 +125,6 @@ func LoadConfig(config contract.Config) *Config {
 		// Use individual parameters
 		if hosts := config.GetStringSlice("JOB_REDIS_HOSTS"); len(hosts) > 0 {
 			cfg.RedisHosts = hosts
-		}
-		if username := config.GetString("JOB_REDIS_USERNAME"); username != "" {
-			cfg.RedisUsername = username
-		}
-		if password := config.GetString("JOB_REDIS_PASSWORD"); password != "" {
-			cfg.RedisPassword = password
 		}
 		if db := config.GetInt("JOB_REDIS_DB"); db != 0 {
 			cfg.RedisDB = db
