@@ -5,11 +5,14 @@ your application does. Releases with neither are not listed here.
 
 ---
 
-## Unreleased
+## v2.3.0
 
-Request validation now lives entirely in the HTTP kernel, reached only through
-`Ctx.Bind`. The standalone `validation` package is gone, and validation
-failures finally render as client errors.
+The cache, job and lock modules join HTTP as fully code-configurable
+(`goe.Options.Cache/Job/Lock` — additive, credentials stay environment-only),
+and request validation now lives entirely in the HTTP kernel, reached only
+through `Ctx.Bind`. The standalone `validation` package is gone, validation
+failures finally render as client errors, and three configuration behaviours
+changed.
 
 | Change | Action needed |
 |---|---|
@@ -18,6 +21,32 @@ failures finally render as client errors.
 | Bind/validation failures now render **400**, previously 500 | None — `return err` after `Bind` is now the right thing to do |
 | Validation messages use json field names, one error at a time | None — clients see `email`, no longer `Email` |
 | `phone`, `username`, `strong_password` tags now work through `Bind` | None — previously they panicked (unregistered) on the Bind path |
+| `CACHE_STORE` naming a registered driver now selects that driver | Check apps setting `CACHE_STORE=redis` without `CACHE_DRIVER`: they silently ran on the memory driver and now actually use Redis |
+| `JOB_REDIS_URL`/`CACHE_REDIS_URL` now honour the separate credential variables | None — they were silently ignored whenever a URL was set; URL-embedded credentials still win |
+| New `LOCK_REDIS_USERNAME`/`LOCK_REDIS_PASSWORD` | None — optional, applies to any lock URL that embeds no userinfo |
+
+### Behaviour: `CACHE_STORE` naming a registered driver selects it
+
+`CACHE_STORE=redis` (or `cache.WithStore("redis")`) previously resolved the
+driver as `CACHE_{STORE}_DRIVER` → `CACHE_DRIVER` → memory — so without a
+separate `CACHE_DRIVER=redis` it silently ran on the in-memory driver, while
+startup validation implied the store name was enough. A store named after a
+registered driver (`memory`, `redis`, or a custom driver added through
+`Extend`) now uses that driver directly. An explicitly configured driver still
+wins, unknown store names are still rejected at startup, and named stores with
+a configured registered driver now pass validation instead of being rejected.
+
+### Behaviour: separate Redis credential variables always apply
+
+`JOB_REDIS_USERNAME`/`JOB_REDIS_PASSWORD` and
+`CACHE_REDIS_USERNAME`/`CACHE_REDIS_PASSWORD` were silently ignored whenever
+the corresponding `*_REDIS_URL` was set. They now fill in whenever the URL
+embeds no `user:pass` of its own (URL-embedded credentials win; for the cache
+they are injected into the URL, leaving scheme, database and query parameters
+untouched). The lock system gains `LOCK_REDIS_USERNAME`/`LOCK_REDIS_PASSWORD`
+with the same semantics across every mode — single, sentinel, cluster and
+redlock. This is what lets code-side options pick an endpoint while the
+environment supplies the secret.
 
 ### ⚠️ Breaking: the `validation` package is removed
 
