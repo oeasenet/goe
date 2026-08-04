@@ -37,10 +37,12 @@ func (h *TodoHandler) Create(c fiber.Ctx) error {
 	var req CreateTodoRequest
 	// Bind parses AND validates: it calls the fiber.StructValidator that the GOE
 	// HTTP kernel installs, so the `validate` tags on CreateTodoRequest are
-	// enforced here. A separate validation call would run them a second time.
+	// enforced here. Returning the error as-is renders a 400 whose message is
+	// the first failed rule, ready to show to a user — for example
+	// {"message":"title is required"} — with field names from the json tags.
 	// See https://docs.gofiber.io/guide/validation.
 	if err := c.Bind().JSON(&req); err != nil {
-		return webresult.SendFailed(c, "Invalid request body")
+		return err
 	}
 
 	todo, err := h.service.Create(c.Context(), &req)
@@ -74,7 +76,7 @@ func (h *TodoHandler) Update(c fiber.Ctx) error {
 
 	var req UpdateTodoRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return webresult.SendFailed(c, "Invalid request body")
+		return err // structured 400, see Create
 	}
 
 	todo, err := h.service.Update(c.Context(), id, &req)

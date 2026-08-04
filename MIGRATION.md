@@ -5,6 +5,77 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## Unreleased
+
+Request validation now lives entirely in the HTTP kernel, reached only through
+`Ctx.Bind`. The standalone `validation` package is gone, and validation
+failures finally render as client errors.
+
+| Change | Action needed |
+|---|---|
+| ⚠️ `go.oease.dev/goe/v2/validation` package removed | Use `c.Bind()` (it validates); register custom rules with `goehttp.WithValidatorSetup` |
+| ⚠️ `contract.HTTPValidator` removed; `HTTPKernel` loses `Validator()`/`HTTPValidator()` | Drop the calls — `Bind` invokes the validator itself |
+| Bind/validation failures now render **400**, previously 500 | None — `return err` after `Bind` is now the right thing to do |
+| Validation messages use json field names, one error at a time | None — clients see `email`, no longer `Email` |
+| `phone`, `username`, `strong_password` tags now work through `Bind` | None — previously they panicked (unregistered) on the Bind path |
+
+### ⚠️ Breaking: the `validation` package is removed
+
+Everything it still offered was either a duplicate of `Ctx.Bind` (the
+`ValidateRequest`/`ValidateQuery` wrappers, the middleware) or has moved into
+the HTTP kernel (typed errors, human-readable messages, json tag names, the
+custom rules). There is one way to validate a request now:
+
+```go
+if err := c.Bind().JSON(&req); err != nil {
+    return err // parsed AND validated; renders as a structured 400
+}
+```
+
+Custom rules register on the bundled validator at startup:
+
+```go
+goe.New(goe.Options{
+    HTTP: []goehttp.Option{
+        goehttp.WithValidatorSetup(func(v *validator.Validate) error {
+            return v.RegisterValidation("slug", isSlug)
+        }),
+    },
+})
+```
+
+Replacing the validator wholesale is still `goehttp.WithStructValidator`.
+
+### Behaviour: validation and bind failures are 400s, one message at a time
+
+Previously a raw `return err` after a failed `Bind` fell through GOE's error
+handler as a 500, because neither `validator.ValidationErrors` nor Fiber's
+parse failures are `*fiber.Error`. The handler now classifies them:
+
+- Failed `validate` tags → **400**; the message *is* the first failed rule's
+  message, in field declaration order — the client fixes it, resubmits, and
+  sees the next. The same message feeds the error page for browsers and
+  `format=text`.
+- Malformed body / unconvertible parameter (Fiber's `*BindError`) → **400**.
+- Raw `validator.ValidationErrors` from a replacement validator → **400**.
+
+```json
+{
+  "message": "email must be a valid email address"
+}
+```
+
+Submitted values are deliberately not echoed back — request DTOs carry
+passwords. Handlers that want a different rendering (every field at once, a
+custom envelope) can catch the typed error and use its fields:
+
+```go
+var ve *goehttp.ValidationError
+if errors.As(err, &ve) { /* ve.Fields: field, tag, param, message */ }
+```
+
+---
+
 ## v2.2.2
 
 No code edits required. Two defaults changed and one startup warning was added,

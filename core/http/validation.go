@@ -1,77 +1,88 @@
-package validation
+package http
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
 
-// Error ValidationError represents a validation error with field details
-type Error struct {
-	Errors []FieldError `json:"errors"`
+// ValidationError is what the bundled validator returns when `validate` tags
+// fail. GOE's default error handler renders it as an HTTP 400 whose message is
+// the first failed rule's message — one error at a time, in field declaration
+// order. Handlers that want a different rendering (all fields at once, a
+// custom envelope) can catch it and use Fields:
+//
+//	if err := c.Bind().JSON(&req); err != nil {
+//	    var ve *goehttp.ValidationError
+//	    if errors.As(err, &ve) {
+//	        return c.Status(400).JSON(myShape(ve.Fields))
+//	    }
+//	    return err
+//	}
+//
+// Unwrap exposes the underlying validator.ValidationErrors, so errors.As
+// reaches the raw go-playground form too.
+type ValidationError struct {
+	Fields []FieldError
+
+	// raw is the original go-playground error, kept so advanced callers can
+	// reach parameters this simplified form does not carry.
+	raw validator.ValidationErrors
 }
 
-// FieldError represents a single field validation error
+// FieldError describes one failed rule on one field. Field carries the json
+// name when the struct declares one.
+//
+// The submitted value is deliberately not included: request DTOs routinely
+// carry passwords and tokens, and a validation response must never echo them
+// back. Read it from the request in the handler if you truly need it.
 type FieldError struct {
 	Field   string `json:"field"`
-	Value   any    `json:"value,omitempty"`
 	Tag     string `json:"tag"`
+	Param   string `json:"param,omitempty"`
 	Message string `json:"message"`
 }
 
-// Error returns the error message
-func (e Error) Error() string {
-	var messages []string
-	for _, err := range e.Errors {
-		messages = append(messages, fmt.Sprintf("%s: %s", err.Field, err.Message))
+// Error implements error with a flat, log-friendly summary.
+func (e *ValidationError) Error() string {
+	parts := make([]string, 0, len(e.Fields))
+	for _, fe := range e.Fields {
+		parts = append(parts, fmt.Sprintf("%s: %s", fe.Field, fe.Message))
 	}
-	return fmt.Sprintf("validation failed: %s", strings.Join(messages, ", "))
+	return "validation failed: " + strings.Join(parts, "; ")
 }
 
-// NewValidationError creates a ValidationError from validator errors
-func NewValidationError(err error) error {
-	var ve validator.ValidationErrors
-	var errs validator.ValidationErrors
-	if errors.As(err, &errs) {
-		ve = errs
+// FirstMessage returns the first failed rule's message — what the default
+// error handler presents, one error at a time, in field declaration order.
+func (e *ValidationError) FirstMessage() string {
+	if len(e.Fields) == 0 {
+		return "Validation failed"
 	}
+	return e.Fields[0].Message
+}
 
-	var fieldErrors []FieldError
-	for _, e := range ve {
-		fieldErrors = append(fieldErrors, FieldError{
-			Field:   e.Field(),
-			Value:   e.Value(),
-			Tag:     e.Tag(),
-			Message: getErrorMessage(e),
+// Unwrap exposes the raw validator.ValidationErrors.
+func (e *ValidationError) Unwrap() error {
+	return e.raw
+}
+
+// newValidationError converts go-playground field errors into the typed form.
+func newValidationError(errs validator.ValidationErrors) *ValidationError {
+	fields := make([]FieldError, 0, len(errs))
+	for _, fe := range errs {
+		fields = append(fields, FieldError{
+			Field:   fe.Field(),
+			Tag:     fe.Tag(),
+			Param:   fe.Param(),
+			Message: fieldMessage(fe),
 		})
 	}
-
-	return Error{
-		Errors: fieldErrors,
-	}
+	return &ValidationError{Fields: fields, raw: errs}
 }
 
-// ParseError represents a parsing error
-type ParseError struct {
-	Message string `json:"message"`
-}
-
-// Error returns the error message
-func (e ParseError) Error() string {
-	return fmt.Sprintf("parse error: %s", e.Message)
-}
-
-// NewParseError creates a ParseError
-func NewParseError(err error) error {
-	return ParseError{
-		Message: err.Error(),
-	}
-}
-
-// getErrorMessage returns a human-readable error message for a field error
-func getErrorMessage(e validator.FieldError) string {
+// fieldMessage returns a human-readable message for a failed rule.
+func fieldMessage(e validator.FieldError) string {
 	field := e.Field()
 	tag := e.Tag()
 	param := e.Param()
@@ -105,14 +116,8 @@ func getErrorMessage(e validator.FieldError) string {
 		return fmt.Sprintf("%s must be a valid URL", field)
 	case "uri":
 		return fmt.Sprintf("%s must be a valid URI", field)
-	case "uuid":
+	case "uuid", "uuid3", "uuid4", "uuid5":
 		return fmt.Sprintf("%s must be a valid UUID", field)
-	case "uuid3":
-		return fmt.Sprintf("%s must be a valid UUID v3", field)
-	case "uuid4":
-		return fmt.Sprintf("%s must be a valid UUID v4", field)
-	case "uuid5":
-		return fmt.Sprintf("%s must be a valid UUID v5", field)
 	case "ascii":
 		return fmt.Sprintf("%s must contain only ASCII characters", field)
 	case "contains":
@@ -143,12 +148,8 @@ func getErrorMessage(e validator.FieldError) string {
 		return fmt.Sprintf("%s must be a valid IPv4 address", field)
 	case "ipv6":
 		return fmt.Sprintf("%s must be a valid IPv6 address", field)
-	case "cidr":
+	case "cidr", "cidrv4", "cidrv6":
 		return fmt.Sprintf("%s must be a valid CIDR notation", field)
-	case "cidrv4":
-		return fmt.Sprintf("%s must be a valid IPv4 CIDR notation", field)
-	case "cidrv6":
-		return fmt.Sprintf("%s must be a valid IPv6 CIDR notation", field)
 	case "mac":
 		return fmt.Sprintf("%s must be a valid MAC address", field)
 	case "hostname":
@@ -161,35 +162,20 @@ func getErrorMessage(e validator.FieldError) string {
 		return fmt.Sprintf("%s must be valid base64", field)
 	case "base64url":
 		return fmt.Sprintf("%s must be valid base64 URL encoding", field)
-	case "isbn":
+	case "isbn", "isbn10", "isbn13":
 		return fmt.Sprintf("%s must be a valid ISBN", field)
-	case "isbn10":
-		return fmt.Sprintf("%s must be a valid ISBN-10", field)
-	case "isbn13":
-		return fmt.Sprintf("%s must be a valid ISBN-13", field)
-	case "btc_addr":
-		return fmt.Sprintf("%s must be a valid Bitcoin address", field)
-	case "eth_addr":
-		return fmt.Sprintf("%s must be a valid Ethereum address", field)
 	case "hexcolor":
 		return fmt.Sprintf("%s must be a valid hex color", field)
-	case "rgb":
-		return fmt.Sprintf("%s must be a valid RGB color", field)
-	case "rgba":
-		return fmt.Sprintf("%s must be a valid RGBA color", field)
-	case "hsl":
-		return fmt.Sprintf("%s must be a valid HSL color", field)
-	case "hsla":
-		return fmt.Sprintf("%s must be a valid HSLA color", field)
 	case "latitude":
 		return fmt.Sprintf("%s must be a valid latitude", field)
 	case "longitude":
 		return fmt.Sprintf("%s must be a valid longitude", field)
-	case "ssn":
-		return fmt.Sprintf("%s must be a valid SSN", field)
 	case "semver":
 		return fmt.Sprintf("%s must be a valid semantic version", field)
 	default:
+		if param != "" {
+			return fmt.Sprintf("%s failed validation on tag '%s=%s'", field, tag, param)
+		}
 		return fmt.Sprintf("%s failed validation on tag '%s'", field, tag)
 	}
 }

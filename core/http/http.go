@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/go-playground/validator/v10"
 	fiberzap "github.com/gofiber/contrib/v3/zap"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
@@ -26,10 +27,9 @@ import (
 
 // kernel implements the HTTPKernel interface
 type kernel struct {
-	app       *fiber.App
-	config    contract.Config
-	logger    contract.Logger
-	validator fiber.StructValidator
+	app    *fiber.App
+	config contract.Config
+	logger contract.Logger
 
 	// listenCfg, host and port are resolved once at construction from
 	// defaults, environment and Options, and drive both Listen and Module.OnStart.
@@ -126,7 +126,6 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		app:       app,
 		config:    config,
 		logger:    klog,
-		validator: resolved.fiber.StructValidator,
 		listenCfg: resolved.listen,
 		host:      resolved.host,
 		port:      resolved.port,
@@ -146,22 +145,6 @@ func (k *kernel) addr() string {
 // App returns the underlying Fiber app
 func (k *kernel) App() *fiber.App {
 	return k.app
-}
-
-// Validator returns the fiber.StructValidator installed on the app.
-//
-// Deprecated: request validation runs through Ctx.Bind, which calls the
-// validator itself — see https://docs.gofiber.io/guide/validation. Use
-// WithValidatorSetup to add rules, or WithStructValidator to replace it.
-func (k *kernel) Validator() any {
-	return k.validator
-}
-
-// HTTPValidator returns the installed validator.
-//
-// Deprecated: as Validator. Retained so existing code compiles.
-func (k *kernel) HTTPValidator() contract.HTTPValidator {
-	return k.validator
 }
 
 // Listen starts the HTTP server, blocking until it stops.
@@ -220,15 +203,46 @@ func defaultErrorHandler() fiber.ErrorHandler {
 		respCode := fiber.StatusInternalServerError
 		// Set error message
 		message := utils.StatusMessage(respCode)
-		// Check if it's a fiber.Error type. errors.As can match a wrapped
-		// typed-nil *fiber.Error, so e itself must be checked as well.
+
+		var ve *ValidationError
+		var rawVE validator.ValidationErrors
+		var bindErr *fiber.BindError
 		var e *fiber.Error
-		switch matched := errors.As(err, &e); {
-		case matched && e != nil:
-			respCode = e.Code
-			message = e.Message
-		case err != nil && !matched:
-			message = err.Error()
+		switch {
+		// Bind returned the bundled validator's typed error: the client sent
+		// a well-formed request that failed `validate` rules — 400, with the
+		// first failed rule's message as THE message. One error at a time, in
+		// declaration order: the client fixes it, resubmits, sees the next.
+		// Handlers that want every field at once can catch *ValidationError
+		// and render ve.Fields themselves.
+		case errors.As(err, &ve):
+			respCode = fiber.StatusBadRequest
+			message = ve.FirstMessage()
+
+		// Raw go-playground errors, from a replacement validator installed
+		// with WithStructValidator or from user code. Same client fault,
+		// same rendering.
+		case errors.As(err, &rawVE):
+			respCode = fiber.StatusBadRequest
+			message = newValidationError(rawVE).FirstMessage()
+
+		// Bind could not parse the request at all — malformed JSON body,
+		// unconvertible query parameter, and so on. Fiber wraps these in
+		// *BindError with the failing source and field.
+		case errors.As(err, &bindErr):
+			respCode = fiber.StatusBadRequest
+			message = "Invalid request: " + bindErr.Error()
+
+		default:
+			// Check if it's a fiber.Error type. errors.As can match a wrapped
+			// typed-nil *fiber.Error, so e itself must be checked as well.
+			switch matched := errors.As(err, &e); {
+			case matched && e != nil:
+				respCode = e.Code
+				message = e.Message
+			case err != nil && !matched:
+				message = err.Error()
+			}
 		}
 		ctx.Status(respCode)
 

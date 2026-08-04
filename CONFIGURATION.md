@@ -146,10 +146,48 @@ This matters because Fiber ships no validator of its own — it defines the
 one-method `StructValidator` interface and calls it from every binding, but with
 the field unset `Bind` parses the body and skips validation *silently*. GOE fills
 it in. See [Fiber's validation guide](https://docs.gofiber.io/guide/validation).
+`Bind` is the only validation path — there is no separate validator service to
+inject or call.
 
 `Bind` covers `JSON`, `Query`, `URI`, `Form`, `Header`, `Cookie`, `XML`, `CBOR`
 and `MsgPack`. It only validates struct destinations; binding into a map skips the
 validator. Use `c.Bind().SkipValidation()` to parse without validating.
+
+**What the bundled validator gives you:**
+
+- **json field names.** Failures are reported under the json tag (`email`, not
+  `Email`), because that is the name the client sent.
+- **Bundled rules** beyond go-playground's built-ins: `phone` (10-15 chars,
+  digits with `+`, `-`, spaces), `username` (3-30 chars, alphanumeric and
+  underscore) and `strong_password` (8+ chars with upper, lower, digit and
+  special). Re-register a tag via `WithValidatorSetup` to replace its rule.
+- **Client errors render as client errors.** `return err` after a failed
+  `Bind` produces a **400** whose message *is* the failed rule's message —
+  one error at a time, in field declaration order, ready to show to a user.
+  The same message feeds the error page for browsers and `format=text`.
+  Malformed bodies and unconvertible parameters (Fiber's `*BindError`) are
+  400s too. Submitted values are never echoed back, so failed password rules
+  do not leak secrets.
+
+```json
+{
+  "message": "age must be greater than or equal to 18"
+}
+```
+
+To render failures differently — every field at once, a custom envelope —
+catch the typed error; `Fields` carries field, tag, param and message for
+each failed rule:
+
+```go
+if err := c.Bind().JSON(&req); err != nil {
+    var ve *goehttp.ValidationError
+    if errors.As(err, &ve) {
+        return c.Status(fiber.StatusBadRequest).JSON(myErrorShape(ve.Fields))
+    }
+    return err
+}
+```
 
 **Adding a rule** — when the defaults are fine but you need one more:
 

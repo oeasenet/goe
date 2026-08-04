@@ -36,7 +36,9 @@ func TestHTTP_New(t *testing.T) {
 		kernel := New(config, logger)
 		assert.NotNil(t, kernel)
 		assert.NotNil(t, kernel.App())
-		assert.NotNil(t, kernel.Validator())
+		// The bundled validator is installed where Bind reads it — the only
+		// place validation runs from.
+		assert.NotNil(t, kernel.App().Config().StructValidator)
 	})
 }
 
@@ -66,8 +68,8 @@ func TestHTTP_Kernel_Basic(t *testing.T) {
 		assert.IsType(t, &fiber.App{}, app)
 	})
 
-	t.Run("validator returns custom validator", func(t *testing.T) {
-		validator := kernel.Validator()
+	t.Run("bundled validator is installed on the fiber app", func(t *testing.T) {
+		validator := kernel.App().Config().StructValidator
 		assert.NotNil(t, validator)
 	})
 
