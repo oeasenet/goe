@@ -166,12 +166,4 @@ func (m *TestMockMongoDB) Instance() *mongo.Database {
 	return args.Get(0).(*mongo.Database)
 }
 
-func (m *TestMockMongoDB) Connection(name string) (*mongo.Database, error) {
-	args := m.Called(name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*mongo.Database), args.Error(1)
-}
-
 // Removed SetMonitor, IsNoDocumentsError, and Ctx as they are no longer part of the contract

@@ -8,6 +8,8 @@ import (
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/job"
 	"go.oease.dev/goe/v2/core/lock"
+	"go.oease.dev/goe/v2/core/mongodb"
+	"go.oease.dev/goe/v2/core/mongodb/migrate"
 )
 
 // Options represents the application options
@@ -105,6 +107,44 @@ type Options struct {
 	//
 	// See the core/lock package for the full option list.
 	Lock []lock.Option
+
+	// MongoDB configures the MongoDB module from Go code instead of
+	// environment variables. A non-nil value implies WithMongoDB, so the
+	// module does not have to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching MONGO_* variable while the environment still supplies
+	// everything left unset. Credentials are the exception: MONGO_URI,
+	// MONGO_USERNAME and MONGO_PASSWORD have no option and stay
+	// environment-only.
+	//
+	//	goe.New(goe.Options{
+	//	    MongoDB: []mongodb.Option{
+	//	        mongodb.WithDatabase("myapp"),
+	//	        mongodb.WithMaxPoolSize(50),
+	//	    },
+	//	})
+	//
+	// See the core/mongodb package for the full option list.
+	MongoDB []mongodb.Option
+
+	// Migrate configures the MongoDB migration module from Go code instead
+	// of environment variables. A non-nil value implies WithMigrate and
+	// WithMongoDB, so neither module has to be enabled separately.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching MONGODB_MIGRATE_* variable while the environment
+	// still supplies everything left unset.
+	//
+	//	goe.New(goe.Options{
+	//	    Migrate: []migrate.Option{
+	//	        migrate.WithAutoMigrate(true),
+	//	        migrate.WithCollection("_migrations"),
+	//	    },
+	//	})
+	//
+	// See the core/mongodb/migrate package for the full option list.
+	Migrate []migrate.Option
 
 	// HTTPPort overrides the HTTP port.
 	//

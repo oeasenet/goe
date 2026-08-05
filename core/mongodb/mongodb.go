@@ -3,68 +3,64 @@ package mongodb
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.oease.dev/goe/v2/contract"
+	goeconfig "go.oease.dev/goe/v2/core/config"
 )
 
-// DatabaseModule implements the contract.MongoDB and contract.Module interfaces
+// DatabaseModule implements the contract.MongoDB and contract.Module
+// interfaces. It manages a single MongoDB connection; applications needing a
+// second data source construct their own mongo.Client via the driver.
 type DatabaseModule struct {
-	logger        contract.Logger
+	logger contract.Logger
+
+	// config is the effective configuration: the base config with the Option
+	// overlay applied, so code-configured values behave exactly like
+	// environment variables everywhere the module reads config.
 	config        contract.Config
 	customMonitor *event.CommandMonitor
-	mu            sync.RWMutex
-	connections   map[string]*mongo.Database
+
+	mu sync.RWMutex
+	db *mongo.Database
+
+	// optErrs holds failures from Option application. They are reported by
+	// ValidateConfig so that startup aborts; the module fell back to the
+	// environment-only configuration, which is never actually served.
+	optErrs []error
 }
 
-// NewDBModule creates a new DatabaseModule instance
-func NewDBModule(config contract.Config, logger contract.Logger) *DatabaseModule {
+// NewDBModule creates a new DatabaseModule instance.
+//
+// Configuration resolves in layers: MONGO_* environment variables, then opts.
+// Anything set through an Option wins over the environment. If any option
+// fails, every option is discarded, the environment-only configuration stays
+// in effect, and ValidateConfig aborts startup with all collected errors.
+func NewDBModule(config contract.Config, logger contract.Logger, opts ...Option) *DatabaseModule {
+	overrides, monitor, optErrs := resolveSettings(opts)
+	if len(optErrs) > 0 {
+		// Every option is discarded, the monitor included.
+		monitor = nil
+	} else if len(overrides) > 0 {
+		config = goeconfig.NewConfigWrapper(config, overrides)
+	}
+
 	return &DatabaseModule{
-		logger:      logger.With("module", "mongo"),
-		config:      config,
-		connections: make(map[string]*mongo.Database),
+		logger:        logger.With("module", "mongo"),
+		config:        config,
+		customMonitor: monitor,
+		optErrs:       optErrs,
 	}
 }
 
-// setMonitor sets a custom CommandMonitor for the DatabaseModule.
-// This is now a private method used during module initialization.
-func (dbm *DatabaseModule) setMonitor(monitor *event.CommandMonitor) {
-	dbm.customMonitor = monitor
-}
-
-// DB Instance returns the underlying MONGO DB instance for the default connection
+// DB returns the database instance, or nil before OnStart has run.
 func (dbm *DatabaseModule) DB() *mongo.Database {
-	defaultConnectionName := dbm.config.GetString("MONGO_CONNECTION")
-	if defaultConnectionName == "" {
-		defaultConnectionName = "default"
-	}
-
-	conn, err := dbm.Connection(defaultConnectionName)
-	if err != nil {
-		dbm.logger.Error("Failed to get default database instance",
-			"connection_name", defaultConnectionName,
-			"error", err.Error(),
-		)
-		return nil
-	}
-	return conn
-}
-
-// Connection returns a specific Mongo DB instance by name
-func (dbm *DatabaseModule) Connection(name string) (*mongo.Database, error) {
 	dbm.mu.RLock()
-	conn, ok := dbm.connections[name]
-	dbm.mu.RUnlock()
-
-	if !ok {
-		// Decision: Do not connect on-demand here. Connections should be explicitly defined and set up OnStart.
-		// If a connection is requested that wasn't configured/failed, it's an error.
-		return nil, fmt.Errorf("database connection '%s' not found or not configured", name)
-	}
-	return conn, nil
+	defer dbm.mu.RUnlock()
+	return dbm.db
 }
 
 // --- contract.Module interface implementation ---
@@ -74,102 +70,76 @@ func (dbm *DatabaseModule) Name() string {
 	return "mongo_db"
 }
 
-// OnStart is called when the module starts
-// This is where database connections will be established
+// OnStart establishes and verifies the connection.
+//
+// A connection that cannot be built or does not answer a ping fails startup.
+// Earlier versions logged the failure and continued with a nil database,
+// which only deferred the crash to the first Col()/DB() use in a handler —
+// far from the cause, at request time. mongo.Connect performs no I/O, so the
+// ping (bounded by MONGO_PING_TIMEOUT, default 5s) is what actually proves
+// the deployment can reach its database.
 func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
-	dbm.logger.Info("MONGO Database module OnStart")
+	dbm.logger.Debug("MongoDB module starting")
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
-	// Get default connection name
-	defaultConnectionName := dbm.config.GetString("MONGO_CONNECTION")
-	if defaultConnectionName == "" {
-		defaultConnectionName = "default"
-	}
-
-	// Connect to default database
-	dbm.logger.Info("Attempting to connect to default mongo database",
-		"connection_config_name", defaultConnectionName,
-	)
-	db, err := dbm.connect(defaultConnectionName)
+	db, err := dbm.connectAndVerify(ctx)
 	if err != nil {
-		dbm.logger.Error("Failed to connect to default mongo database",
-			"connection_config_name", defaultConnectionName,
-			"error", err.Error(),
-		)
-		// Allow app to start, DB() will return nil.
-	} else {
-		// Store the connection using the name it will be requested by, which is defaultConnectionName.
-		dbm.connections[defaultConnectionName] = db
-		dbm.logger.Info("Successfully connected to default mongo database",
-			"connection_config_name", defaultConnectionName,
-		)
+		return fmt.Errorf("mongodb: %w", err)
 	}
+	dbm.db = db
 
-	// Connect to additional databases if configured
-	connectionsList := dbm.config.GetString("MONGO_CONNECTIONS")
-	if connectionsList != "" {
-		// Split the comma-separated list of connection names
-		connectionNames := strings.SplitSeq(connectionsList, ",")
-		for connName := range connectionNames {
-			connName = strings.TrimSpace(connName)
-
-			// Skip if it's the default connection (already connected)
-			if connName == defaultConnectionName {
-				continue
-			}
-
-			// Skip if empty
-			if connName == "" {
-				continue
-			}
-
-			dbm.logger.Info("Attempting to connect to additional database",
-				"connection_name", connName,
-			)
-			conn, err := dbm.connect(connName)
-			if err != nil {
-				dbm.logger.Error("Failed to connect to additional database",
-					"connection_name", connName,
-					"error", err.Error(),
-				)
-				// Continue with other connections
-			} else {
-				dbm.connections[connName] = conn
-				dbm.logger.Info("Successfully connected to additional database",
-					"connection_name", connName,
-				)
-
-			}
-		}
-	}
-
+	dbm.logger.Info("MongoDB module started", "database", db.Name())
 	return nil
 }
 
+// connectAndVerify builds the client and proves it reachable with a bounded
+// ping. The client is disconnected on ping failure so no resources leak from
+// a failed startup.
+func (dbm *DatabaseModule) connectAndVerify(ctx context.Context) (*mongo.Database, error) {
+	db, err := dbm.connect()
+	if err != nil {
+		return nil, err
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, dbm.pingTimeout())
+	defer cancel()
+
+	if err := db.Client().Ping(pingCtx, nil); err != nil {
+		_ = db.Client().Disconnect(ctx)
+		return nil, fmt.Errorf("ping failed: %w", err)
+	}
+	return db, nil
+}
+
+// pingTimeout returns the startup ping timeout: MONGO_PING_TIMEOUT, or 5s.
+func (dbm *DatabaseModule) pingTimeout() time.Duration {
+	if d := dbm.config.GetDuration("MONGO_PING_TIMEOUT"); d > 0 {
+		return d
+	}
+	return 5 * time.Second
+}
+
 // OnStop is called when the module stops
-// This is where database connections will be closed
+// This is where the database connection will be closed
 func (dbm *DatabaseModule) OnStop(ctx context.Context) error {
-	dbm.logger.Debug("Mongo Database module stopping")
+	dbm.logger.Debug("MongoDB module stopping")
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
 
-	var lastErr error
-	for name, conn := range dbm.connections {
-		dbm.logger.Info("Closing mongo database connection", "connection", name)
-		if err := conn.Client().Disconnect(ctx); err != nil {
-			dbm.logger.Error("Failed to close database connection",
-				"connection", name,
-				"error", err.Error(),
-			)
-			lastErr = err
+	if dbm.db != nil {
+		if err := dbm.db.Client().Disconnect(ctx); err != nil {
+			dbm.logger.Error("Failed to close database connection", "error", err.Error())
+			return err
 		}
-		delete(dbm.connections, name)
+		dbm.db = nil
 	}
-	return lastErr
+
+	dbm.logger.Info("MongoDB module stopped")
+	return nil
 }
 
-// Client returns the MongoDB client from the default connection
+// Client returns the MongoDB client, or nil before OnStart has run.
 func (dbm *DatabaseModule) Client() *mongo.Client {
 	db := dbm.DB()
 	if db == nil {
@@ -178,23 +148,14 @@ func (dbm *DatabaseModule) Client() *mongo.Client {
 	return db.Client()
 }
 
-// Col Collection returns a collection from the default database
+// Col returns a collection from the database, or nil before OnStart has run.
 func (dbm *DatabaseModule) Col(name string) *mongo.Collection {
 	db := dbm.DB()
 	if db == nil {
-		dbm.logger.Error("Cannot get collection: default database instance is nil", "collection", name)
+		dbm.logger.Error("Cannot get collection: database instance is nil", "collection", name)
 		return nil
 	}
 	return db.Collection(name)
-}
-
-// ColFrom CollectionFrom returns a collection from a specific database connection
-func (dbm *DatabaseModule) ColFrom(connectionName, collectionName string) (*mongo.Collection, error) {
-	db, err := dbm.Connection(connectionName)
-	if err != nil {
-		return nil, err
-	}
-	return db.Collection(collectionName), nil
 }
 
 // Provide returns the MONGODB instance for Fx

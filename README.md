@@ -147,8 +147,8 @@ See [`.example.env`](.example.env) for every available option with documentation
 
 ### Or configure in Go
 
-The HTTP, cache, job, and lock modules can be configured entirely in code, with
-no `.env` required:
+The HTTP, cache, job, lock, MongoDB, and migration modules can be configured
+entirely in code, with no `.env` required:
 
 ```go
 import (

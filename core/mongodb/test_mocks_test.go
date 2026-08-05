@@ -281,14 +281,4 @@ func TestTestMockMongoDB(t *testing.T) {
 		mock.AssertExpectations(t)
 	})
 
-	t.Run("Connection returns nil with error", func(t *testing.T) {
-		mock := &TestMockMongoDB{}
-		expectedErr := errors.New("connection not found")
-		mock.On("Connection", "nonexistent").Return(nil, expectedErr)
-
-		result, err := mock.Connection("nonexistent")
-		assert.Nil(t, result)
-		assert.Equal(t, expectedErr, err)
-		mock.AssertExpectations(t)
-	})
 }

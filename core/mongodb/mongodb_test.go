@@ -176,9 +176,7 @@ func (m *MockLogger) GetLogger() *zap.SugaredLogger {
 func setupTestConfig() *MockConfig {
 	config := new(MockConfig)
 
-	// Default connection settings
-	config.On("GetString", "MONGO_CONNECTION").Return("")
-	config.On("GetString", "MONGO_CONNECTIONS").Return("")
+	// Connection settings
 	config.On("GetString", "MONGO_URI").Return("mongodb://localhost:27017/")
 	config.On("GetString", "MONGO_DB_NAME").Return("goe_test")
 	config.On("GetString", "MONGO_MIN_POOL_SIZE").Return("")
@@ -283,26 +281,14 @@ func TestDatabaseModule_SetMonitor(t *testing.T) {
 	config := setupTestConfig()
 	logger := setupTestLogger()
 
-	dbModule := NewDBModule(config, logger)
+	dbModule := NewDBModule(config, logger, WithCommandMonitor(monitor))
 
-	// Test that setMonitor doesn't panic
-	dbModule.setMonitor(monitor)
+	// The option installs the monitor for every connection.
+	assert.Same(t, monitor, dbModule.customMonitor)
 
 	// Verify module is still functional
 	assert.NotNil(t, dbModule)
 	assert.Equal(t, "mongo_db", dbModule.Name())
-}
-
-// TestDatabaseModule_Connection tests the Connection method
-func TestDatabaseModule_Connection(t *testing.T) {
-	config := setupTestConfig()
-	logger := setupTestLogger()
-
-	dbModule := NewDBModule(config, logger)
-
-	// Test that Connection returns error for non-existent connection
-	_, err := dbModule.Connection("nonexistent")
-	assert.Error(t, err)
 }
 
 // TestDatabaseModule_ConfigValidation tests configuration validation
@@ -330,18 +316,6 @@ func TestDatabaseModule_Collection(t *testing.T) {
 	assert.Nil(t, col)
 }
 
-// TestDatabaseModule_CollectionFrom tests the ColFrom method
-func TestDatabaseModule_CollectionFrom(t *testing.T) {
-	config := setupTestConfig()
-	logger := setupTestLogger()
-
-	dbModule := NewDBModule(config, logger)
-
-	// Test that ColFrom returns error for non-existent connection
-	_, err := dbModule.ColFrom("nonexistent", "test_collection")
-	assert.Error(t, err)
-}
-
 // TestDatabaseModule_Client tests the Client method
 func TestDatabaseModule_Client(t *testing.T) {
 	config := setupTestConfig()
@@ -352,16 +326,4 @@ func TestDatabaseModule_Client(t *testing.T) {
 	// Test that Client returns nil when no connection is established
 	client := dbModule.Client()
 	assert.Nil(t, client)
-}
-
-// TestDatabaseModule_DatabaseFrom is an alias test for Connection method
-func TestDatabaseModule_DatabaseFrom(t *testing.T) {
-	config := setupTestConfig()
-	logger := setupTestLogger()
-
-	dbModule := NewDBModule(config, logger)
-
-	// Test that Connection returns error for non-existent connection
-	_, err := dbModule.Connection("nonexistent")
-	assert.Error(t, err)
 }

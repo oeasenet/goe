@@ -99,7 +99,7 @@ func (r *moduleRegistry) addMongoDB() {
 	// Add MongoDB module if enabled
 
 	if r.opt.WithMongoDB {
-		r.mongodb = mongodb.NewDBModule(instance.config, instance.logger)
+		r.mongodb = mongodb.NewDBModule(instance.config, instance.logger, r.opt.MongoDB...)
 		instance.mongoDB = r.mongodb.Provide()
 
 		instance.logger.Debug("Registering MongoDB module")
@@ -129,7 +129,7 @@ func (r *moduleRegistry) addMigrate() {
 		}
 
 		var err error
-		r.migrate, err = migrate.NewModule(instance.config, instance.logger, instance.mongoDB)
+		r.migrate, err = migrate.NewModule(instance.config, instance.logger, instance.mongoDB, r.opt.Migrate...)
 		if err != nil {
 			instance.logger.Fatal("Failed to create migration module", "error", err)
 		}

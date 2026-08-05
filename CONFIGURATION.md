@@ -426,31 +426,91 @@ For each connection, use the prefix `DB_` (default) or `DB_{NAME}_` (named conne
 
 ## MongoDB
 
-GOE supports multiple MongoDB connections. The default connection uses `MONGO_*` prefix, while named connections use `MONGO_{NAME}_*` prefix.
+GOE manages a single MongoDB connection. Enable with `WithMongoDB: true` or by passing MongoDB options. Applications needing a second data source construct their own `mongo.Client` via the driver.
 
-### Connection Management
+### Configuring in Go code
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `MONGO_CONNECTION` | string | `default` | Name of the default MongoDB connection |
-| `MONGO_CONNECTIONS` | string | - | Comma-separated list of additional connection names |
+Every `MONGO_*` variable below — except the URI and credentials — has a code
+equivalent. Pass options through `goe.Options.MongoDB` (which also enables the
+module) and they take precedence over the environment:
+
+```go
+import goemongo "go.oease.dev/goe/v2/core/mongodb"
+
+goe.New(goe.Options{
+    MongoDB: []goemongo.Option{
+        goemongo.WithDatabase("myapp"),
+        goemongo.WithMaxPoolSize(50),
+    },
+})
+```
+
+The naming rule is mechanical: the environment key with the `MONGO_` prefix
+dropped (`MONGO_MAX_POOL_SIZE` → `WithMaxPoolSize`). `WithCommandMonitor`
+installs a custom `*event.CommandMonitor` — a live object with no environment
+equivalent — and wins over the `MONGO_DEBUG` monitor. An invalid option
+discards every option and fails startup validation with all problems listed
+at once.
+
+**Credentials stay in the environment.** `MONGO_URI` (which can embed
+`user:pass`), `MONGO_USERNAME` and `MONGO_PASSWORD` have no option — secrets
+never belong in source. They compose with code: options tune databases and
+pools while the environment supplies the URI and its credentials.
 
 ### Connection Settings
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `MONGO_URI` | string | **required** | MongoDB connection URI (e.g., `mongodb://localhost:27017`) |
+| `MONGO_URI` | string | **required** | MongoDB connection URI (e.g., `mongodb://localhost:27017`). Environment-only |
 | `MONGO_DB_NAME` | string | **required** | Database name |
+| `MONGO_USERNAME` | string | - | Username. Environment-only; applies to a URI that embeds no userinfo |
+| `MONGO_PASSWORD` | string | - | Password. Environment-only; applies to a URI that embeds no userinfo |
 | `MONGO_MIN_POOL_SIZE` | int | - | Minimum connection pool size |
 | `MONGO_MAX_POOL_SIZE` | int | - | Maximum connection pool size |
 | `MONGO_MAX_CONN_IDLE_TIME` | duration | - | Maximum idle time for connections |
-| `MONGO_DEBUG` | bool | `false` | Log MongoDB commands via a command monitor (under the `mongo` log module); also `MONGO_{NAME}_DEBUG` per named connection |
+| `MONGO_PING_TIMEOUT` | duration | `5s` | Startup reachability ping timeout |
+| `MONGO_DEBUG` | bool | `false` | Log MongoDB commands via a command monitor (under the `mongo` log module) |
+
+> Credentials embedded in `MONGO_URI` win over `MONGO_USERNAME`/`MONGO_PASSWORD`; the separate
+> variables fill in whenever the URI carries none.
+>
+> **Behaviour change:** startup now verifies the connection with a ping (bounded by
+> `MONGO_PING_TIMEOUT`) and **fails fast** when MongoDB is unreachable. Earlier releases logged
+> the failure and continued with a nil database, deferring the crash to the first
+> `Col()`/`DB()` call inside a handler.
 
 ---
 
 ## MongoDB Migrations
 
-MongoDB migrations provide schema versioning, distributed locking, and automatic document-level versioning. Enable with `WithMigrate: true` (requires `WithMongoDB: true`).
+MongoDB migrations provide schema versioning, distributed locking, and automatic document-level versioning. Enable with `WithMigrate: true` (requires `WithMongoDB: true`), or by passing migrate options — which imply both modules.
+
+### Configuring in Go code
+
+Every `MONGODB_MIGRATE_*` variable below has a code equivalent. Pass options
+through `goe.Options.Migrate` (which also enables MongoDB and migrations) and
+they take precedence over the environment:
+
+```go
+import "go.oease.dev/goe/v2/core/mongodb/migrate"
+
+goe.New(goe.Options{
+    Migrate: []migrate.Option{
+        migrate.WithAutoMigrate(true),
+        migrate.WithCollection("_migrations"),
+        migrate.WithVersionScheme("timestamp"),
+    },
+})
+```
+
+The naming rule is mechanical: every field of `migrate.Config` is exposed as
+`With<FieldName>` (`MONGODB_MIGRATE_LOCK_TIMEOUT` → `WithLockTimeout`,
+`MONGODB_MIGRATE_DRY_RUN` → `WithDryRunByDefault`). Options validate strictly
+— `WithVersionScheme` accepts only `sequential` or `timestamp` — and an
+invalid option aborts startup inside `goe.New` with every problem listed at
+once. These are module options; the lower-level `MigratorOption` family
+(`WithLogger`, `WithConfig`, `WithDryRun`, `WithHostname`) still configures a
+hand-built `Migrator` as before.
 
 ### Migration Settings
 
@@ -811,7 +871,7 @@ Boolean values accept: `true`, `false`, `1`, `0`, `yes`, `no`
 
 ## Named Connection Pattern
 
-For modules supporting multiple connections (DB, MongoDB), named connections use the pattern:
+For the SQL DB module, which supports multiple connections, named connections use the pattern:
 
 ```bash
 # Default connection

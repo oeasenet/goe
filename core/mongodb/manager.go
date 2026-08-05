@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -11,66 +10,80 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// Connect initializes a Mongo DB connection based on the provided configuration prefix.
-// The configuration keys are expected to be like:
-// MONGO_URI, MONGO_DB
-// For a named connection "foo", the keys would be:
-// MONGO_FOO_URI, MONGO_FOO_DB_NAME
-func (dbm *DatabaseModule) connect(name string) (*mongo.Database, error) {
-	configPrefix := "MONGO_"
-	if name != "default" && name != "" {
-		configPrefix = fmt.Sprintf("MONGO_%s_", strings.ToUpper(name))
-	}
-
+// buildClientOptions maps the MONGO_* configuration onto the driver's client
+// options and returns them with the database name.
+//
+// Credentials resolve URI-first: userinfo embedded in the URI wins, and the
+// separate MONGO_USERNAME/MONGO_PASSWORD variables fill in whenever the URI
+// carries none — the only way to pair a secret with a credential-free URI,
+// since code options deliberately cannot set either.
+func buildClientOptions(config contract.Config, customMonitor *event.CommandMonitor, logger contract.Logger) (*options.ClientOptions, string, error) {
 	// get uri and database
-	uri := dbm.config.GetString(configPrefix + "URI")
-	dbName := dbm.config.GetString(configPrefix + "DB_NAME")
+	uri := config.GetString("MONGO_URI")
+	dbName := config.GetString("MONGO_DB_NAME")
 
 	if uri == "" {
-		return nil, fmt.Errorf("no URI for %s mongo connection", name)
+		return nil, "", fmt.Errorf("no MONGO_URI configured")
 	}
 	if dbName == "" {
-		return nil, fmt.Errorf("no database name for %s mongo connection", name)
+		return nil, "", fmt.Errorf("no MONGO_DB_NAME configured")
 	}
 
 	opt := options.Client()
 	opt.ApplyURI(uri)
-	if dbm.customMonitor != nil {
-		opt.SetMonitor(dbm.customMonitor)
-	} else if dbm.config.GetBool(configPrefix+"DEBUG") || dbm.config.GetBool("MONGO_DEBUG") {
+
+	// Environment credentials, applied only when the URI embeds none.
+	if opt.Auth == nil {
+		username := config.GetString("MONGO_USERNAME")
+		password := config.GetString("MONGO_PASSWORD")
+		if username != "" || password != "" {
+			opt.SetAuth(options.Credential{Username: username, Password: password})
+		}
+	}
+
+	if customMonitor != nil {
+		opt.SetMonitor(customMonitor)
+	} else if config.GetBool("MONGO_DEBUG") {
 		// Only enable command logging when debug is explicitly enabled
-		opt.SetMonitor(defaultMonitor(dbm.logger))
+		opt.SetMonitor(defaultMonitor(logger))
 	}
 
 	// Configure connection
-	if dbm.config.Has(configPrefix + "MIN_POOL_SIZE") {
-		minPoolSize := dbm.config.GetInt(configPrefix + "MIN_POOL_SIZE")
+	if config.Has("MONGO_MIN_POOL_SIZE") {
+		minPoolSize := config.GetInt("MONGO_MIN_POOL_SIZE")
 		if minPoolSize > 0 {
 			opt.SetMinPoolSize(uint64(minPoolSize))
 		}
 	}
-	if dbm.config.Has(configPrefix + "MAX_POOL_SIZE") {
-		maxPoolSize := dbm.config.GetInt(configPrefix + "MAX_POOL_SIZE")
+	if config.Has("MONGO_MAX_POOL_SIZE") {
+		maxPoolSize := config.GetInt("MONGO_MAX_POOL_SIZE")
 		if maxPoolSize > 0 {
 			opt.SetMaxPoolSize(uint64(maxPoolSize))
 		}
 	}
 
-	if dbm.config.Has(configPrefix + "MAX_CONN_IDLE_TIME") {
-		maxIdleTime := dbm.config.GetDuration(configPrefix + "MAX_CONN_IDLE_TIME")
+	if config.Has("MONGO_MAX_CONN_IDLE_TIME") {
+		maxIdleTime := config.GetDuration("MONGO_MAX_CONN_IDLE_TIME")
 		if maxIdleTime > 0 {
 			opt.SetMaxConnIdleTime(maxIdleTime)
 		}
+	}
+
+	return opt, dbName, nil
+}
+
+// connect builds the client. The driver performs no I/O here; reachability is
+// proven by the startup ping in connectAndVerify.
+func (dbm *DatabaseModule) connect() (*mongo.Database, error) {
+	opt, dbName, err := buildClientOptions(dbm.config, dbm.customMonitor, dbm.logger)
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := mongo.Connect(opt)
 	if err != nil {
 		return nil, err
 	}
-
-	dbm.logger.Info("MONGO Database connection established successfully",
-		"name", name,
-	)
 	return client.Database(dbName), nil
 }
 

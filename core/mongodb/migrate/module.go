@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -21,9 +22,17 @@ type Module struct {
 // The migrator is not created here because MongoDB connections are established
 // during the Fx OnStart lifecycle phase. The migrator is created in OnStart
 // after the MongoDB connection is available.
-func NewModule(config contract.Config, logger contract.Logger, mongodb contract.MongoDB) (*Module, error) {
-	// Load migration configuration
-	cfg := LoadConfig(config)
+//
+// Configuration resolves in layers: defaults, then MONGODB_MIGRATE_*
+// environment variables, then opts. Anything set through an Option wins over
+// the environment. Option errors abort construction with every error
+// reported at once.
+func NewModule(config contract.Config, logger contract.Logger, mongodb contract.MongoDB, opts ...Option) (*Module, error) {
+	// Resolve migration configuration: defaults -> environment -> code.
+	cfg, optErrs := resolveConfig(config, opts)
+	if len(optErrs) > 0 {
+		return nil, errors.Join(optErrs...)
+	}
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {

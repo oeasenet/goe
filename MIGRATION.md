@@ -5,6 +5,57 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## Unreleased
+
+The MongoDB and migration modules join the code-first configuration pattern
+(`goe.Options.MongoDB`/`Migrate` — additive, credentials stay
+environment-only), MongoDB startup becomes fail-fast, and multi-connection
+support is removed: GOE now manages exactly one MongoDB connection.
+
+| Change | Action needed |
+|---|---|
+| ⚠️ Multi-connection support removed: `contract.MongoDB` loses `Connection(name)` and `ColFrom(...)`; `MONGO_CONNECTION`, `MONGO_CONNECTIONS` and `MONGO_{NAME}_*` are no longer read | None if you only used the default connection (`MONGO_URI`/`MONGO_DB_NAME` — unchanged). Apps with a second data source construct their own `mongo.Client` via the driver |
+| MongoDB startup now **fails fast** when the connection is unreachable | Verify your deployments actually reach MongoDB; previously the app started anyway and panicked on first use. Tune `MONGO_PING_TIMEOUT` (default 5s) for slow clusters |
+| New `MONGO_USERNAME`/`MONGO_PASSWORD` merge into credential-free URIs | None — optional; URI-embedded credentials still win |
+| ⚠️ MongoDB test mocks (`TestMockConfig`, `TestMockLogger`, …) left the public package | They were test scaffolding; define your own mocks or use the `contract` interfaces directly |
+
+### ⚠️ Breaking: one MongoDB connection, not many
+
+Named connections (`MONGO_CONNECTION`, `MONGO_CONNECTIONS`,
+`MONGO_{NAME}_URI` and friends) existed since v2's early days but were never
+exercised in production, cost a per-request map lookup, and carried their own
+validation and configuration surface. The module now manages a single
+connection configured by the unprefixed `MONGO_*` variables — which is exactly
+what every known deployment already does, so for those apps this release
+changes nothing.
+
+Removed with it: `contract.MongoDB.Connection`/`ColFrom` (their callers were
+the only consumers of multi-connection), and the connection-scoped code
+options. A second data source is the driver's job:
+
+```go
+client, err := mongo.Connect(options.Client().ApplyURI(analyticsURI))
+```
+
+### Behaviour: MongoDB startup verifies the connection
+
+`mongo.Connect` performs no I/O, so earlier releases logged
+"connected successfully" without ever reaching the server, swallowed failures,
+and left a nil database behind — the crash surfaced later, inside a handler,
+far from the cause. Startup now pings the connection (bounded by
+`MONGO_PING_TIMEOUT`, default 5s) and aborts with a clear error when MongoDB
+is unreachable, matching how the job and lock modules have always behaved.
+
+### Data-access API: unchanged
+
+`contract.MongoDB`'s `DB`, `Col` and `Client`, `goe.Mongo()`, the migration
+registration API (`migrate.Register`, `migrate.New`, the helpers) and
+`contract.Migrator` are untouched. Existing single-connection
+`MONGO_*`/`MONGODB_MIGRATE_*` environment configuration keeps working
+unchanged.
+
+---
+
 ## v2.3.0
 
 The cache, job and lock modules join HTTP as fully code-configurable

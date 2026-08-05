@@ -71,6 +71,8 @@ func New(opts ...Options) contract.Application {
 		opt.Cache = o.Cache
 		opt.Job = o.Job
 		opt.Lock = o.Lock
+		opt.MongoDB = o.MongoDB
+		opt.Migrate = o.Migrate
 		opt.HTTPPort = o.HTTPPort
 		opt.ConfigOverrides = o.ConfigOverrides
 		opt.ShutdownTimeout = o.ShutdownTimeout
@@ -92,6 +94,15 @@ func New(opts ...Options) contract.Application {
 	}
 	if opt.Lock != nil {
 		opt.WithLock = true
+	}
+	if opt.MongoDB != nil {
+		opt.WithMongoDB = true
+	}
+	// Migration cannot run without MongoDB, so migrate options imply both
+	// modules. The plain WithMigrate flag keeps its explicit requirement.
+	if opt.Migrate != nil {
+		opt.WithMigrate = true
+		opt.WithMongoDB = true
 	}
 
 	// Assemble config, logger, app, and the built-in modules under the
