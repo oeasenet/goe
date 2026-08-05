@@ -121,10 +121,14 @@ func TestCacheModuleValidation(t *testing.T) {
 			errorString: "value must be one of",
 		},
 		{
-			name:        "badger store - rejected (not implemented)",
+			name:        "badger store - accepted (embedded driver)",
 			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "badger") },
-			expectError: true,
-			errorString: "value must be one of",
+			expectError: false,
+		},
+		{
+			name:        "bbolt store - accepted (embedded driver)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "bbolt") },
+			expectError: false,
 		},
 		{
 			name:        "invalid store type - rejected",

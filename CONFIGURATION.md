@@ -706,12 +706,41 @@ username and password.
 > injected into the URL (scheme, database and query parameters untouched); earlier releases
 > silently ignored the separate variables whenever a URL was set.
 
+### Badger Store
+
+Embedded, disk-backed key/value store — persistent caching with no external
+service. Select with `CACHE_STORE=badger` or `cache.WithStore("badger")`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CACHE_BADGER_DATABASE` | string | `./fiber.badger` | Directory the database lives in |
+| `CACHE_BADGER_RESET` | bool | `false` | Clear all keys on startup |
+| `CACHE_BADGER_GC_INTERVAL` | duration | `10s` | How often expired keys are garbage-collected |
+
+### Bbolt Store
+
+Embedded single-file key/value store — the lightest persistent option.
+Select with `CACHE_STORE=bbolt` or `cache.WithStore("bbolt")`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CACHE_BBOLT_DATABASE` | string | `fiber.db` | Database file path |
+| `CACHE_BBOLT_BUCKET` | string | `fiber_storage` | Bucket keys are stored in |
+| `CACHE_BBOLT_TIMEOUT` | duration | `60s` | Time to wait for the database file lock |
+| `CACHE_BBOLT_RESET` | bool | `false` | Clear the bucket on startup |
+
+> Both stores hold an exclusive lock on their database, so two application
+> instances cannot share one path — they are per-instance caches. bbolt's
+> read-only mode is deliberately not exposed: a read-only cache cannot honor
+> the cache contract's writes.
+
 ### Other store types
 
-> Only `memory` and `redis` ship as built-in drivers. A `CACHE_STORE` that neither names a
-> registered driver nor has one configured via `CACHE_{STORE}_DRIVER`/`CACHE_DRIVER` is
-> **rejected at startup** by config validation. Custom drivers registered through
-> `goe.Cache().Extend(name, factory)` count as registered — a store may name one directly.
+> `memory`, `redis`, `badger` and `bbolt` ship as built-in drivers. A `CACHE_STORE` that
+> neither names a registered driver nor has one configured via
+> `CACHE_{STORE}_DRIVER`/`CACHE_DRIVER` is **rejected at startup** by config validation.
+> Custom drivers registered through `goe.Cache().Extend(name, factory)` count as registered —
+> a store may name one directly.
 
 ---
 

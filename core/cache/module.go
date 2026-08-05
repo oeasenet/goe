@@ -129,15 +129,33 @@ func (m *Module) ValidateConfig() error {
 			})
 		}
 
-		// Redis works with localhost defaults; validate the real keys only
-		// when set. Keyed on the resolved driver so named stores backed by
-		// redis are covered too.
-		if driver == "redis" {
+		// Driver-specific keys are validated only when set, keyed on the
+		// resolved driver so named stores backed by it are covered too.
+		switch driver {
+		case "redis":
 			if m.config.Has("CACHE_REDIS_PORT") {
 				v.Optional("CACHE_REDIS_PORT", "Redis port", configvalidator.ValidatePort)
 			}
 			if m.config.Has("CACHE_REDIS_DATABASE") {
 				v.Optional("CACHE_REDIS_DATABASE", "Redis database number", configvalidator.ValidateNonNegativeInt)
+			}
+		case "badger":
+			if m.config.Has("CACHE_BADGER_GC_INTERVAL") {
+				v.Optional("CACHE_BADGER_GC_INTERVAL", "Badger GC interval", func(any) error {
+					if m.config.GetDuration("CACHE_BADGER_GC_INTERVAL") <= 0 {
+						return fmt.Errorf("GC interval must be positive")
+					}
+					return nil
+				})
+			}
+		case "bbolt":
+			if m.config.Has("CACHE_BBOLT_TIMEOUT") {
+				v.Optional("CACHE_BBOLT_TIMEOUT", "bbolt file-lock timeout", func(any) error {
+					if m.config.GetDuration("CACHE_BBOLT_TIMEOUT") <= 0 {
+						return fmt.Errorf("timeout must be positive")
+					}
+					return nil
+				})
 			}
 		}
 	}

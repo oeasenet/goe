@@ -121,7 +121,7 @@ Turn on what you need:
 ```go
 goe.New(goe.Options{
     WithHTTP:    true,  // HTTP server (Fiber v3)
-    WithCache:   true,  // Caching (10+ backends)
+    WithCache:   true,  // Caching (memory, Redis, Badger, bbolt + custom drivers)
     WithDB:      true,  // SQL database (GORM)
     WithMongoDB: true,  // MongoDB with connection pooling
     WithMigrate: true,  // MongoDB schema migrations

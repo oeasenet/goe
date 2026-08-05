@@ -132,6 +132,8 @@ func RegisterBuiltinDrivers(manager contract.CacheManager) {
 	// Register Fiber storage drivers
 	manager.Extend("memory", MemoryStoreFactory)
 	manager.Extend("redis", RedisStoreFactory)
+	manager.Extend("badger", BadgerStoreFactory)
+	manager.Extend("bbolt", BboltStoreFactory)
 }
 
 // GetDriverInfo returns information about available drivers
@@ -141,6 +143,10 @@ func GetDriverInfo(driver string) string {
 		return "Fiber in-memory storage with automatic garbage collection"
 	case "redis":
 		return "Fiber Redis storage using go-redis client with connection pooling and cluster support"
+	case "badger":
+		return "Fiber Badger storage — embedded disk-backed key/value store, no external service"
+	case "bbolt":
+		return "Fiber bbolt storage — embedded single-file key/value store, no external service"
 	default:
 		return fmt.Sprintf("Unknown driver: %s", driver)
 	}

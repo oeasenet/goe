@@ -237,6 +237,84 @@ func WithRedisReset(reset bool) Option {
 	}
 }
 
+// WithBadgerDatabase sets the directory the badger driver stores its data
+// in. Replaces CACHE_BADGER_DATABASE. Defaults to ./fiber.badger.
+func WithBadgerDatabase(path string) Option {
+	return func(s *settings) error {
+		if path == "" {
+			return errors.New("WithBadgerDatabase: path must not be empty")
+		}
+		s.overrides["CACHE_BADGER_DATABASE"] = path
+		return nil
+	}
+}
+
+// WithBadgerReset clears all keys in the badger store on startup. Replaces
+// CACHE_BADGER_RESET. Almost never what you want outside tests.
+func WithBadgerReset(reset bool) Option {
+	return func(s *settings) error {
+		s.overrides["CACHE_BADGER_RESET"] = reset
+		return nil
+	}
+}
+
+// WithBadgerGCInterval sets how often the badger driver garbage-collects
+// expired keys. Replaces CACHE_BADGER_GC_INTERVAL. Defaults to 10s.
+func WithBadgerGCInterval(d time.Duration) Option {
+	return func(s *settings) error {
+		if d <= 0 {
+			return fmt.Errorf("WithBadgerGCInterval: %v must be positive", d)
+		}
+		s.overrides["CACHE_BADGER_GC_INTERVAL"] = d
+		return nil
+	}
+}
+
+// WithBboltDatabase sets the file the bbolt driver stores its data in.
+// Replaces CACHE_BBOLT_DATABASE. Defaults to fiber.db.
+func WithBboltDatabase(path string) Option {
+	return func(s *settings) error {
+		if path == "" {
+			return errors.New("WithBboltDatabase: path must not be empty")
+		}
+		s.overrides["CACHE_BBOLT_DATABASE"] = path
+		return nil
+	}
+}
+
+// WithBboltBucket sets the bbolt bucket keys are stored in. Replaces
+// CACHE_BBOLT_BUCKET. Defaults to fiber_storage.
+func WithBboltBucket(name string) Option {
+	return func(s *settings) error {
+		if name == "" {
+			return errors.New("WithBboltBucket: name must not be empty")
+		}
+		s.overrides["CACHE_BBOLT_BUCKET"] = name
+		return nil
+	}
+}
+
+// WithBboltTimeout sets how long the bbolt driver waits to obtain the
+// database file lock. Replaces CACHE_BBOLT_TIMEOUT. Defaults to 60s.
+func WithBboltTimeout(d time.Duration) Option {
+	return func(s *settings) error {
+		if d <= 0 {
+			return fmt.Errorf("WithBboltTimeout: %v must be positive", d)
+		}
+		s.overrides["CACHE_BBOLT_TIMEOUT"] = d
+		return nil
+	}
+}
+
+// WithBboltReset clears all keys in the bbolt bucket on startup. Replaces
+// CACHE_BBOLT_RESET. Almost never what you want outside tests.
+func WithBboltReset(reset bool) Option {
+	return func(s *settings) error {
+		s.overrides["CACHE_BBOLT_RESET"] = reset
+		return nil
+	}
+}
+
 // WithStoreDriver sets the driver for a named store, enabling multi-store
 // setups from code. Replaces CACHE_{store}_DRIVER.
 func WithStoreDriver(store, driver string) Option {

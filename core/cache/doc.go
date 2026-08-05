@@ -6,7 +6,7 @@
 //
 // Configure via environment variables:
 //
-//	CACHE_STORE=redis                  # Default store; a registered driver name works directly
+//	CACHE_STORE=redis                  # memory, redis, badger, bbolt, or a custom driver
 //	CACHE_PREFIX=myapp                 # Key prefix (falls back to APP_NAME)
 //	CACHE_TTL=2h                       # Default TTL
 //	CACHE_REDIS_URL=redis://host:6379  # Redis URL (environment-only, wins over host/port)
