@@ -5,7 +5,7 @@ your application does. Releases with neither are not listed here.
 
 ---
 
-## Unreleased
+## v2.4.0
 
 The MongoDB and migration modules join the code-first configuration pattern
 (`goe.Options.MongoDB`/`Migrate` — additive, credentials stay
