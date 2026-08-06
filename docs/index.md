@@ -37,7 +37,7 @@ features:
         details: GORM integration for SQL databases (MySQL, PostgreSQL, SQLite, SQL Server) and native MongoDB driver with pooling, transactions, and migrations.
     -   icon: 💾
         title: Caching with 10+ Backends
-        details: Unified caching interface supporting Redis, Memory, Memcache, Badger, SQLite3, PostgreSQL, MySQL, MongoDB, DynamoDB, and S3.
+        details: Unified caching interface with memory, Redis, Badger and bbolt drivers, plus custom drivers registered from code.
     -   icon: 📋
         title: Background Jobs
         details: Redis-backed job processing with human-friendly scheduling, delayed execution, retries with exponential backoff, and dead letter queues.

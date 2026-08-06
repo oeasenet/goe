@@ -33,7 +33,7 @@
 | `log` | ✅ Stable | Uber Zap structured logging |
 | `db` | ✅ Stable | GORM SQL database (MySQL, PostgreSQL, SQLite, SQL Server) |
 | `mongodb` | ✅ Stable | MongoDB native driver |
-| `cache` | ✅ Stable | Multi-backend caching (Redis, Memory, etc.) |
+| `cache` | ✅ Stable | Pluggable cache drivers (memory, Redis, Badger, bbolt, custom) |
 | `job` | ✅ Stable | Background job processing with scheduling and retries |
 | `lock` | ✅ Stable | Distributed locking (Redlock) |
 | `health` | ✅ Stable | Health checks (liveness/readiness) |
