@@ -35,8 +35,7 @@ type structValidator struct {
 func (v *structValidator) Validate(out any) error {
 	err := v.validate.Struct(out)
 
-	var fieldErrs validator.ValidationErrors
-	if errors.As(err, &fieldErrs) {
+	if fieldErrs, ok := errors.AsType[validator.ValidationErrors](err); ok {
 		return newValidationError(fieldErrs)
 	}
 	return err

@@ -14,14 +14,13 @@ import (
 // custom envelope) can catch it and use Fields:
 //
 //	if err := c.Bind().JSON(&req); err != nil {
-//	    var ve *goehttp.ValidationError
-//	    if errors.As(err, &ve) {
+//	    if ve, ok := errors.AsType[*goehttp.ValidationError](err); ok {
 //	        return c.Status(400).JSON(myShape(ve.Fields))
 //	    }
 //	    return err
 //	}
 //
-// Unwrap exposes the underlying validator.ValidationErrors, so errors.As
+// Unwrap exposes the underlying validator.ValidationErrors, so errors.AsType
 // reaches the raw go-playground form too.
 type ValidationError struct {
 	Fields []FieldError

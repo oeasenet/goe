@@ -204,45 +204,37 @@ func defaultErrorHandler() fiber.ErrorHandler {
 		// Set error message
 		message := utils.StatusMessage(respCode)
 
-		var ve *ValidationError
-		var rawVE validator.ValidationErrors
-		var bindErr *fiber.BindError
-		var e *fiber.Error
-		switch {
 		// Bind returned the bundled validator's typed error: the client sent
 		// a well-formed request that failed `validate` rules — 400, with the
 		// first failed rule's message as THE message. One error at a time, in
 		// declaration order: the client fixes it, resubmits, sees the next.
 		// Handlers that want every field at once can catch *ValidationError
 		// and render ve.Fields themselves.
-		case errors.As(err, &ve):
+		if ve, ok := errors.AsType[*ValidationError](err); ok {
 			respCode = fiber.StatusBadRequest
 			message = ve.FirstMessage()
-
-		// Raw go-playground errors, from a replacement validator installed
-		// with WithStructValidator or from user code. Same client fault,
-		// same rendering.
-		case errors.As(err, &rawVE):
+		} else if rawVE, ok := errors.AsType[validator.ValidationErrors](err); ok {
+			// Raw go-playground errors, from a replacement validator
+			// installed with WithStructValidator or from user code. Same
+			// client fault, same rendering.
 			respCode = fiber.StatusBadRequest
 			message = newValidationError(rawVE).FirstMessage()
-
-		// Bind could not parse the request at all — malformed JSON body,
-		// unconvertible query parameter, and so on. Fiber wraps these in
-		// *BindError with the failing source and field.
-		case errors.As(err, &bindErr):
+		} else if bindErr, ok := errors.AsType[*fiber.BindError](err); ok {
+			// Bind could not parse the request at all — malformed JSON body,
+			// unconvertible query parameter, and so on. Fiber wraps these in
+			// *BindError with the failing source and field.
 			respCode = fiber.StatusBadRequest
 			message = "Invalid request: " + bindErr.Error()
-
-		default:
-			// Check if it's a fiber.Error type. errors.As can match a wrapped
-			// typed-nil *fiber.Error, so e itself must be checked as well.
-			switch matched := errors.As(err, &e); {
-			case matched && e != nil:
+		} else if e, ok := errors.AsType[*fiber.Error](err); ok {
+			// errors.AsType can match a wrapped typed-nil *fiber.Error, so e
+			// itself must be checked as well; a typed-nil match keeps the
+			// default 500 response.
+			if e != nil {
 				respCode = e.Code
 				message = e.Message
-			case err != nil && !matched:
-				message = err.Error()
 			}
+		} else if err != nil {
+			message = err.Error()
 		}
 		ctx.Status(respCode)
 
