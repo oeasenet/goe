@@ -17,6 +17,7 @@ single driver setting. The advertised-but-inert default TTL starts working.
 | ⚠️ `contract.CacheManager`, `contract.CacheConfig`, `contract.CacheStoreConfig` removed; DI provides `contract.Cache`; `goe.Cache()` returns `contract.Cache` | Inject `contract.Cache` instead of `contract.CacheManager`; drop `.Store()` calls: `goe.Cache().Store().Set(...)` → `goe.Cache().Set(...)` |
 | ⚠️ `CacheManager.Extend` removed | Register custom backends with `cache.WithCustomDriver(name, factory)` — available before validation, unlike runtime `Extend` |
 | `CACHE_TTL`/`cache.WithTTL` now actually apply | Callers passing `ttl == 0` to `Set`/`Add`/`Remember` get the configured default instead of "never expires". Unset `CACHE_TTL` keeps the old behaviour exactly. `Forever`/`RememberForever` and counters still never expire |
+| Cache now **fails fast** at startup | The cache is built inside `goe.New` like the job and lock connections; stores were previously created lazily on first use, so an unreachable Redis let the app start and panic later. Verify deployments actually reach the cache backend |
 
 ### ⚠️ Breaking: one cache, not many stores
 

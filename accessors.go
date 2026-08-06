@@ -99,11 +99,11 @@ func Cache() contract.Cache {
 	instance.mu.RLock()
 	defer instance.mu.RUnlock()
 
-	if instance.cacheProvider == nil {
+	if instance.cache == nil {
 		panic("Cache module not initialized. Set WithCache: true in goe.New() options")
 	}
 
-	return instance.cacheProvider()
+	return instance.cache
 }
 
 // DB returns the global DB instance

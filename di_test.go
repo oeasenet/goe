@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.oease.dev/goe/v2/contract"
+	goecache "go.oease.dev/goe/v2/core/cache"
 	"go.oease.dev/goe/v2/core/http"
 )
 
@@ -252,6 +253,38 @@ func (m *testModule) OnStop(ctx context.Context) error {
 	return nil
 }
 
+// TestDependencyInjection_CacheOptions pins the primary cache usage pattern:
+// goe.Options.Cache configures and auto-enables the module, DI injects the
+// resulting contract.Cache, and the accessor returns the same instance.
+func TestDependencyInjection_CacheOptions(t *testing.T) {
+	resetGlobalInstance()
+
+	var injected contract.Cache
+	app := New(Options{
+		Cache: []goecache.Option{
+			goecache.WithDriver("memory"),
+			goecache.WithPrefix("di-prefix"),
+			goecache.WithTTL(5 * time.Minute),
+		},
+		Invokers: []any{
+			func(c contract.Cache) { injected = c },
+		},
+	})
+	require.NotNil(t, app)
+
+	require.NotNil(t, injected, "contract.Cache must be injectable without WithCache: true")
+	assert.Equal(t, "di-prefix", injected.GetPrefix())
+
+	require.NoError(t, injected.Set("k", "v", 0))
+	var out string
+	require.NoError(t, injected.Get("k", &out))
+	assert.Equal(t, "v", out)
+
+	// The DI value, the accessor, and the health-checker path all share the
+	// one instance built at registration.
+	assert.Same(t, injected, Cache())
+}
+
 // Helper function to reset global state for testing
 func resetGlobalInstance() {
 	instance.mu.Lock()
@@ -261,7 +294,7 @@ func resetGlobalInstance() {
 	instance.config = nil
 	instance.logger = nil
 	instance.http = nil
-	instance.cacheProvider = nil
+	instance.cache = nil
 	instance.db = nil
 	instance.mongoDB = nil
 	instance.migrator = nil

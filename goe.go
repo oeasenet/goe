@@ -28,7 +28,7 @@ var (
 		config          contract.Config
 		logger          contract.Logger
 		http            contract.HTTPKernel
-		cacheProvider   func() contract.Cache   // lazily builds the cache on first call
+		cache           contract.Cache          // Cache instance
 		db              contract.DB             // Database instance
 		mongoDB         contract.MongoDB        // MongoDB instance
 		migrator        *migrate.Migrator       // MongoDB migration instance
@@ -159,11 +159,6 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, allOptions...)
 	}
 
-	// Add cache provider
-	if opt.WithCache {
-		fxOptions = append(fxOptions, fx.Provide(func() contract.Cache { return reg.cache.Provide() }))
-	}
-
 	// Add custom providers
 	for _, provider := range opt.Providers {
 		fxOptions = append(fxOptions, fx.Provide(provider))
@@ -200,8 +195,8 @@ func New(opts ...Options) contract.Application {
 				if opt.WithDB && instance.db != nil {
 					instance.healthManager.RegisterChecker(health.NewDatabaseChecker(instance.db.Instance()))
 				}
-				if opt.WithCache && instance.cacheProvider != nil {
-					instance.healthManager.RegisterChecker(health.NewCacheChecker(instance.cacheProvider()))
+				if opt.WithCache && instance.cache != nil {
+					instance.healthManager.RegisterChecker(health.NewCacheChecker(instance.cache))
 				}
 				if opt.WithMongoDB && instance.mongoDB != nil {
 					instance.healthManager.RegisterChecker(health.NewMongoDBChecker(instance.mongoDB))

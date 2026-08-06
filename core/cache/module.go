@@ -33,8 +33,8 @@ type Module struct {
 	// registered through WithCustomDriver.
 	drivers map[string]contract.CacheStoreFactory
 
-	// mu guards cache, which is built on first Provide so that a driver's
-	// connections are only opened after startup validation has passed.
+	// mu guards cache so Provide and OnStop are safe to call in any order:
+	// the framework builds at registration, tests build on demand.
 	mu    sync.Mutex
 	cache contract.Cache
 }
@@ -79,13 +79,13 @@ func (m *Module) driverName() string {
 	return "memory"
 }
 
-// Provide returns the cache instance for Fx, building it on first use.
+// Provide returns the cache instance, building it on first call.
 //
-// Construction is deliberately lazy: startup validation runs before any
-// lifecycle hook or injection touches the cache, so a driver's connections
-// are only opened for a configuration that has passed validation. The panics
-// below are therefore unreachable in a validated application and only trip
-// when Provide is called around the framework.
+// The framework calls this once at module registration inside goe.New, so a
+// misconfigured or unreachable backend stops startup immediately — the same
+// fail-fast point at which the job and lock modules open their connections.
+// The panics below carry the same guidance startup validation gives for the
+// paths validation cannot reach first.
 func (m *Module) Provide() contract.Cache {
 	m.mu.Lock()
 	defer m.mu.Unlock()
