@@ -328,7 +328,7 @@ func Benchmark_SPA_Index(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := app.Test(req)
 		if err != nil {
 			b.Fatal(err)
@@ -350,7 +350,7 @@ func Benchmark_SPA_Static(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := app.Test(req)
 		if err != nil {
 			b.Fatal(err)
@@ -375,7 +375,7 @@ func Benchmark_SPA_WithNext(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := app.Test(req)
 		if err != nil {
 			b.Fatal(err)

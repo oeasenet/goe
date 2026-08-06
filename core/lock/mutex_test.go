@@ -687,7 +687,7 @@ func BenchmarkMutex_Lock(b *testing.B) {
 	logger := &testLogger{t: nil}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mutex := NewMutex("bench:lock", []Pool{pool}, logger,
 			contract.WithExpiry(5*time.Second),
 			contract.WithTries(1),
@@ -716,7 +716,7 @@ func BenchmarkMutex_TryLock(b *testing.B) {
 	logger := &testLogger{t: nil}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mutex := NewMutex("bench:trylock", []Pool{pool}, logger,
 			contract.WithExpiry(5*time.Second),
 		)
@@ -753,7 +753,7 @@ func BenchmarkMutex_Extend(b *testing.B) {
 	defer func() { _ = mutex.Unlock(ctx) }()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := mutex.Extend(ctx); err != nil {
 			b.Fatalf("Failed to extend lock: %v", err)
 		}
@@ -835,7 +835,7 @@ func BenchmarkMutex_Contention(b *testing.B) {
 
 func BenchmarkMutex_ValueGeneration(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := generateRandomValue()
 		if err != nil {
 			b.Fatalf("Failed to generate value: %v", err)
@@ -868,7 +868,7 @@ func BenchmarkMutex_MultiPool(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mutex := NewMutex("bench:multipool", pools, logger,
 			contract.WithExpiry(5*time.Second),
 			contract.WithTries(1),

@@ -295,7 +295,7 @@ func TestGenerateUUIDv7_MultipleCallsDistribution(t *testing.T) {
 
 func BenchmarkGenerateUUIDv7(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateUUIDv7()
 	}
 }
@@ -311,7 +311,7 @@ func BenchmarkGenerateUUIDv7_Parallel(b *testing.B) {
 func BenchmarkGenerateUUIDv7_StringOperations(b *testing.B) {
 	// Benchmark the string replacement operation specifically
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		uuid := GenerateUUIDv7()
 		// Ensure the UUID is actually used to prevent optimization
 		if len(uuid) != 32 {
@@ -574,7 +574,7 @@ func TestGenerateXid_Deterministic_Properties(t *testing.T) {
 
 func BenchmarkGenerateXid(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateXid()
 	}
 }
@@ -590,7 +590,7 @@ func BenchmarkGenerateXid_Parallel(b *testing.B) {
 func BenchmarkGenerateXid_StringConversion(b *testing.B) {
 	// Benchmark the string conversion operation specifically
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		xid := GenerateXid()
 		// Ensure the XID is actually used to prevent optimization
 		if len(xid) != 20 {
@@ -601,13 +601,13 @@ func BenchmarkGenerateXid_StringConversion(b *testing.B) {
 
 func BenchmarkGenerateXid_vs_UUID(b *testing.B) {
 	b.Run("XID", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateXid()
 		}
 	})
 
 	b.Run("UUID", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateUUIDv7()
 		}
 	})

@@ -430,11 +430,9 @@ func (m *Manager) Start(_ context.Context) error {
 		for i := 0; i < m.config.Concurrency; i++ {
 			w := newWorker(m, queue, i)
 			m.workers = append(m.workers, w)
-			m.wg.Add(1)
-			go func(w *worker) {
-				defer m.wg.Done()
+			m.wg.Go(func() {
 				w.run(bgCtx)
-			}(w)
+			})
 		}
 	}
 	m.workersMu.Unlock()
@@ -758,11 +756,9 @@ func (m *Manager) trackQueue(queue string) {
 		for i := 0; i < m.config.Concurrency; i++ {
 			w := newWorker(m, queue, i)
 			m.workers = append(m.workers, w)
-			m.wg.Add(1)
-			go func(w *worker) {
-				defer m.wg.Done()
+			m.wg.Go(func() {
 				w.run(context.Background())
-			}(w)
+			})
 		}
 	}
 

@@ -767,7 +767,7 @@ func BenchmarkSendSucceed(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest("GET", "/benchmark", nil)
 		_, err := app.Test(req)
 		if err != nil {
@@ -784,7 +784,7 @@ func BenchmarkSendFailed(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest("GET", "/benchmark", nil)
 		_, err := app.Test(req)
 		if err != nil {
@@ -795,7 +795,7 @@ func BenchmarkSendFailed(b *testing.B) {
 
 func BenchmarkWebResultCreation(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result := &WebResult{
 			Message: "test message",
 			Data:    Map{"key": "value"},
@@ -811,7 +811,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := json.Marshal(result)
 		if err != nil {
 			b.Fatal(err)

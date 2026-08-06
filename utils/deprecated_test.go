@@ -459,7 +459,7 @@ func BenchmarkArrContainsStr_SmallArray(b *testing.B) {
 	str := "cherry"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ArrContainsStr(array, str)
 	}
 }
@@ -472,7 +472,7 @@ func BenchmarkArrContainsStr_MediumArray(b *testing.B) {
 	str := "item50"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ArrContainsStr(array, str)
 	}
 }
@@ -485,7 +485,7 @@ func BenchmarkArrContainsStr_LargeArray(b *testing.B) {
 	str := "item5000"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ArrContainsStr(array, str)
 	}
 }
@@ -498,7 +498,7 @@ func BenchmarkArrContainsStr_NotFound(b *testing.B) {
 	str := "notfound"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ArrContainsStr(array, str)
 	}
 }
@@ -511,7 +511,7 @@ func BenchmarkArrContainsStr_DuplicateStrings(b *testing.B) {
 	str := "duplicate"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ArrContainsStr(array, str)
 	}
 }
@@ -751,7 +751,7 @@ func TestConvert_NilDefault(t *testing.T) {
 }
 
 func BenchmarkConvert_Success(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err := Convert("123", strconv.Atoi)
 		if err != nil {
 			b.Fatal(err)
@@ -763,7 +763,7 @@ func BenchmarkConvert_Success(b *testing.B) {
 }
 
 func BenchmarkConvert_ErrorWithDefault(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		result, err := Convert("invalid", strconv.Atoi, 999)
 		if err != nil {
 			b.Fatal(err)
@@ -956,7 +956,7 @@ func BenchmarkCopyIOZeroAlloc(b *testing.B) {
 	data := strings.Repeat("benchmark test data ", 1000) // ~20KB
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		reader := strings.NewReader(data)
 		var writer bytes.Buffer
 
@@ -971,7 +971,7 @@ func BenchmarkCopyIOZeroAlloc_vs_ioCopy(b *testing.B) {
 	data := strings.Repeat("benchmark test data ", 1000) // ~20KB
 
 	b.Run("CopyIOZeroAlloc", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			reader := strings.NewReader(data)
 			var writer bytes.Buffer
 
@@ -983,7 +983,7 @@ func BenchmarkCopyIOZeroAlloc_vs_ioCopy(b *testing.B) {
 	})
 
 	b.Run("io.Copy", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			reader := strings.NewReader(data)
 			var writer bytes.Buffer
 
@@ -1362,7 +1362,7 @@ func BenchmarkFilePathToIOReader(b *testing.B) {
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		reader, err := FilePathToIOReader(testFile)
 		if err != nil {
 			b.Fatal(err)

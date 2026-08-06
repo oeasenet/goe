@@ -1,9 +1,9 @@
 package migrate
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
-	"sort"
 	"sync"
 )
 
@@ -85,8 +85,8 @@ func GetMigrations() []*Migration {
 		migrations = append(migrations, m)
 	}
 
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+	slices.SortFunc(migrations, func(a, b *Migration) int {
+		return cmp.Compare(a.Version, b.Version)
 	})
 
 	return migrations
@@ -117,8 +117,8 @@ func GetMigrationsInRange(fromVersion, toVersion int64) []*Migration {
 		}
 	}
 
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+	slices.SortFunc(migrations, func(a, b *Migration) int {
+		return cmp.Compare(a.Version, b.Version)
 	})
 
 	return migrations
@@ -136,8 +136,8 @@ func GetMigrationsAfter(version int64) []*Migration {
 		}
 	}
 
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+	slices.SortFunc(migrations, func(a, b *Migration) int {
+		return cmp.Compare(a.Version, b.Version)
 	})
 
 	return migrations

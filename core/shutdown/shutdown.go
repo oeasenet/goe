@@ -3,9 +3,10 @@
 package shutdown
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -84,8 +85,8 @@ func (m *Manager) RegisterHook(name string, priority int, hook contract.Shutdown
 	})
 
 	// Sort hooks by priority (descending)
-	sort.Slice(m.hooks, func(i, j int) bool {
-		return m.hooks[i].priority > m.hooks[j].priority
+	slices.SortFunc(m.hooks, func(a, b hookEntry) int {
+		return cmp.Compare(b.priority, a.priority) // higher priority first
 	})
 
 	m.logger.Debug("Shutdown hook registered",

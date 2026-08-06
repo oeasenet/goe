@@ -1,9 +1,10 @@
 package migrate
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -231,8 +232,8 @@ func (m *Migrator) Down(ctx context.Context, steps int) (*MigrationResult, error
 	}
 
 	// Sort in reverse order
-	sort.Slice(applied, func(i, j int) bool {
-		return applied[i].Version > applied[j].Version
+	slices.SortFunc(applied, func(a, b MigrationRecord) int {
+		return cmp.Compare(b.Version, a.Version) // newest first
 	})
 
 	// Limit to steps
@@ -296,8 +297,8 @@ func (m *Migrator) DownTo(ctx context.Context, version int64) (*MigrationResult,
 	}
 
 	// Sort in reverse order
-	sort.Slice(applied, func(i, j int) bool {
-		return applied[i].Version > applied[j].Version
+	slices.SortFunc(applied, func(a, b MigrationRecord) int {
+		return cmp.Compare(b.Version, a.Version) // newest first
 	})
 
 	for _, record := range applied {

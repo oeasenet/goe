@@ -333,7 +333,7 @@ func BenchmarkDataEncryptionUtils_Encrypt(b *testing.B) {
 	data := []byte("benchmark test data")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := encryptor.Encrypt(data)
 		if err != nil {
 			b.Fatal(err)
@@ -354,7 +354,7 @@ func BenchmarkDataEncryptionUtils_Decrypt(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := encryptor.Decrypt(encrypted)
 		if err != nil {
 			b.Fatal(err)
@@ -370,7 +370,7 @@ func BenchmarkDataEncryptionUtils_EncryptDecrypt(b *testing.B) {
 	data := []byte("benchmark test data")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		encrypted, err := encryptor.Encrypt(data)
 		if err != nil {
 			b.Fatal(err)

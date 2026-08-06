@@ -313,18 +313,14 @@ func TestApp_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 		numGoroutines := 10
 
-		wg.Add(numGoroutines)
-
-		for i := range numGoroutines {
-			go func(i int) {
-				defer wg.Done()
-
+		for range numGoroutines {
+			wg.Go(func() {
 				module := &MockModule{}
 				module.On("Name").Return("module")
 
 				err := app.AddModule(module)
 				assert.NoError(t, err)
-			}(i)
+			})
 		}
 
 		wg.Wait()
@@ -334,12 +330,8 @@ func TestApp_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 		numGoroutines := 10
 
-		wg.Add(numGoroutines)
-
-		for i := range numGoroutines {
-			go func(i int) {
-				defer wg.Done()
-
+		for range numGoroutines {
+			wg.Go(func() {
 				// Create a unique provider for each goroutine to avoid conflicts
 				provider := func() *MockProvider {
 					return &MockProvider{}
@@ -351,7 +343,7 @@ func TestApp_ConcurrentAccess(t *testing.T) {
 					// This is acceptable behavior for this test
 					t.Logf("Provider addition failed (expected in concurrent test): %v", err)
 				}
-			}(i)
+			})
 		}
 
 		wg.Wait()

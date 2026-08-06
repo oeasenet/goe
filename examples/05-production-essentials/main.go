@@ -32,7 +32,7 @@ package main
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -102,7 +102,7 @@ func registerRoutes(
 		}()
 
 		// Simulate processing with variable latency
-		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		time.Sleep(time.Duration(rand.IntN(100)) * time.Millisecond)
 
 		var body struct {
 			Name string `json:"name"`

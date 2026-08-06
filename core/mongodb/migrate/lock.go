@@ -126,8 +126,7 @@ func (l *MongoLock) Acquire(ctx context.Context) error {
 	l.stopOnce = sync.Once{} // Reset for new acquisition
 
 	// Start heartbeat goroutine with WaitGroup tracking
-	l.wg.Add(1)
-	go l.runHeartbeat() //nolint:contextcheck // heartbeat uses stopChan for cancellation, independent of caller context
+	l.wg.Go(l.runHeartbeat) //nolint:contextcheck // heartbeat uses stopChan for cancellation, independent of caller context
 
 	return nil
 }
@@ -232,8 +231,6 @@ func (l *MongoLock) IsHeld() bool {
 // runHeartbeat runs the heartbeat goroutine
 // This does NOT take a context - it uses stopChan for cancellation
 func (l *MongoLock) runHeartbeat() {
-	defer l.wg.Done()
-
 	ticker := time.NewTicker(l.heartbeat)
 	defer ticker.Stop()
 

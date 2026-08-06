@@ -314,7 +314,7 @@ func BenchmarkHumanReadableSizeToBytes(b *testing.B) {
 
 	for _, input := range testInputs {
 		b.Run(input, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				HumanReadableSizeToBytes(input)
 			}
 		})
@@ -332,7 +332,7 @@ func BenchmarkConvertBytesToHumanReadableSize(b *testing.B) {
 
 	for _, input := range testInputs {
 		b.Run(ConvertBytesToHumanReadableSize(input), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				ConvertBytesToHumanReadableSize(input)
 			}
 		})
@@ -343,7 +343,7 @@ func BenchmarkRoundTripConversion(b *testing.B) {
 	originalSize := 1500000 // 1.5 MB
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		humanReadable := ConvertBytesToHumanReadableSize(originalSize)
 		HumanReadableSizeToBytes(humanReadable)
 	}

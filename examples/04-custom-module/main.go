@@ -182,8 +182,7 @@ func (m *MetricsModule) OnStart(ctx context.Context) error {
 	}
 
 	// Start background collection worker
-	m.wg.Add(1)
-	go m.collectLoop(interval)
+	m.wg.Go(func() { m.collectLoop(interval) })
 
 	m.logger.Infow("Metrics module started",
 		"collect_interval", interval.String(),
@@ -218,8 +217,6 @@ func (m *MetricsModule) OnStop(ctx context.Context) error {
 
 // collectLoop runs the periodic metrics collection.
 func (m *MetricsModule) collectLoop(interval time.Duration) {
-	defer m.wg.Done()
-
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 

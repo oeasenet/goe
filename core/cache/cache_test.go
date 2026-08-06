@@ -653,11 +653,9 @@ func TestCache_Remember_Singleflight(t *testing.T) {
 	const goroutines = 20
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	for range goroutines {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var val string
 			err := c.Remember("key", &val, time.Minute, func() (any, error) {
 				callCount.Add(1)
@@ -666,7 +664,7 @@ func TestCache_Remember_Singleflight(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, "result", val)
-		}()
+		})
 	}
 
 	wg.Wait()

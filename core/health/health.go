@@ -102,16 +102,13 @@ func (m *Manager) runChecks(ctx context.Context) contract.HealthReport {
 	var wg sync.WaitGroup
 
 	for name, checker := range checkers {
-		wg.Add(1)
-		go func(name string, checker contract.HealthChecker) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			result := m.runSingleCheck(checkCtx, checker)
 
 			resultsMu.Lock()
 			results[name] = result
 			resultsMu.Unlock()
-		}(name, checker)
+		})
 	}
 
 	wg.Wait()

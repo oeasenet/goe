@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"math"
-	mrand "math/rand"
+	mrand "math/rand/v2"
 	"sync"
 	"time"
 
@@ -422,16 +422,14 @@ func (m *Mutex) releaseOnPools(ctx context.Context) {
 
 	// Multiple pools - release in parallel
 	var wg sync.WaitGroup
-	wg.Add(len(m.pools))
 
 	for _, pool := range m.pools {
-		go func(p Pool) {
-			defer wg.Done()
+		wg.Go(func() {
 			// Use a short timeout for release
 			releaseCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 			defer cancel()
-			_, _ = p.Eval(releaseCtx, deleteScript, []string{m.name}, m.value)
-		}(pool)
+			_, _ = pool.Eval(releaseCtx, deleteScript, []string{m.name}, m.value)
+		})
 	}
 
 	wg.Wait()
@@ -508,7 +506,7 @@ func (m *Mutex) calculateRetryDelay(attempt int) time.Duration {
 	delay := min(time.Duration(float64(baseDelay)*math.Pow(1.5, float64(attempt))), DefaultRetryDelayMax)
 
 	// Add random jitter (±25%)
-	jitter := time.Duration(mrand.Int63n(int64(delay / 2)))
+	jitter := time.Duration(mrand.Int64N(int64(delay / 2)))
 	delay = delay - delay/4 + jitter
 
 	return delay

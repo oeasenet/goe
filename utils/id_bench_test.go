@@ -6,32 +6,32 @@ import (
 
 // Benchmark for NanoID generation with default length
 func BenchmarkGenerateNanoId_Default(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId()
 	}
 }
 
 // Benchmark for NanoID generation with different lengths
 func BenchmarkGenerateNanoId_Length10(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId(10)
 	}
 }
 
 func BenchmarkGenerateNanoId_Length21(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId(21)
 	}
 }
 
 func BenchmarkGenerateNanoId_Length50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId(50)
 	}
 }
 
 func BenchmarkGenerateNanoId_Length100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId(100)
 	}
 }
@@ -39,14 +39,14 @@ func BenchmarkGenerateNanoId_Length100(b *testing.B) {
 // Memory allocation benchmarks for NanoID
 func BenchmarkGenerateNanoId_Allocs(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId()
 	}
 }
 
 func BenchmarkGenerateNanoId_AllocsLength50(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId(50)
 	}
 }
@@ -70,7 +70,7 @@ func BenchmarkGenerateNanoId_ParallelLength21(b *testing.B) {
 
 // Batch generation benchmarks for NanoID
 func BenchmarkGenerateNanoId_Batch100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range 100 {
 			GenerateNanoId()
 		}
@@ -78,7 +78,7 @@ func BenchmarkGenerateNanoId_Batch100(b *testing.B) {
 }
 
 func BenchmarkGenerateNanoId_Batch1000(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range 1000 {
 			GenerateNanoId()
 		}
@@ -88,7 +88,7 @@ func BenchmarkGenerateNanoId_Batch1000(b *testing.B) {
 // Stress test benchmarks - high volume generation for NanoID
 func BenchmarkGenerateNanoId_Stress(b *testing.B) {
 	b.SetBytes(32) // Default nanoid length
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GenerateNanoId()
 	}
 }
@@ -96,25 +96,25 @@ func BenchmarkGenerateNanoId_Stress(b *testing.B) {
 // Comprehensive comparison benchmark - all three generators in one test
 func BenchmarkIDGenerators_Comparison(b *testing.B) {
 	b.Run("NanoID_Default", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateNanoId()
 		}
 	})
 
 	b.Run("NanoID_Length21", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateNanoId(21)
 		}
 	})
 
 	b.Run("UUIDv7", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateUUIDv7()
 		}
 	})
 
 	b.Run("XID", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateXid()
 		}
 	})
@@ -151,21 +151,21 @@ func BenchmarkIDGenerators_ParallelComparison(b *testing.B) {
 func BenchmarkIDGenerators_AllocComparison(b *testing.B) {
 	b.Run("NanoID_Allocs", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateNanoId()
 		}
 	})
 
 	b.Run("UUIDv7_Allocs", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateUUIDv7()
 		}
 	})
 
 	b.Run("XID_Allocs", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			GenerateXid()
 		}
 	})

@@ -274,7 +274,7 @@ func Benchmark_CacheControl(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := app.Test(req)
 		if err != nil {
 			b.Fatal(err)
@@ -304,7 +304,7 @@ func Benchmark_CacheControl_CustomRules(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := app.Test(req)
 		if err != nil {
 			b.Fatal(err)
