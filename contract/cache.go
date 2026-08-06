@@ -17,6 +17,8 @@ type Cache interface {
 	GetWithDefault(key string, value any, defaultValue any) error
 
 	// Set stores a value in cache with TTL
+	// A ttl of 0 uses the module's configured default TTL when one is set
+	// (CACHE_TTL / cache.WithTTL), otherwise the value never expires
 	Set(key string, value any, ttl time.Duration) error
 
 	// Forever stores a value in cache forever
@@ -33,6 +35,7 @@ type Cache interface {
 
 	// Remember gets a value from cache or computes it
 	// The value parameter must be a pointer to the type you want to retrieve
+	// A ttl of 0 uses the module's configured default TTL when one is set
 	// Returns an error only if value is not a pointer, callback fails, or unmarshaling fails
 	Remember(key string, value any, ttl time.Duration, callback func() (any, error)) error
 
@@ -47,6 +50,7 @@ type Cache interface {
 	Pull(key string, value any) error
 
 	// Add stores a value only if key doesn't exist
+	// A ttl of 0 uses the module's configured default TTL when one is set
 	Add(key string, value any, ttl time.Duration) error
 
 	// Increment increments an integer value

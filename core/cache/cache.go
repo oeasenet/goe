@@ -14,18 +14,34 @@ import (
 
 // cache implements the Cache interface
 type cache struct {
-	store  contract.CacheStore
-	prefix string
-	mu     sync.RWMutex
-	sfg    singleflight.Group
+	store      contract.CacheStore
+	prefix     string
+	defaultTTL time.Duration
+	mu         sync.RWMutex
+	sfg        singleflight.Group
 }
 
-// New creates a new cache instance with a given store
-func New(store contract.CacheStore, prefix string) contract.Cache {
+// New creates a new cache instance with a given store.
+//
+// defaultTTL is applied whenever a caller passes ttl == 0 to Set, Add or
+// Remember; a zero defaultTTL disables the default, keeping ttl == 0 as
+// "no expiration". Forever and RememberForever always store without
+// expiration regardless of the default.
+func New(store contract.CacheStore, prefix string, defaultTTL time.Duration) contract.Cache {
 	return &cache{
-		store:  store,
-		prefix: prefix,
+		store:      store,
+		prefix:     prefix,
+		defaultTTL: defaultTTL,
 	}
+}
+
+// resolveTTL maps the caller's ttl to the effective expiration: 0 means the
+// configured default when there is one, otherwise no expiration.
+func (c *cache) resolveTTL(ttl time.Duration) time.Duration {
+	if ttl == 0 {
+		return c.defaultTTL
+	}
+	return ttl
 }
 
 // Get retrieves a value from cache and binds it to the provided pointer
@@ -76,8 +92,15 @@ func (c *cache) GetWithDefault(key string, value any, defaultValue any) error {
 	return json.Unmarshal(data, value)
 }
 
-// Set stores a value in cache with TTL
+// Set stores a value in cache with TTL. A ttl of 0 uses the configured
+// default TTL when there is one, otherwise the value never expires.
 func (c *cache) Set(key string, value any, ttl time.Duration) error {
+	return c.set(key, value, c.resolveTTL(ttl))
+}
+
+// set stores a value with the expiration exactly as given, bypassing the
+// default-TTL resolution so Forever can always store without expiration.
+func (c *cache) set(key string, value any, exp time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -86,12 +109,12 @@ func (c *cache) Set(key string, value any, ttl time.Duration) error {
 		return err
 	}
 
-	return c.store.Set(c.prefixKey(key), data, ttl)
+	return c.store.Set(c.prefixKey(key), data, exp)
 }
 
 // Forever stores a value in cache forever
 func (c *cache) Forever(key string, value any) error {
-	return c.Set(key, value, 0)
+	return c.set(key, value, 0)
 }
 
 // Forget removes a value from cache
@@ -122,7 +145,16 @@ func (c *cache) Has(key string) bool {
 // Remember gets a value from cache or computes it.
 // Concurrent calls for the same key are deduplicated via singleflight
 // so the callback executes at most once per cache miss, preventing stampedes.
+// A ttl of 0 uses the configured default TTL when there is one, otherwise
+// the computed value never expires.
 func (c *cache) Remember(key string, value any, ttl time.Duration, callback func() (any, error)) error {
+	return c.remember(key, value, c.resolveTTL(ttl), callback)
+}
+
+// remember implements Remember with the expiration exactly as given,
+// bypassing the default-TTL resolution so RememberForever can always store
+// without expiration.
+func (c *cache) remember(key string, value any, exp time.Duration, callback func() (any, error)) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
@@ -168,7 +200,7 @@ func (c *cache) Remember(key string, value any, ttl time.Duration, callback func
 
 		// Store in cache
 		c.mu.Lock()
-		storeErr := c.store.Set(c.prefixKey(key), computedData, ttl)
+		storeErr := c.store.Set(c.prefixKey(key), computedData, exp)
 		c.mu.Unlock()
 		if storeErr != nil {
 			return nil, storeErr
@@ -186,7 +218,7 @@ func (c *cache) Remember(key string, value any, ttl time.Duration, callback func
 
 // RememberForever gets a value from cache or computes it forever
 func (c *cache) RememberForever(key string, value any, callback func() (any, error)) error {
-	return c.Remember(key, value, 0, callback)
+	return c.remember(key, value, 0, callback)
 }
 
 // Pull retrieves and removes a value from cache atomically.
@@ -224,7 +256,9 @@ func (c *cache) Pull(key string, value any) error {
 }
 
 // Add stores a value only if key doesn't exist
-// This is an atomic check-and-set operation to prevent race conditions
+// This is an atomic check-and-set operation to prevent race conditions.
+// A ttl of 0 uses the configured default TTL when there is one, otherwise
+// the value never expires.
 func (c *cache) Add(key string, value any, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -244,7 +278,7 @@ func (c *cache) Add(key string, value any, ttl time.Duration) error {
 		return err
 	}
 
-	return c.store.Set(c.prefixKey(key), marshaledData, ttl)
+	return c.store.Set(c.prefixKey(key), marshaledData, c.resolveTTL(ttl))
 }
 
 // Increment increments an integer value

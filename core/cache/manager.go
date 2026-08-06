@@ -76,7 +76,7 @@ func (m *manager) Store(name ...string) contract.Cache {
 		prefix = storePrefix
 	}
 
-	cache := New(cacheStore, prefix)
+	cache := New(cacheStore, prefix, 0)
 	m.stores[storeName] = cache
 
 	return cache

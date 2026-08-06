@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCacheStore implements contract.CacheStore for testing
@@ -119,7 +120,7 @@ func (m *MockConfig) Has(key string) bool {
 func TestNew(t *testing.T) {
 	store := &MockCacheStore{}
 	prefix := "test"
-	cache := New(store, prefix)
+	cache := New(store, prefix, 0)
 
 	assert.NotNil(t, cache)
 	assert.Equal(t, store, cache.Store())
@@ -129,7 +130,7 @@ func TestNew(t *testing.T) {
 func TestCache_Get(t *testing.T) {
 	t.Run("successful get string", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		jsonValue := []byte(`"hello"`)
 		store.On("Get", "test:key").Return(jsonValue, nil)
 
@@ -143,7 +144,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("successful get struct", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		type testStruct struct {
 			Name string `json:"name"`
 			Age  int    `json:"age"`
@@ -162,7 +163,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("key not found", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
 		var value string
@@ -175,7 +176,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), errors.New("store error"))
 
 		var value string
@@ -188,7 +189,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("unmarshal error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte("invalid json"), nil)
 
 		var value string
@@ -200,7 +201,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("non-pointer value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 
 		var value string
 		err := cache.Get("key", value) // Not a pointer
@@ -212,7 +213,7 @@ func TestCache_Get(t *testing.T) {
 
 	t.Run("nil pointer value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 
 		var value *string
 		err := cache.Get("key", value) // Nil pointer
@@ -226,7 +227,7 @@ func TestCache_Get(t *testing.T) {
 func TestCache_GetWithDefault(t *testing.T) {
 	t.Run("key exists", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		jsonValue := []byte(`"cached"`)
 		store.On("Get", "test:key").Return(jsonValue, nil)
 
@@ -240,7 +241,7 @@ func TestCache_GetWithDefault(t *testing.T) {
 
 	t.Run("key not found - use default", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
 		var value string
@@ -253,7 +254,7 @@ func TestCache_GetWithDefault(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), errors.New("store error"))
 
 		var value string
@@ -266,7 +267,7 @@ func TestCache_GetWithDefault(t *testing.T) {
 
 	t.Run("non-pointer value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 
 		var value string
 		err := cache.GetWithDefault("key", value, "default") // Not a pointer
@@ -280,7 +281,7 @@ func TestCache_GetWithDefault(t *testing.T) {
 func TestCache_Set(t *testing.T) {
 	t.Run("successful set", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Set", "test:key", []byte(`"value"`), time.Minute).Return(nil)
 
 		err := cache.Set("key", "value", time.Minute)
@@ -291,7 +292,7 @@ func TestCache_Set(t *testing.T) {
 
 	t.Run("marshal error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 
 		// Create an unmarshalable value
 		unmarshalable := make(chan int)
@@ -303,7 +304,7 @@ func TestCache_Set(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Set", "test:key", []byte(`"value"`), time.Minute).Return(errors.New("store error"))
 
 		err := cache.Set("key", "value", time.Minute)
@@ -316,7 +317,7 @@ func TestCache_Set(t *testing.T) {
 
 func TestCache_Forever(t *testing.T) {
 	store := &MockCacheStore{}
-	cache := New(store, "test")
+	cache := New(store, "test", 0)
 	store.On("Set", "test:key", []byte(`"value"`), time.Duration(0)).Return(nil)
 
 	err := cache.Forever("key", "value")
@@ -328,7 +329,7 @@ func TestCache_Forever(t *testing.T) {
 func TestCache_Forget(t *testing.T) {
 	t.Run("successful forget", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Delete", "test:key").Return(nil)
 
 		err := cache.Forget("key")
@@ -339,7 +340,7 @@ func TestCache_Forget(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Delete", "test:key").Return(errors.New("store error"))
 
 		err := cache.Forget("key")
@@ -353,7 +354,7 @@ func TestCache_Forget(t *testing.T) {
 func TestCache_Flush(t *testing.T) {
 	t.Run("successful flush", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Reset").Return(nil)
 
 		err := cache.Flush()
@@ -364,7 +365,7 @@ func TestCache_Flush(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Reset").Return(errors.New("store error"))
 
 		err := cache.Flush()
@@ -378,7 +379,7 @@ func TestCache_Flush(t *testing.T) {
 func TestCache_Has(t *testing.T) {
 	t.Run("key exists", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(`"value"`), nil)
 
 		exists := cache.Has("key")
@@ -389,7 +390,7 @@ func TestCache_Has(t *testing.T) {
 
 	t.Run("key not exists", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
 		exists := cache.Has("key")
@@ -400,7 +401,7 @@ func TestCache_Has(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), errors.New("store error"))
 
 		exists := cache.Has("key")
@@ -413,7 +414,7 @@ func TestCache_Has(t *testing.T) {
 func TestCache_Remember(t *testing.T) {
 	t.Run("value in cache", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		jsonValue := []byte(`"cached"`)
 		store.On("Get", "test:key").Return(jsonValue, nil)
 
@@ -434,7 +435,7 @@ func TestCache_Remember(t *testing.T) {
 
 	t.Run("value not in cache, compute and store", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		// singleflight double-checks cache, so Get is called twice on miss
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 		store.On("Set", "test:key", []byte(`"computed"`), time.Minute).Return(nil)
@@ -456,7 +457,7 @@ func TestCache_Remember(t *testing.T) {
 
 	t.Run("callback error", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		// singleflight double-checks cache, so Get is called twice on miss
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
@@ -475,7 +476,7 @@ func TestCache_Remember(t *testing.T) {
 
 func TestCache_RememberForever(t *testing.T) {
 	store := &MockCacheStore{}
-	cache := New(store, "test")
+	cache := New(store, "test", 0)
 	// singleflight double-checks cache, so Get is called twice on miss
 	store.On("Get", "test:key").Return([]byte(nil), nil)
 	store.On("Set", "test:key", []byte(`"computed"`), time.Duration(0)).Return(nil)
@@ -495,7 +496,7 @@ func TestCache_RememberForever(t *testing.T) {
 func TestCache_Pull(t *testing.T) {
 	t.Run("successful pull", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		jsonValue := []byte(`"value"`)
 		store.On("Get", "test:key").Return(jsonValue, nil)
 		store.On("Delete", "test:key").Return(nil)
@@ -510,7 +511,7 @@ func TestCache_Pull(t *testing.T) {
 
 	t.Run("key not found", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 
 		var value string
@@ -525,7 +526,7 @@ func TestCache_Pull(t *testing.T) {
 func TestCache_Add(t *testing.T) {
 	t.Run("key doesn't exist", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(nil), nil)
 		store.On("Set", "test:key", []byte(`"value"`), time.Minute).Return(nil)
 
@@ -537,7 +538,7 @@ func TestCache_Add(t *testing.T) {
 
 	t.Run("key already exists", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:key").Return([]byte(`"existing"`), nil)
 
 		err := cache.Add("key", "value", time.Minute)
@@ -551,7 +552,7 @@ func TestCache_Add(t *testing.T) {
 func TestCache_Increment(t *testing.T) {
 	t.Run("increment existing value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:counter").Return([]byte(`10`), nil)
 		store.On("Set", "test:counter", []byte(`11`), time.Duration(0)).Return(nil)
 
@@ -564,7 +565,7 @@ func TestCache_Increment(t *testing.T) {
 
 	t.Run("increment non-existing value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:counter").Return([]byte(nil), nil)
 		store.On("Set", "test:counter", []byte(`1`), time.Duration(0)).Return(nil)
 
@@ -577,7 +578,7 @@ func TestCache_Increment(t *testing.T) {
 
 	t.Run("increment with custom value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:counter").Return([]byte(`10`), nil)
 		store.On("Set", "test:counter", []byte(`15`), time.Duration(0)).Return(nil)
 
@@ -592,7 +593,7 @@ func TestCache_Increment(t *testing.T) {
 func TestCache_Decrement(t *testing.T) {
 	t.Run("decrement existing value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:counter").Return([]byte(`10`), nil)
 		store.On("Set", "test:counter", []byte(`9`), time.Duration(0)).Return(nil)
 
@@ -605,7 +606,7 @@ func TestCache_Decrement(t *testing.T) {
 
 	t.Run("decrement with custom value", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "test")
+		cache := New(store, "test", 0)
 		store.On("Get", "test:counter").Return([]byte(`10`), nil)
 		store.On("Set", "test:counter", []byte(`5`), time.Duration(0)).Return(nil)
 
@@ -620,7 +621,7 @@ func TestCache_Decrement(t *testing.T) {
 func TestCache_prefixKey(t *testing.T) {
 	t.Run("with prefix", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "app")
+		cache := New(store, "app", 0)
 		store.On("Get", "app:key").Return([]byte(nil), nil)
 
 		var value string
@@ -631,7 +632,7 @@ func TestCache_prefixKey(t *testing.T) {
 
 	t.Run("without prefix", func(t *testing.T) {
 		store := &MockCacheStore{}
-		cache := New(store, "")
+		cache := New(store, "", 0)
 		store.On("Get", "key").Return([]byte(nil), nil)
 
 		var value string
@@ -646,7 +647,7 @@ func TestCache_prefixKey(t *testing.T) {
 func TestCache_Remember_Singleflight(t *testing.T) {
 	// Use a simple in-memory store to avoid mock complexity with concurrent access
 	memStore := &inMemoryStore{data: make(map[string][]byte)}
-	c := New(memStore, "sf")
+	c := New(memStore, "sf", 0)
 
 	var callCount atomic.Int32
 	const goroutines = 20
@@ -708,3 +709,87 @@ func (s *inMemoryStore) Reset() error {
 }
 
 func (s *inMemoryStore) Close() error { return nil }
+
+// ttlRecordingStore records the expiration passed to Set so tests can assert
+// how the cache resolves caller TTLs against the configured default.
+type ttlRecordingStore struct {
+	data    map[string][]byte
+	lastExp time.Duration
+}
+
+func newTTLRecordingStore() *ttlRecordingStore {
+	return &ttlRecordingStore{data: map[string][]byte{}}
+}
+
+func (s *ttlRecordingStore) Get(key string) ([]byte, error) { return s.data[key], nil }
+
+func (s *ttlRecordingStore) Set(key string, val []byte, exp time.Duration) error {
+	s.data[key] = val
+	s.lastExp = exp
+	return nil
+}
+
+func (s *ttlRecordingStore) Delete(key string) error { delete(s.data, key); return nil }
+func (s *ttlRecordingStore) Reset() error            { s.data = map[string][]byte{}; return nil }
+func (s *ttlRecordingStore) Close() error            { return nil }
+
+func TestDefaultTTL(t *testing.T) {
+	t.Run("Set with ttl 0 uses configured default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		require.NoError(t, c.Set("k", "v", 0))
+		assert.Equal(t, 2*time.Hour, store.lastExp)
+	})
+
+	t.Run("Set with explicit ttl wins over default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		require.NoError(t, c.Set("k", "v", 5*time.Minute))
+		assert.Equal(t, 5*time.Minute, store.lastExp)
+	})
+
+	t.Run("Set with ttl 0 and no default means no expiration", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 0)
+		require.NoError(t, c.Set("k", "v", 0))
+		assert.Equal(t, time.Duration(0), store.lastExp)
+	})
+
+	t.Run("Forever ignores the default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		require.NoError(t, c.Forever("k", "v"))
+		assert.Equal(t, time.Duration(0), store.lastExp)
+	})
+
+	t.Run("Add with ttl 0 uses configured default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		require.NoError(t, c.Add("k", "v", 0))
+		assert.Equal(t, 2*time.Hour, store.lastExp)
+	})
+
+	t.Run("Remember with ttl 0 uses configured default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		var out string
+		require.NoError(t, c.Remember("k", &out, 0, func() (any, error) { return "v", nil }))
+		assert.Equal(t, 2*time.Hour, store.lastExp)
+	})
+
+	t.Run("RememberForever ignores the default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		var out string
+		require.NoError(t, c.RememberForever("k", &out, func() (any, error) { return "v", nil }))
+		assert.Equal(t, time.Duration(0), store.lastExp)
+	})
+
+	t.Run("Increment never expires regardless of default", func(t *testing.T) {
+		store := newTTLRecordingStore()
+		c := New(store, "", 2*time.Hour)
+		_, err := c.Increment("n")
+		require.NoError(t, err)
+		assert.Equal(t, time.Duration(0), store.lastExp)
+	})
+}
