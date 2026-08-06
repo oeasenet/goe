@@ -638,7 +638,7 @@ import goecache "go.oease.dev/goe/v2/core/cache"
 
 goe.New(goe.Options{
     Cache: []goecache.Option{
-        goecache.WithStore("redis"),
+        goecache.WithDriver("redis"),
         goecache.WithTTL(30 * time.Minute),
         goecache.WithRedisHost("redis.internal"),
     },
@@ -646,11 +646,9 @@ goe.New(goe.Options{
 ```
 
 The naming rule is mechanical: the environment key with the `CACHE_` prefix
-dropped (`CACHE_REDIS_POOL_SIZE` → `WithRedisPoolSize`). Store-scoped keys take
-the store name as their first argument: `WithStoreDriver("sessions", "redis")`
-is `CACHE_sessions_DRIVER`, and `WithStorePrefix`/`WithStoreTTL` follow suit.
-Under the hood options become a configuration overlay, so custom drivers
-registered through `Extend` read code-configured values exactly as they read
+dropped (`CACHE_REDIS_POOL_SIZE` → `WithRedisPoolSize`). Under the hood
+options become a configuration overlay, so custom drivers registered through
+`WithCustomDriver` read code-configured values exactly as they read
 environment variables. An invalid option discards every option and fails
 startup validation with all problems listed at once.
 
@@ -664,22 +662,21 @@ username and password.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CACHE_STORE` | string | `memory` | Cache store. A store named after a registered driver (`memory`, `redis`, or a custom driver added via `Extend`) uses that driver directly; any other name must have a driver configured, or startup is rejected. |
-| `CACHE_DRIVER` | string | `memory` | Backing driver; resolved from `CACHE_{STORE}_DRIVER`, then `CACHE_DRIVER`, then the store name itself if it is a registered driver, then `memory` |
+| `CACHE_DRIVER` | string | `memory` | Cache backend: `memory`, `redis`, `badger`, `bbolt`, or a custom driver registered with `cache.WithCustomDriver`. Unregistered values are rejected at startup |
 | `CACHE_PREFIX` | string | `{APP_NAME}` | Prefix for all cache keys |
-| `CACHE_TTL` | duration | `2h` | Default cache TTL |
+| `CACHE_TTL` | duration | - | Default TTL, applied when a caller passes `ttl == 0` to `Set`/`Add`/`Remember`. Unset means `ttl == 0` stores without expiration |
 
-> **Behavior fix:** `CACHE_STORE=redis` alone now uses the redis driver. Earlier
-> releases required `CACHE_DRIVER=redis` alongside it and silently fell back to
-> the memory driver otherwise. An explicitly configured driver still wins.
+> **Removed in v2.5:** multi-store support. `CACHE_STORE` and per-store
+> `CACHE_{name}_DRIVER` keys now fail startup validation with a migration
+> message — set `CACHE_DRIVER` instead. See [MIGRATION.md](MIGRATION.md).
 
-### Memory Store
+### Memory Driver
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `CACHE_MEMORY_GC_INTERVAL` | duration | `10s` | Garbage collection interval |
 
-### Redis Store
+### Redis Driver
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -706,10 +703,10 @@ username and password.
 > injected into the URL (scheme, database and query parameters untouched); earlier releases
 > silently ignored the separate variables whenever a URL was set.
 
-### Badger Store
+### Badger Driver
 
 Embedded, disk-backed key/value store — persistent caching with no external
-service. Select with `CACHE_STORE=badger` or `cache.WithStore("badger")`.
+service. Select with `CACHE_DRIVER=badger` or `cache.WithDriver("badger")`.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -717,10 +714,10 @@ service. Select with `CACHE_STORE=badger` or `cache.WithStore("badger")`.
 | `CACHE_BADGER_RESET` | bool | `false` | Clear all keys on startup |
 | `CACHE_BADGER_GC_INTERVAL` | duration | `10s` | How often expired keys are garbage-collected |
 
-### Bbolt Store
+### Bbolt Driver
 
 Embedded single-file key/value store — the lightest persistent option.
-Select with `CACHE_STORE=bbolt` or `cache.WithStore("bbolt")`.
+Select with `CACHE_DRIVER=bbolt` or `cache.WithDriver("bbolt")`.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -729,18 +726,23 @@ Select with `CACHE_STORE=bbolt` or `cache.WithStore("bbolt")`.
 | `CACHE_BBOLT_TIMEOUT` | duration | `60s` | Time to wait for the database file lock |
 | `CACHE_BBOLT_RESET` | bool | `false` | Clear the bucket on startup |
 
-> Both stores hold an exclusive lock on their database, so two application
+> Both drivers hold an exclusive lock on their database, so two application
 > instances cannot share one path — they are per-instance caches. bbolt's
 > read-only mode is deliberately not exposed: a read-only cache cannot honor
 > the cache contract's writes.
 
-### Other store types
+### Custom drivers
 
-> `memory`, `redis`, `badger` and `bbolt` ship as built-in drivers. A `CACHE_STORE` that
-> neither names a registered driver nor has one configured via
-> `CACHE_{STORE}_DRIVER`/`CACHE_DRIVER` is **rejected at startup** by config validation.
-> Custom drivers registered through `goe.Cache().Extend(name, factory)` count as registered —
-> a store may name one directly.
+> `memory`, `redis`, `badger` and `bbolt` ship as built-in drivers; any other
+> `CACHE_DRIVER` value is **rejected at startup** by config validation unless
+> a custom driver is registered under that name:
+>
+> ```go
+> Cache: []goecache.Option{
+>     goecache.WithDriver("mystore"),
+>     goecache.WithCustomDriver("mystore", NewMyStore),
+> }
+> ```
 
 ---
 

@@ -59,7 +59,7 @@ type Options struct {
 	//
 	//	goe.New(goe.Options{
 	//	    Cache: []cache.Option{
-	//	        cache.WithStore("redis"),
+	//	        cache.WithDriver("redis"),
 	//	        cache.WithTTL(30 * time.Minute),
 	//	    },
 	//	})

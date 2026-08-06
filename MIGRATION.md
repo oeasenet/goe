@@ -5,6 +5,54 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## v2.5.0
+
+The cache module drops its multi-store layer the same way MongoDB dropped
+multi-connection in v2.4.0: GOE now manages exactly one cache, selected by a
+single driver setting. The advertised-but-inert default TTL starts working.
+
+| Change | Action needed |
+|---|---|
+| ⚠️ Multi-store support removed: `CACHE_STORE` and `CACHE_{name}_DRIVER` are rejected at startup; `cache.WithStore`/`WithStoreDriver`/`WithStorePrefix`/`WithStoreTTL` are gone | Set `CACHE_DRIVER=redis` (or `cache.WithDriver("redis")`). Startup validation names the replacement in its error message |
+| ⚠️ `contract.CacheManager`, `contract.CacheConfig`, `contract.CacheStoreConfig` removed; DI provides `contract.Cache`; `goe.Cache()` returns `contract.Cache` | Inject `contract.Cache` instead of `contract.CacheManager`; drop `.Store()` calls: `goe.Cache().Store().Set(...)` → `goe.Cache().Set(...)` |
+| ⚠️ `CacheManager.Extend` removed | Register custom backends with `cache.WithCustomDriver(name, factory)` — available before validation, unlike runtime `Extend` |
+| `CACHE_TTL`/`cache.WithTTL` now actually apply | Callers passing `ttl == 0` to `Set`/`Add`/`Remember` get the configured default instead of "never expires". Unset `CACHE_TTL` keeps the old behaviour exactly. `Forever`/`RememberForever` and counters still never expire |
+
+### ⚠️ Breaking: one cache, not many stores
+
+The store layer never earned its surface. Connection settings were always
+per-driver (`CACHE_REDIS_*`), so two redis-backed stores could not point at
+different hosts or databases — the per-store `Connection()` plumbing had no
+callers, per-store TTLs were never read, `contract.CacheConfig` had no
+implementation, and nothing in the framework or examples used a named store.
+What remained was an alias of driver + prefix, at the cost of the
+store/driver split and a name-matching resolution rule that made
+`WithStore("redis")` quietly select a driver.
+
+Selection is now one setting: `CACHE_DRIVER` / `cache.WithDriver`, defaulting
+to `memory`. Removed keys fail startup validation with a migration message
+instead of being silently ignored, so an app that relied on them cannot come
+up with a differently-wired cache. Apps that only ever used the default store
+with `CACHE_DRIVER` set — or no cache configuration at all — are unaffected.
+
+Need two caches with different prefixes? Construct the second one directly
+from the exported building blocks:
+
+```go
+sessions := cache.New(store, "sessions", 24*time.Hour)
+```
+
+### Behaviour: the default TTL is real now
+
+`CACHE_TTL` (and `cache.WithTTL`) were validated and documented but never
+consumed — every write path passed the caller's ttl straight to the store, so
+`Set(key, v, 0)` always meant "no expiration". With a default configured,
+`ttl == 0` in `Set`, `Add` and `Remember` now resolves to it. Without one,
+nothing changes. `Forever` and `RememberForever` keep storing without
+expiration, and `Increment`/`Decrement` counters never expire either way.
+
+---
+
 ## v2.4.0
 
 The MongoDB and migration modules join the code-first configuration pattern

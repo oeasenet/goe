@@ -145,7 +145,7 @@ func registerRoutes(kernel contract.HTTPKernel, cache contract.Cache, logger con
 		}
 		return c.JSON(fiber.Map{
 			"visits": visits,
-			"note":   "counter lives in the memory store configured in code (WithStore, WithPrefix, WithTTL)",
+			"note":   "counter lives in the memory cache configured in code (WithDriver, WithPrefix, WithTTL)",
 		})
 	})
 

@@ -139,8 +139,8 @@ goe.New(goe.Options{
 })
 
 // Dependencies are automatically injected
-func NewTodoService(db contract.MongoDB, cache contract.CacheManager, logger contract.Logger) *TodoService {
-    return &TodoService{db: db, cache: cache.Store(), logger: logger}
+func NewTodoService(db contract.MongoDB, cache contract.Cache, logger contract.Logger) *TodoService {
+    return &TodoService{db: db, cache: cache, logger: logger}
 }
 ```
 
@@ -213,7 +213,7 @@ MONGO_URI=mongodb://localhost:27017
 MONGO_DB_NAME=myapp
 
 # Cache (Redis)
-CACHE_STORE=redis
+CACHE_DRIVER=redis
 CACHE_REDIS_URL=redis://localhost:6379/0
 CACHE_PREFIX=myapp:
 ```

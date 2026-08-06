@@ -166,7 +166,7 @@ goe.New(goe.Options{
         goehttp.WithCertKeyFile("server.key"),
     },
     Cache: []goecache.Option{
-        goecache.WithStore("redis"),
+        goecache.WithDriver("redis"),
         goecache.WithTTL(30 * time.Minute),
     },
     Job: []goejob.Option{
