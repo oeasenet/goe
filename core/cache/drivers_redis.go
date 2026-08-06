@@ -1,28 +1,12 @@
 package cache
 
 import (
-	"fmt"
 	"net/url"
-	"time"
 
-	"github.com/gofiber/storage/memory/v2"
 	"github.com/gofiber/storage/redis/v3"
 	goredis "github.com/redis/go-redis/v9"
 	"go.oease.dev/goe/v2/contract"
 )
-
-// MemoryStoreFactory creates Fiber memory store instances
-func MemoryStoreFactory(config contract.Config) (contract.CacheStore, error) {
-	// Get GC interval from config
-	gcInterval := config.GetDuration("CACHE_MEMORY_GC_INTERVAL")
-	if gcInterval == 0 {
-		gcInterval = 10 * time.Second
-	}
-
-	return memory.New(memory.Config{
-		GCInterval: gcInterval,
-	}), nil
-}
 
 // RedisStoreFactory creates Fiber Redis store instances
 func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
@@ -125,29 +109,4 @@ func injectURLCredentials(rawURL, username, password string) string {
 		u.User = url.UserPassword(username, password)
 	}
 	return u.String()
-}
-
-// RegisterBuiltinDrivers registers all built-in cache drivers
-func RegisterBuiltinDrivers(manager contract.CacheManager) {
-	// Register Fiber storage drivers
-	manager.Extend("memory", MemoryStoreFactory)
-	manager.Extend("redis", RedisStoreFactory)
-	manager.Extend("badger", BadgerStoreFactory)
-	manager.Extend("bbolt", BboltStoreFactory)
-}
-
-// GetDriverInfo returns information about available drivers
-func GetDriverInfo(driver string) string {
-	switch driver {
-	case "memory":
-		return "Fiber in-memory storage with automatic garbage collection"
-	case "redis":
-		return "Fiber Redis storage using go-redis client with connection pooling and cluster support"
-	case "badger":
-		return "Fiber Badger storage — embedded disk-backed key/value store, no external service"
-	case "bbolt":
-		return "Fiber bbolt storage — embedded single-file key/value store, no external service"
-	default:
-		return fmt.Sprintf("Unknown driver: %s", driver)
-	}
 }

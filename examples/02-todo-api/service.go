@@ -24,10 +24,10 @@ type TodoService struct {
 }
 
 // NewTodoService creates a new TodoService with injected dependencies.
-func NewTodoService(db contract.MongoDB, cacheManager contract.CacheManager, logger contract.Logger) *TodoService {
+func NewTodoService(db contract.MongoDB, cache contract.Cache, logger contract.Logger) *TodoService {
 	return &TodoService{
 		db:     db,
-		cache:  cacheManager.Store(), // Get default cache store
+		cache:  cache,
 		logger: logger,
 	}
 }

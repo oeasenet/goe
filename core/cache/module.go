@@ -4,26 +4,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
 
 	"go.oease.dev/goe/v2/contract"
 	goeconfig "go.oease.dev/goe/v2/core/config"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
 )
 
-// Module represents the cache module for Fx
+// Module represents the cache module for Fx. It owns exactly one cache
+// backed by the configured driver; the multi-store manager was removed in
+// v2.5 (stores never had per-store connections, so a named store could only
+// ever alias a driver + prefix pair).
 type Module struct {
-	manager contract.CacheManager
-	logger  contract.Logger
+	logger contract.Logger
 
 	// config is the effective configuration: the base config with the Option
-	// overlay applied. The manager and every driver factory read through it,
-	// so code-configured values behave exactly like environment variables.
+	// overlay applied. The driver factory reads through it, so
+	// code-configured values behave exactly like environment variables.
 	config contract.Config
 
 	// optErrs holds failures from Option application. They are reported by
 	// ValidateConfig so that startup aborts; the module fell back to the
 	// environment-only configuration, which is never actually served.
 	optErrs []error
+
+	// drivers maps driver names to factories: the builtins plus anything
+	// registered through WithCustomDriver.
+	drivers map[string]contract.CacheStoreFactory
+
+	// mu guards cache, which is built on first Provide so that a driver's
+	// connections are only opened after startup validation has passed.
+	mu    sync.Mutex
+	cache contract.Cache
 }
 
 // NewModule creates a new cache module.
@@ -33,22 +46,23 @@ type Module struct {
 // fails, every option is discarded, the environment-only configuration stays
 // in effect, and ValidateConfig aborts startup with all collected errors.
 func NewModule(config contract.Config, logger contract.Logger, opts ...Option) *Module {
-	overrides, optErrs := resolveOverrides(opts)
+	overrides, customDrivers, optErrs := resolveOverrides(opts)
 	if len(optErrs) == 0 && len(overrides) > 0 {
 		config = goeconfig.NewConfigWrapper(config, overrides)
 	}
 
-	// Create cache manager on the effective configuration
-	manager := NewManager(config)
-
-	// Register all built-in drivers (Fiber storage drivers)
-	RegisterBuiltinDrivers(manager)
+	drivers := builtinDrivers()
+	if len(optErrs) == 0 {
+		for name, factory := range customDrivers {
+			drivers[name] = factory
+		}
+	}
 
 	return &Module{
-		manager: manager,
 		logger:  logger.With("module", "cache"),
 		config:  config,
 		optErrs: optErrs,
+		drivers: drivers,
 	}
 }
 
@@ -57,44 +71,69 @@ func (m *Module) Name() string {
 	return "cache"
 }
 
+// driverName resolves the configured driver, defaulting to memory.
+func (m *Module) driverName() string {
+	if driver := m.config.GetString("CACHE_DRIVER"); driver != "" {
+		return driver
+	}
+	return "memory"
+}
+
+// Provide returns the cache instance for Fx, building it on first use.
+//
+// Construction is deliberately lazy: startup validation runs before any
+// lifecycle hook or injection touches the cache, so a driver's connections
+// are only opened for a configuration that has passed validation. The panics
+// below are therefore unreachable in a validated application and only trip
+// when Provide is called around the framework.
+func (m *Module) Provide() contract.Cache {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.cache != nil {
+		return m.cache
+	}
+
+	driver := m.driverName()
+	factory, ok := m.drivers[driver]
+	if !ok {
+		panic(fmt.Sprintf("cache driver [%s] is not registered", driver))
+	}
+
+	store, err := factory(m.config)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create cache store with driver [%s]: %v", driver, err))
+	}
+
+	prefix := m.config.GetString("CACHE_PREFIX")
+	if prefix == "" {
+		prefix = m.config.GetString("APP_NAME")
+	}
+
+	m.cache = New(store, prefix, m.config.GetDuration("CACHE_TTL"))
+	return m.cache
+}
+
 // OnStart is called when the module starts
 func (m *Module) OnStart(ctx context.Context) error {
-	m.logger.Info("Cache module started",
-		"driver", m.manager.Driver(),
-		"store", m.config.GetString("CACHE_STORE"),
-	)
+	m.logger.Info("Cache module started", "driver", m.driverName())
 	return nil
 }
 
 // OnStop is called when the module stops
 func (m *Module) OnStop(ctx context.Context) error {
-	// Close all initialized cache stores to release connections
-	mgr := m.manager.(*manager)
-	mgr.mu.RLock()
-	stores := make(map[string]contract.Cache, len(mgr.stores))
-	for k, v := range mgr.stores {
-		stores[k] = v
-	}
-	mgr.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	for name, store := range stores {
-		if err := store.Store().Close(); err != nil {
-			m.logger.Error("Error closing cache store", "store", name, "error", err)
-		}
+	if m.cache == nil {
+		return nil
 	}
 
-	m.logger.Info("Cache module stopped", "stores_closed", len(stores))
+	if err := m.cache.Store().Close(); err != nil {
+		m.logger.Error("Error closing cache store", "error", err)
+	}
+	m.logger.Info("Cache module stopped")
 	return nil
-}
-
-// Provide returns the cache manager instance for Fx
-func (m *Module) Provide() contract.CacheManager {
-	return m.manager
-}
-
-// ProvideCache returns the default cache instance for Fx
-func (m *Module) ProvideCache() contract.Cache {
-	return m.manager.Store()
 }
 
 // ValidateConfig validates the cache module configuration
@@ -108,63 +147,70 @@ func (m *Module) ValidateConfig() error {
 
 	v := configvalidator.NewConfigValidator(m.config, "cache")
 
-	// Cache store is optional, defaults to memory
-	store := m.config.GetString("CACHE_STORE")
-	if store != "" {
-		// The store must resolve to a registered driver: either the store
-		// names a driver directly ("memory", "redis", or a custom driver
-		// added through Extend), or a CACHE_{store}_DRIVER / CACHE_DRIVER
-		// key configures one. Anything else would panic on first Store()
-		// use, so it is rejected at startup instead.
-		driver, explicit, registered := m.manager.(*manager).storeDriverStatus(store)
-		switch {
-		case !registered:
-			v.Optional("CACHE_STORE", "Cache store type", func(any) error {
-				return fmt.Errorf("store %q uses driver %q, which is not registered", store, driver)
-			})
-		case !explicit && driver != store:
-			v.Optional("CACHE_STORE", "Cache store type", func(any) error {
-				return fmt.Errorf("store %q does not name a registered driver and none is configured; "+
-					"set CACHE_DRIVER/CACHE_%s_DRIVER or cache.WithDriver/cache.WithStoreDriver", store, store)
+	// Multi-store configuration was removed in v2.5. Keys that used to
+	// select or shape stores fail startup with a migration hint instead of
+	// being silently ignored — an app that relied on them must not come up
+	// with a differently-wired cache.
+	if m.config.Has("CACHE_STORE") {
+		v.Optional("CACHE_STORE", "Removed multi-store key", func(any) error {
+			return fmt.Errorf("CACHE_STORE was removed in v2.5 along with multi-store support; "+
+				"set CACHE_DRIVER=%s (or cache.WithDriver) instead", m.config.GetString("CACHE_STORE"))
+		})
+	}
+	for key := range m.config.All() {
+		if key == "CACHE_DRIVER" || !strings.HasPrefix(key, "CACHE_") || !strings.HasSuffix(key, "_DRIVER") {
+			continue
+		}
+		v.Optional(key, "Removed per-store driver key", func(any) error {
+			return errors.New("per-store driver keys were removed in v2.5 along with multi-store support; " +
+				"configure the single driver with CACHE_DRIVER or cache.WithDriver")
+		})
+	}
+
+	// The configured driver must be registered: a builtin or a
+	// WithCustomDriver registration. Anything else would panic on first use,
+	// so it is rejected at startup instead.
+	driver := m.driverName()
+	if _, ok := m.drivers[driver]; !ok {
+		v.Optional("CACHE_DRIVER", "Cache driver", func(any) error {
+			return fmt.Errorf("driver %q is not registered (builtins: memory, redis, badger, bbolt; "+
+				"custom drivers register through cache.WithCustomDriver)", driver)
+		})
+	}
+
+	// Driver-specific keys are validated only when set.
+	switch driver {
+	case "redis":
+		if m.config.Has("CACHE_REDIS_PORT") {
+			v.Optional("CACHE_REDIS_PORT", "Redis port", configvalidator.ValidatePort)
+		}
+		if m.config.Has("CACHE_REDIS_DATABASE") {
+			v.Optional("CACHE_REDIS_DATABASE", "Redis database number", configvalidator.ValidateNonNegativeInt)
+		}
+	case "badger":
+		if m.config.Has("CACHE_BADGER_GC_INTERVAL") {
+			v.Optional("CACHE_BADGER_GC_INTERVAL", "Badger GC interval", func(any) error {
+				if m.config.GetDuration("CACHE_BADGER_GC_INTERVAL") <= 0 {
+					return fmt.Errorf("GC interval must be positive")
+				}
+				return nil
 			})
 		}
-
-		// Driver-specific keys are validated only when set, keyed on the
-		// resolved driver so named stores backed by it are covered too.
-		switch driver {
-		case "redis":
-			if m.config.Has("CACHE_REDIS_PORT") {
-				v.Optional("CACHE_REDIS_PORT", "Redis port", configvalidator.ValidatePort)
-			}
-			if m.config.Has("CACHE_REDIS_DATABASE") {
-				v.Optional("CACHE_REDIS_DATABASE", "Redis database number", configvalidator.ValidateNonNegativeInt)
-			}
-		case "badger":
-			if m.config.Has("CACHE_BADGER_GC_INTERVAL") {
-				v.Optional("CACHE_BADGER_GC_INTERVAL", "Badger GC interval", func(any) error {
-					if m.config.GetDuration("CACHE_BADGER_GC_INTERVAL") <= 0 {
-						return fmt.Errorf("GC interval must be positive")
-					}
-					return nil
-				})
-			}
-		case "bbolt":
-			if m.config.Has("CACHE_BBOLT_TIMEOUT") {
-				v.Optional("CACHE_BBOLT_TIMEOUT", "bbolt file-lock timeout", func(any) error {
-					if m.config.GetDuration("CACHE_BBOLT_TIMEOUT") <= 0 {
-						return fmt.Errorf("timeout must be positive")
-					}
-					return nil
-				})
-			}
+	case "bbolt":
+		if m.config.Has("CACHE_BBOLT_TIMEOUT") {
+			v.Optional("CACHE_BBOLT_TIMEOUT", "bbolt file-lock timeout", func(any) error {
+				if m.config.GetDuration("CACHE_BBOLT_TIMEOUT") <= 0 {
+					return fmt.Errorf("timeout must be positive")
+				}
+				return nil
+			})
 		}
 	}
 
 	// TTL is optional but should be positive if set
 	if m.config.Has("CACHE_TTL") {
 		v.Optional("CACHE_TTL", "Default cache TTL", func(value any) error {
-			duration := m.config.GetDuration("CACHE_TTL")
-			if duration < 0 {
+			if m.config.GetDuration("CACHE_TTL") < 0 {
 				return fmt.Errorf("TTL must be positive")
 			}
 			return nil

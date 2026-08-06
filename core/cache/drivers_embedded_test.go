@@ -11,29 +11,29 @@ import (
 
 // The badger and bbolt drivers are embedded stores, so unlike redis they are
 // exercised end to end: a real database in a temp directory, through the full
-// manager -> factory -> contract.Cache path.
+// module -> factory -> contract.Cache path.
 
 func TestBadgerDriver_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 
 	m := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("badger"),
+		WithDriver("badger"),
 		WithBadgerDatabase(filepath.Join(dir, "cache.badger")),
 	)
 	require.NoError(t, m.ValidateConfig())
-	assert.Equal(t, "badger", m.manager.Driver())
+	assert.Equal(t, "badger", m.driverName())
 
-	store := m.Provide().Store()
-	require.NotNil(t, store)
+	c := m.Provide()
+	require.NotNil(t, c)
 
-	require.NoError(t, store.Set("greeting", "hello badger", time.Minute))
+	require.NoError(t, c.Set("greeting", "hello badger", time.Minute))
 	var got string
-	require.NoError(t, store.Get("greeting", &got))
+	require.NoError(t, c.Get("greeting", &got))
 	assert.Equal(t, "hello badger", got)
 
-	require.NoError(t, store.Forget("greeting"))
+	require.NoError(t, c.Forget("greeting"))
 	var missing string
-	require.NoError(t, store.Get("greeting", &missing))
+	require.NoError(t, c.Get("greeting", &missing))
 	assert.Empty(t, missing)
 
 	require.NoError(t, m.OnStop(t.Context()))
@@ -43,19 +43,19 @@ func TestBboltDriver_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 
 	m := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("bbolt"),
+		WithDriver("bbolt"),
 		WithBboltDatabase(filepath.Join(dir, "cache.db")),
 		WithBboltBucket("test_bucket"),
 	)
 	require.NoError(t, m.ValidateConfig())
-	assert.Equal(t, "bbolt", m.manager.Driver())
+	assert.Equal(t, "bbolt", m.driverName())
 
-	store := m.Provide().Store()
-	require.NotNil(t, store)
+	c := m.Provide()
+	require.NotNil(t, c)
 
-	require.NoError(t, store.Set("greeting", "hello bbolt", time.Minute))
+	require.NoError(t, c.Set("greeting", "hello bbolt", time.Minute))
 	var got string
-	require.NoError(t, store.Get("greeting", &got))
+	require.NoError(t, c.Get("greeting", &got))
 	assert.Equal(t, "hello bbolt", got)
 
 	require.NoError(t, m.OnStop(t.Context()))
@@ -66,16 +66,16 @@ func TestBboltDriver_PersistsAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.db")
 
 	m1 := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("bbolt"), WithBboltDatabase(path))
-	store1 := m1.Provide().Store()
-	require.NoError(t, store1.Forever("persistent", "still here"))
+		WithDriver("bbolt"), WithBboltDatabase(path))
+	c1 := m1.Provide()
+	require.NoError(t, c1.Forever("persistent", "still here"))
 	require.NoError(t, m1.OnStop(t.Context()))
 
 	m2 := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("bbolt"), WithBboltDatabase(path))
-	store2 := m2.Provide().Store()
+		WithDriver("bbolt"), WithBboltDatabase(path))
+	c2 := m2.Provide()
 	var got string
-	require.NoError(t, store2.Get("persistent", &got))
+	require.NoError(t, c2.Get("persistent", &got))
 	assert.Equal(t, "still here", got)
 	require.NoError(t, m2.OnStop(t.Context()))
 }
@@ -159,7 +159,7 @@ func TestEmbeddedDrivers_OptionValidation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, errs := resolveOverrides([]Option{tc.opt})
+			_, _, errs := resolveOverrides([]Option{tc.opt})
 			assert.NotEmpty(t, errs)
 		})
 	}

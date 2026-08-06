@@ -53,29 +53,10 @@ func TestMemoryStoreFactory(t *testing.T) {
 	}
 }
 
-func TestGetDriverInfo(t *testing.T) {
-	tests := []struct {
-		driver   string
-		expected string
-	}{
-		{
-			driver:   "memory",
-			expected: "Fiber in-memory storage with automatic garbage collection",
-		},
-		{
-			driver:   "redis",
-			expected: "Fiber Redis storage using go-redis client with connection pooling and cluster support",
-		},
-		{
-			driver:   "unknown",
-			expected: "Unknown driver: unknown",
-		},
+func TestBuiltinDrivers(t *testing.T) {
+	drivers := builtinDrivers()
+	for _, name := range []string{"memory", "redis", "badger", "bbolt"} {
+		assert.Contains(t, drivers, name)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.driver, func(t *testing.T) {
-			info := GetDriverInfo(tt.driver)
-			assert.Equal(t, tt.expected, info)
-		})
-	}
+	assert.Len(t, drivers, 4)
 }

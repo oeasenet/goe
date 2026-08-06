@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"strings"
 	"testing"
 
 	"go.oease.dev/goe/v2/core/config"
@@ -17,129 +18,130 @@ func TestCacheModuleValidation(t *testing.T) {
 		{
 			name: "no configuration - should pass with defaults",
 			configFunc: func(cfg *config.Module) {
-				// No configuration, should use memory store by default
+				// No configuration, should use the memory driver by default
 			},
 			expectError: false,
 		},
 		{
-			name: "memory store configuration",
+			name: "memory driver configuration",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "memory")
+				cfg.Provide().Set("CACHE_DRIVER", "memory")
 			},
 			expectError: false,
 		},
 		{
-			name: "redis store - no connection key needed (localhost defaults)",
+			name: "redis driver - no connection key needed (localhost defaults)",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_DRIVER", "redis")
 			},
 			expectError: false,
 		},
 		{
-			name: "redis store - with URL",
+			name: "redis driver - with URL",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_DRIVER", "redis")
 				cfg.Provide().Set("CACHE_REDIS_URL", "redis://localhost:6379/0")
 			},
 			expectError: false,
 		},
 		{
-			name: "redis store - valid database number (0 allowed)",
+			name: "redis driver - valid database number (0 allowed)",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_DRIVER", "redis")
 				cfg.Provide().Set("CACHE_REDIS_DATABASE", "0")
 			},
 			expectError: false,
 		},
 		{
-			name: "redis store - invalid database number",
+			name: "redis driver - invalid database number",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_DRIVER", "redis")
 				cfg.Provide().Set("CACHE_REDIS_DATABASE", "-1")
 			},
 			expectError: true,
 			errorString: "non-negative",
 		},
 		{
-			name: "redis store - invalid port",
+			name: "redis driver - invalid port",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "redis")
+				cfg.Provide().Set("CACHE_DRIVER", "redis")
 				cfg.Provide().Set("CACHE_REDIS_PORT", "99999")
 			},
 			expectError: true,
 			errorString: "port must be between 1 and 65535",
 		},
-		// Only memory and redis have registered drivers. Every other CACHE_STORE
-		// value is now rejected by validation instead of silently using memory.
-		// The postgres case is set up fully (host/db/user) to prove the rejection
-		// comes from the store whitelist, not from a missing per-store key.
+		// Only memory, redis, badger and bbolt drivers are registered. Every
+		// other CACHE_DRIVER value is rejected by validation instead of
+		// panicking on first use. The postgres case is set up fully
+		// (host/db/user) to prove the rejection comes from the driver
+		// registry, not from a missing key.
 		{
-			name: "postgres store - rejected (not implemented)",
+			name: "postgres driver - rejected (not implemented)",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "postgres")
+				cfg.Provide().Set("CACHE_DRIVER", "postgres")
 				cfg.Provide().Set("CACHE_DB_HOST", "localhost")
 				cfg.Provide().Set("CACHE_DB_DATABASE", "cache_db")
 				cfg.Provide().Set("CACHE_DB_USERNAME", "user")
 			},
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "mysql store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "mysql") },
+			name:        "mysql driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "mysql") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "memcache store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "memcache") },
+			name:        "memcache driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "memcache") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "mongodb store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "mongodb") },
+			name:        "mongodb driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "mongodb") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "dynamodb store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "dynamodb") },
+			name:        "dynamodb driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "dynamodb") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "s3 store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "s3") },
+			name:        "s3 driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "s3") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "sqlite3 store - rejected (not implemented)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "sqlite3") },
+			name:        "sqlite3 driver - rejected (not implemented)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "sqlite3") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
-			name:        "badger store - accepted (embedded driver)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "badger") },
+			name:        "badger driver - accepted (embedded driver)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "badger") },
 			expectError: false,
 		},
 		{
-			name:        "bbolt store - accepted (embedded driver)",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "bbolt") },
+			name:        "bbolt driver - accepted (embedded driver)",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "bbolt") },
 			expectError: false,
 		},
 		{
-			name:        "invalid store type - rejected",
-			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_STORE", "invalid_store") },
+			name:        "invalid driver - rejected",
+			configFunc:  func(cfg *config.Module) { cfg.Provide().Set("CACHE_DRIVER", "invalid_store") },
 			expectError: true,
-			errorString: "value must be one of",
+			errorString: "is not registered",
 		},
 		{
 			name: "valid TTL configuration",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "memory")
+				cfg.Provide().Set("CACHE_DRIVER", "memory")
 				cfg.Provide().Set("CACHE_TTL", "5m")
 			},
 			expectError: false,
@@ -147,7 +149,7 @@ func TestCacheModuleValidation(t *testing.T) {
 		{
 			name: "invalid TTL configuration",
 			configFunc: func(cfg *config.Module) {
-				cfg.Provide().Set("CACHE_STORE", "memory")
+				cfg.Provide().Set("CACHE_DRIVER", "memory")
 				cfg.Provide().Set("CACHE_TTL", "-5m") // Negative TTL
 			},
 			expectError: true,
@@ -179,10 +181,8 @@ func TestCacheModuleValidation(t *testing.T) {
 					return
 				}
 
-				if tt.errorString != "" {
-					if err.Error() == "" {
-						t.Errorf("expected error message to contain '%s' but got empty message", tt.errorString)
-					}
+				if tt.errorString != "" && !strings.Contains(err.Error(), tt.errorString) {
+					t.Errorf("expected error message to contain %q but got: %v", tt.errorString, err)
 				}
 
 				t.Logf("Got expected error: %v", err)

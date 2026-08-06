@@ -74,16 +74,15 @@ func main() {
 		// prefix dropped: CACHE_TTL is WithTTL, CACHE_REDIS_HOST is
 		// WithRedisHost.
 		Cache: []goecache.Option{
-			// The memory driver keeps this example runnable without Redis. A
-			// store named after a registered driver uses that driver, so
-			// goecache.WithStore("redis") is all a Redis-backed cache needs.
-			goecache.WithStore("memory"),
+			// The memory driver keeps this example runnable without Redis;
+			// goecache.WithDriver("redis") is all a Redis-backed cache needs.
+			goecache.WithDriver("memory"),
 			goecache.WithPrefix("example06"),
 			goecache.WithTTL(5 * time.Minute),
 
 			// A production setup points at Redis the same way:
 			//
-			//	goecache.WithStore("redis"),
+			//	goecache.WithDriver("redis"),
 			//	goecache.WithRedisHost("redis.internal"),
 			//	goecache.WithRedisPort(6380),
 			//

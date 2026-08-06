@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"go.oease.dev/goe/v2/contract"
 )
 
 // Option configures the cache module from Go code.
@@ -15,9 +17,7 @@ import (
 //
 // The naming rule is mechanical: every CACHE_* environment key is exposed as
 // With<Key> with the CACHE_ prefix dropped and the rest CamelCased —
-// CACHE_REDIS_POOL_SIZE becomes WithRedisPoolSize. Store-scoped keys
-// (CACHE_{NAME}_DRIVER and friends) take the store name as their first
-// argument: WithStoreDriver("sessions", "redis") is CACHE_sessions_DRIVER.
+// CACHE_REDIS_POOL_SIZE becomes WithRedisPoolSize.
 //
 // Credentials are the deliberate exception. CACHE_REDIS_URL (which can embed
 // user:pass), CACHE_REDIS_USERNAME and CACHE_REDIS_PASSWORD have no option:
@@ -27,8 +27,8 @@ import (
 // the credentials.
 //
 // Under the hood options become a configuration overlay, so custom drivers
-// registered through Extend read code-configured values exactly as they read
-// environment variables — no driver changes required.
+// registered through WithCustomDriver read code-configured values exactly as
+// they read environment variables — no driver changes required.
 //
 // Options are applied in the order given, so the last write wins. If any
 // option returns an error, every option is discarded, the environment-only
@@ -41,15 +41,19 @@ type Option func(*settings) error
 // unexported: options are the only way in, which is what keeps credential
 // keys out of reach of code configuration.
 type settings struct {
-	overrides map[string]any
+	overrides     map[string]any
+	customDrivers map[string]contract.CacheStoreFactory
 }
 
-// resolveOverrides applies opts and returns the configuration overlay. It
-// reports every option error rather than stopping at the first, so a
-// developer sees all of their mistakes in one startup failure instead of one
-// per run.
-func resolveOverrides(opts []Option) (map[string]any, []error) {
-	s := &settings{overrides: make(map[string]any)}
+// resolveOverrides applies opts and returns the configuration overlay plus
+// any custom driver registrations. It reports every option error rather than
+// stopping at the first, so a developer sees all of their mistakes in one
+// startup failure instead of one per run.
+func resolveOverrides(opts []Option) (map[string]any, map[string]contract.CacheStoreFactory, []error) {
+	s := &settings{
+		overrides:     make(map[string]any),
+		customDrivers: make(map[string]contract.CacheStoreFactory),
+	}
 
 	var errs []error
 	for i, opt := range opts {
@@ -61,26 +65,12 @@ func resolveOverrides(opts []Option) (map[string]any, []error) {
 		}
 	}
 
-	return s.overrides, errs
+	return s.overrides, s.customDrivers, errs
 }
 
-// WithStore sets the default store name. Replaces CACHE_STORE.
-//
-// A store named after a registered driver ("memory", "redis", or a custom
-// driver added through Extend) uses that driver directly; any other name
-// needs its driver configured with WithStoreDriver or WithDriver.
-func WithStore(name string) Option {
-	return func(s *settings) error {
-		if name == "" {
-			return errors.New("WithStore: name must not be empty")
-		}
-		s.overrides["CACHE_STORE"] = name
-		return nil
-	}
-}
-
-// WithDriver sets the driver used by stores that have no store-specific
-// driver configured. Replaces CACHE_DRIVER.
+// WithDriver selects the cache backend: "memory" (the default), "redis",
+// "badger", "bbolt", or a custom driver registered with WithCustomDriver.
+// Replaces CACHE_DRIVER.
 func WithDriver(driver string) Option {
 	return func(s *settings) error {
 		if driver == "" {
@@ -91,8 +81,27 @@ func WithDriver(driver string) Option {
 	}
 }
 
-// WithPrefix sets the key prefix for all stores. Replaces CACHE_PREFIX,
-// which itself falls back to APP_NAME.
+// WithCustomDriver registers a custom cache backend under name so that
+// WithDriver(name) / CACHE_DRIVER=name can select it. The factory reads its
+// settings through the same layered configuration every built-in driver
+// uses, so code-configured values and environment variables are
+// indistinguishable to it. Registering a builtin name ("memory", "redis",
+// "badger", "bbolt") replaces that driver. Replaces CacheManager.Extend.
+func WithCustomDriver(name string, factory contract.CacheStoreFactory) Option {
+	return func(s *settings) error {
+		if name == "" {
+			return errors.New("WithCustomDriver: name must not be empty")
+		}
+		if factory == nil {
+			return errors.New("WithCustomDriver: factory must not be nil")
+		}
+		s.customDrivers[name] = factory
+		return nil
+	}
+}
+
+// WithPrefix sets the cache key prefix. Replaces CACHE_PREFIX, which itself
+// falls back to APP_NAME.
 func WithPrefix(prefix string) Option {
 	return func(s *settings) error {
 		if prefix == "" {
@@ -103,7 +112,8 @@ func WithPrefix(prefix string) Option {
 	}
 }
 
-// WithTTL sets the default cache TTL. Replaces CACHE_TTL.
+// WithTTL sets the default cache TTL, applied whenever a caller passes a
+// ttl of 0 to Set, Add or Remember. Replaces CACHE_TTL.
 func WithTTL(ttl time.Duration) Option {
 	return func(s *settings) error {
 		if ttl <= 0 {
@@ -311,51 +321,6 @@ func WithBboltTimeout(d time.Duration) Option {
 func WithBboltReset(reset bool) Option {
 	return func(s *settings) error {
 		s.overrides["CACHE_BBOLT_RESET"] = reset
-		return nil
-	}
-}
-
-// WithStoreDriver sets the driver for a named store, enabling multi-store
-// setups from code. Replaces CACHE_{store}_DRIVER.
-func WithStoreDriver(store, driver string) Option {
-	return func(s *settings) error {
-		if store == "" {
-			return errors.New("WithStoreDriver: store must not be empty")
-		}
-		if driver == "" {
-			return errors.New("WithStoreDriver: driver must not be empty")
-		}
-		s.overrides[fmt.Sprintf("CACHE_%s_DRIVER", store)] = driver
-		return nil
-	}
-}
-
-// WithStorePrefix sets the key prefix for a named store. Replaces
-// CACHE_{store}_PREFIX.
-func WithStorePrefix(store, prefix string) Option {
-	return func(s *settings) error {
-		if store == "" {
-			return errors.New("WithStorePrefix: store must not be empty")
-		}
-		if prefix == "" {
-			return errors.New("WithStorePrefix: prefix must not be empty")
-		}
-		s.overrides[fmt.Sprintf("CACHE_%s_PREFIX", store)] = prefix
-		return nil
-	}
-}
-
-// WithStoreTTL sets the default TTL for a named store. Replaces
-// CACHE_{store}_TTL.
-func WithStoreTTL(store string, ttl time.Duration) Option {
-	return func(s *settings) error {
-		if store == "" {
-			return errors.New("WithStoreTTL: store must not be empty")
-		}
-		if ttl <= 0 {
-			return fmt.Errorf("WithStoreTTL: %v must be positive", ttl)
-		}
-		s.overrides[fmt.Sprintf("CACHE_%s_TTL", store)] = ttl
 		return nil
 	}
 }

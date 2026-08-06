@@ -94,16 +94,16 @@ func HTTP() contract.HTTPKernel {
 	return instance.http
 }
 
-// Cache returns the global cache manager instance
-func Cache() contract.CacheManager {
+// Cache returns the global cache instance
+func Cache() contract.Cache {
 	instance.mu.RLock()
 	defer instance.mu.RUnlock()
 
-	if instance.cacheManager == nil {
+	if instance.cacheProvider == nil {
 		panic("Cache module not initialized. Set WithCache: true in goe.New() options")
 	}
 
-	return instance.cacheManager
+	return instance.cacheProvider()
 }
 
 // DB returns the global DB instance

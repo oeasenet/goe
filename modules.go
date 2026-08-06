@@ -53,12 +53,13 @@ func (r *moduleRegistry) addCache() {
 
 	if r.opt.WithCache {
 		r.cache = cache.NewModule(instance.config, instance.logger, r.opt.Cache...)
-		instance.cacheManager = r.cache.Provide()
+		// A method value, not a call: the cache is built on first use so
+		// driver connections open only after startup validation has passed.
+		instance.cacheProvider = r.cache.Provide
 
 		instance.logger.Debug("Registering Cache module")
 
 		r.fxOptions = append(r.fxOptions,
-			fx.Provide(func() contract.CacheManager { return instance.cacheManager }),
 			fx.Module(r.cache.Name(),
 				fx.Invoke(func(lc fx.Lifecycle) {
 					lc.Append(fx.Hook{

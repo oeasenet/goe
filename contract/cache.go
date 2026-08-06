@@ -89,44 +89,7 @@ type CacheStore interface {
 	Close() error
 }
 
-// CacheManager manages multiple cache stores
-type CacheManager interface {
-	// Store returns a cache instance by name
-	Store(name ...string) Cache
-
-	// Driver returns the default driver name
-	Driver() string
-
-	// Extend registers a custom cache driver
-	Extend(driver string, factory CacheStoreFactory)
-}
-
-// CacheStoreFactory creates cache store instances
+// CacheStoreFactory creates cache store instances. Custom backends register
+// a factory through cache.WithCustomDriver and are selected with
+// CACHE_DRIVER / cache.WithDriver like any builtin.
 type CacheStoreFactory func(config Config) (CacheStore, error)
-
-// CacheConfig defines cache-specific configuration
-type CacheConfig interface {
-	// DefaultStore returns the default cache store name
-	DefaultStore() string
-
-	// Stores returns all configured stores
-	Stores() map[string]CacheStoreConfig
-
-	// Prefix returns the cache key prefix
-	Prefix() string
-}
-
-// CacheStoreConfig defines configuration for a cache store
-type CacheStoreConfig interface {
-	// Driver returns the driver name (memory, redis, etc.)
-	Driver() string
-
-	// Connection returns connection parameters
-	Connection() map[string]any
-
-	// Prefix returns store-specific prefix
-	Prefix() string
-
-	// TTL returns default TTL
-	TTL() time.Duration
-}

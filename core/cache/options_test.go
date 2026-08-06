@@ -152,41 +152,35 @@ func TestOptions_NilOptionsSkipped(t *testing.T) {
 	assert.Equal(t, time.Minute, m.config.GetDuration("CACHE_TTL"))
 }
 
-func TestOptions_WithStoreSelectsRegisteredDriver(t *testing.T) {
-	// WithStore("redis") must mean "use the redis driver", not silently fall
-	// back to memory because no CACHE_DRIVER was configured.
-	m := NewModule(newMapConfig(), &nopLogger{}, WithStore("redis"))
-	assert.Equal(t, "redis", m.manager.Driver())
+func TestDriverResolution_DefaultsToMemory(t *testing.T) {
+	m := NewModule(newMapConfig(), &nopLogger{})
+	assert.Equal(t, "memory", m.driverName())
 	require.NoError(t, m.ValidateConfig())
 }
 
-func TestDriverResolution_EnvStoreNamingRegisteredDriver(t *testing.T) {
-	// The same resolution applies to the environment: CACHE_STORE=redis with
-	// no CACHE_DRIVER uses the redis driver.
-	env := newMapConfig()
-	env.Set("CACHE_STORE", "redis")
-
-	m := NewModule(env, &nopLogger{})
-	assert.Equal(t, "redis", m.manager.Driver())
+func TestDriverResolution_WithDriverSelectsDriver(t *testing.T) {
+	m := NewModule(newMapConfig(), &nopLogger{}, WithDriver("redis"))
+	assert.Equal(t, "redis", m.driverName())
+	require.NoError(t, m.ValidateConfig())
 }
 
-func TestDriverResolution_ExplicitDriverStillWins(t *testing.T) {
+func TestDriverResolution_EnvDriverSelectsDriver(t *testing.T) {
 	env := newMapConfig()
-	env.Set("CACHE_STORE", "redis")
-	env.Set("CACHE_DRIVER", "memory")
+	env.Set("CACHE_DRIVER", "redis")
 
 	m := NewModule(env, &nopLogger{})
-	assert.Equal(t, "memory", m.manager.Driver())
+	assert.Equal(t, "redis", m.driverName())
+	require.NoError(t, m.ValidateConfig())
 }
 
-func TestDriverResolution_UnknownStoreFallsBackToMemory(t *testing.T) {
+func TestDriverResolution_UnknownDriverRejected(t *testing.T) {
 	env := newMapConfig()
-	env.Set("CACHE_STORE", "bogus")
+	env.Set("CACHE_DRIVER", "bogus")
 
 	m := NewModule(env, &nopLogger{})
-	assert.Equal(t, "memory", m.manager.Driver())
-	// ...but validation still rejects the unresolvable store name.
-	assert.Error(t, m.ValidateConfig())
+	err := m.ValidateConfig()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "is not registered")
 }
 
 func TestOptions_ErrorsFallBackToEnvironmentOnly(t *testing.T) {
@@ -211,7 +205,7 @@ func TestOptions_ErrorsFallBackToEnvironmentOnly(t *testing.T) {
 
 func TestOptions_AllErrorsReportedTogether(t *testing.T) {
 	m := NewModule(newMapConfig(), &nopLogger{},
-		WithStore(""),
+		WithDriver(""),
 		WithRedisPort(70000),
 	)
 	err := m.ValidateConfig()
@@ -225,7 +219,6 @@ func TestOptions_Validation(t *testing.T) {
 		name string
 		opt  Option
 	}{
-		{"WithStore empty", WithStore("")},
 		{"WithDriver empty", WithDriver("")},
 		{"WithPrefix empty", WithPrefix("")},
 		{"WithTTL zero", WithTTL(0)},
@@ -239,14 +232,12 @@ func TestOptions_Validation(t *testing.T) {
 		{"WithRedisMasterName empty", WithRedisMasterName("")},
 		{"WithRedisClientName empty", WithRedisClientName("")},
 		{"WithRedisPoolSize zero", WithRedisPoolSize(0)},
-		{"WithStoreDriver empty store", WithStoreDriver("", "redis")},
-		{"WithStoreDriver empty driver", WithStoreDriver("sessions", "")},
-		{"WithStorePrefix empty store", WithStorePrefix("", "p:")},
-		{"WithStoreTTL zero ttl", WithStoreTTL("sessions", 0)},
+		{"WithCustomDriver empty name", WithCustomDriver("", func(contract.Config) (contract.CacheStore, error) { return &probeStore{}, nil })},
+		{"WithCustomDriver nil factory", WithCustomDriver("probe", nil)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, errs := resolveOverrides([]Option{tc.opt})
+			_, _, errs := resolveOverrides([]Option{tc.opt})
 			assert.NotEmpty(t, errs)
 		})
 	}
@@ -254,7 +245,7 @@ func TestOptions_Validation(t *testing.T) {
 
 func TestOptions_RedisConnectionKeysApply(t *testing.T) {
 	m := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("redis"),
+		WithDriver("redis"),
 		WithRedisHost("redis.internal"),
 		WithRedisPort(6380),
 		WithRedisDatabase(2),
@@ -279,64 +270,62 @@ func TestOptions_RedisConnectionKeysApply(t *testing.T) {
 }
 
 func TestOptions_CustomDriverSeesCodeConfig(t *testing.T) {
-	// A store named after a registered custom driver must use that driver,
-	// and its factory must receive the merged (env + code) configuration.
+	// A custom driver selected with WithDriver must be used, and its factory
+	// must receive the merged (env + code) configuration.
 	env := newMapConfig()
 	env.Set("CACHE_PREFIX", "envprefix")
 
-	m := NewModule(env, &nopLogger{},
-		WithStore("probe"),
-		WithRedisHost("code-host"),
-	)
-
 	var seen contract.Config
-	m.Provide().Extend("probe", func(config contract.Config) (contract.CacheStore, error) {
-		seen = config
-		return &probeStore{}, nil
-	})
-
-	store := m.Provide().Store()
-	require.NotNil(t, store)
-	require.NotNil(t, seen, "factory was not invoked")
-	assert.Equal(t, "code-host", seen.GetString("CACHE_REDIS_HOST"))
-	assert.Equal(t, "envprefix", seen.GetString("CACHE_PREFIX"))
-}
-
-func TestOptions_StoreScopedSettings(t *testing.T) {
-	m := NewModule(newMapConfig(), &nopLogger{},
-		WithStore("sessions"),
-		WithStoreDriver("sessions", "memory"),
-		WithStorePrefix("sessions", "sess:"),
-		WithStoreTTL("sessions", 5*time.Minute),
+	m := NewModule(env, &nopLogger{},
+		WithDriver("probe"),
+		WithRedisHost("code-host"),
+		WithCustomDriver("probe", func(config contract.Config) (contract.CacheStore, error) {
+			seen = config
+			return &probeStore{}, nil
+		}),
 	)
 	require.NoError(t, m.ValidateConfig())
 
-	assert.Equal(t, "memory", m.manager.Driver())
-	assert.Equal(t, "memory", m.config.GetString("CACHE_sessions_DRIVER"))
-	assert.Equal(t, "sess:", m.config.GetString("CACHE_sessions_PREFIX"))
-	assert.Equal(t, 5*time.Minute, m.config.GetDuration("CACHE_sessions_TTL"))
-
-	// The store is real and usable with the memory driver.
-	store := m.Provide().Store()
-	require.NotNil(t, store)
+	c := m.Provide()
+	require.NotNil(t, c)
+	require.NotNil(t, seen, "factory was not invoked")
+	assert.Equal(t, "code-host", seen.GetString("CACHE_REDIS_HOST"))
+	assert.Equal(t, "envprefix", seen.GetString("CACHE_PREFIX"))
+	assert.Equal(t, "envprefix", c.GetPrefix())
 }
 
-func TestValidateConfig_NamedStoreWithConfiguredDriverPasses(t *testing.T) {
-	// Environment equivalent of the store-scoped code setup: a named store
-	// whose driver key resolves to a registered driver is valid.
-	env := newMapConfig()
-	env.Set("CACHE_STORE", "sessions")
-	env.Set("CACHE_sessions_DRIVER", "memory")
-
-	m := NewModule(env, &nopLogger{})
-	assert.NoError(t, m.ValidateConfig())
-}
-
-func TestValidateConfig_ConfiguredDriverMustBeRegistered(t *testing.T) {
-	env := newMapConfig()
-	env.Set("CACHE_STORE", "sessions")
-	env.Set("CACHE_sessions_DRIVER", "not-a-driver")
-
-	m := NewModule(env, &nopLogger{})
+func TestOptions_CustomDriverDiscardedOnOptionError(t *testing.T) {
+	// A failing option discards every option, including custom driver
+	// registrations — otherwise a half-applied configuration could serve a
+	// code-registered driver against environment-only settings.
+	m := NewModule(newMapConfig(), &nopLogger{},
+		WithCustomDriver("probe", func(contract.Config) (contract.CacheStore, error) { return &probeStore{}, nil }),
+		WithRedisPort(-1),
+	)
+	_, registered := m.drivers["probe"]
+	assert.False(t, registered)
 	assert.Error(t, m.ValidateConfig())
+}
+
+func TestValidateConfig_RemovedMultiStoreKeysRejected(t *testing.T) {
+	t.Run("CACHE_STORE", func(t *testing.T) {
+		env := newMapConfig()
+		env.Set("CACHE_STORE", "redis")
+
+		m := NewModule(env, &nopLogger{})
+		err := m.ValidateConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CACHE_STORE was removed")
+		assert.Contains(t, err.Error(), "CACHE_DRIVER=redis")
+	})
+
+	t.Run("per-store driver key", func(t *testing.T) {
+		env := newMapConfig()
+		env.Set("CACHE_sessions_DRIVER", "redis")
+
+		m := NewModule(env, &nopLogger{})
+		err := m.ValidateConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "per-store driver keys were removed")
+	})
 }
