@@ -40,6 +40,18 @@
 // keeps meaning "no expiration". Forever and RememberForever always store
 // without expiration, and Increment/Decrement counters never expire.
 //
+// # Typed access
+//
+// Package-level generics remove the pointer dance of the contract.Cache
+// methods (Go interfaces cannot carry type-parameterized methods):
+//
+//	user, found, err := cache.Get[User](c, "user:1")
+//	stats, err := cache.Remember(c, "stats", time.Minute, computeStats)
+//
+// Get and Pull report found=false with a zero value on a miss; GetOr
+// substitutes a fallback; Remember keeps the untyped method's singleflight
+// deduplication and default-TTL handling.
+//
 // # Custom drivers
 //
 // Register additional backends with cache.WithCustomDriver and select them

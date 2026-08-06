@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.oease.dev/goe/v2/contract"
+	goecache "go.oease.dev/goe/v2/core/cache"
 )
 
 const (
@@ -185,20 +186,21 @@ func (s *TodoService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Stats returns aggregate statistics, cached for performance.
+// Stats returns aggregate statistics, cached for performance. The typed
+// generic helper replaces the pointer-binding Remember call; the untyped
+// method remains available and both styles share the same cache.
 func (s *TodoService) Stats(ctx context.Context) (*TodoStats, error) {
-	var stats TodoStats
-	err := s.cache.Remember(cachePrefix+"stats", &stats, cacheTTL, func() (any, error) {
+	stats, err := goecache.Remember(s.cache, cachePrefix+"stats", cacheTTL, func() (TodoStats, error) {
 		s.logger.Debug("Cache miss for stats, calculating from database")
 
 		total, err := s.collection().CountDocuments(ctx, bson.M{})
 		if err != nil {
-			return nil, err
+			return TodoStats{}, err
 		}
 
 		completed, err := s.collection().CountDocuments(ctx, bson.M{"completed": true})
 		if err != nil {
-			return nil, err
+			return TodoStats{}, err
 		}
 
 		return TodoStats{
