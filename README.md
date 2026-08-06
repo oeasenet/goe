@@ -111,6 +111,7 @@ go run main.go
 | 🧩 | **Module System** | Managed lifecycles (`OnStart`/`OnStop`), config validation, clean boundaries |
 | 🛡️ | **Contracts** | Interface-driven design — swap implementations, mock in tests |
 | ⚡ | **Concurrency Safe** | Singleflight cache protection, atomic operations, race-free by default |
+| 🧬 | **Go 1.26 Baseline** | Modern idioms throughout (generics, `WaitGroup.Go`, iterators); builds get the Green Tea GC and container-aware `GOMAXPROCS` automatically |
 
 <br/>
 

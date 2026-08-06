@@ -44,6 +44,16 @@
 
 ---
 
+## Go Toolchain Follow-ups
+
+- **`encoding/json/v2`**: becomes the default `encoding/json` backend in Go
+  1.27 — evaluate the cache serialization path and webresult once GOE's
+  baseline moves to 1.27 (it is GOEXPERIMENT-only on 1.26).
+- **Goroutine-leak profile**: experimental in 1.26
+  (`GOEXPERIMENT=goroutineleakprofile`), aimed at on-by-default in 1.27 —
+  consider surfacing `/debug/pprof/goroutineleak` alongside the existing
+  observability endpoints when it stabilizes.
+
 ## Gap Analysis
 
 ### Critical (Needed by ~95% of Apps)
