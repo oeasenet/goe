@@ -120,8 +120,8 @@ func TestBundledValidator_NonStructErrorsPassThrough(t *testing.T) {
 	v := newStructValidator()
 	err := v.Validate(42)
 	require.Error(t, err)
-	var ve *ValidationError
-	assert.False(t, errors.As(err, &ve))
+	_, matched := errors.AsType[*ValidationError](err)
+	assert.False(t, matched)
 }
 
 // newErrorHandlerApp builds a fiber app wired exactly like GOE's kernel:
