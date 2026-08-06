@@ -3,6 +3,7 @@ package job
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"go.oease.dev/goe/v2/contract"
@@ -75,10 +76,8 @@ func WithRedisHosts(hosts ...string) Option {
 		if len(hosts) == 0 {
 			return errors.New("WithRedisHosts: at least one host is required")
 		}
-		for _, h := range hosts {
-			if h == "" {
-				return errors.New("WithRedisHosts: host must not be empty")
-			}
+		if slices.Contains(hosts, "") {
+			return errors.New("WithRedisHosts: host must not be empty")
 		}
 		s.cfg.RedisHosts = hosts
 		s.cfg.RedisAddr = hosts[0]

@@ -33,7 +33,6 @@ func serveEndpoints(t *testing.T, bodies map[string]string) {
 
 	mux := http.NewServeMux()
 	for path, body := range bodies {
-		body := body
 		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(body))
 		})

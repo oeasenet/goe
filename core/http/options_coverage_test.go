@@ -42,8 +42,8 @@ func TestOptionCoverage(t *testing.T) {
 	ctors := optionConstructors(t)
 	require.NotEmpty(t, ctors, "no With* option constructors found; the source scan is broken")
 
-	assertFieldsWrapped(t, reflect.TypeOf(fiber.Config{}), ctors, fiberConfigSkipList, "fiber.Config")
-	assertFieldsWrapped(t, reflect.TypeOf(fiber.ListenConfig{}), ctors, listenConfigSkipList, "fiber.ListenConfig")
+	assertFieldsWrapped(t, reflect.TypeFor[fiber.Config](), ctors, fiberConfigSkipList, "fiber.Config")
+	assertFieldsWrapped(t, reflect.TypeFor[fiber.ListenConfig](), ctors, listenConfigSkipList, "fiber.ListenConfig")
 }
 
 func assertFieldsWrapped(
@@ -55,8 +55,7 @@ func assertFieldsWrapped(
 ) {
 	t.Helper()
 
-	for i := range typ.NumField() {
-		field := typ.Field(i)
+	for field := range typ.Fields() {
 		if !field.IsExported() {
 			continue
 		}

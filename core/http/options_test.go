@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"net"
 	"net/http"
@@ -136,9 +137,7 @@ func (c *fakeConfig) All() map[string]any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := make(map[string]any, len(c.values))
-	for k, v := range c.values {
-		out[k] = v
-	}
+	maps.Copy(out, c.values)
 	return out
 }
 

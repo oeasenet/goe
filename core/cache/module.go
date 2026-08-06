@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -53,9 +54,7 @@ func NewModule(config contract.Config, logger contract.Logger, opts ...Option) *
 
 	drivers := builtinDrivers()
 	if len(optErrs) == 0 {
-		for name, factory := range customDrivers {
-			drivers[name] = factory
-		}
+		maps.Copy(drivers, customDrivers)
 	}
 
 	return &Module{

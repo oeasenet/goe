@@ -132,7 +132,6 @@ func (f *Fetcher) Fetch(ctx context.Context, providers ...Provider) ([]string, e
 	results := make([][]string, len(providers))
 	group, groupCtx := errgroup.WithContext(ctx)
 	for i, provider := range providers {
-		i, provider := i, provider
 		group.Go(func() error {
 			ranges, err := fetchProvider(groupCtx, client, provider)
 			if err != nil {

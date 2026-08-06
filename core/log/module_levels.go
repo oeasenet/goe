@@ -86,7 +86,7 @@ func parseModuleLevels(raw string) (map[string]zapcore.Level, []string) {
 	result := make(map[string]zapcore.Level)
 	var invalid []string
 
-	for _, pair := range strings.Split(raw, ",") {
+	for pair := range strings.SplitSeq(raw, ",") {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
 			continue

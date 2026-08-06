@@ -244,9 +244,9 @@ func createSentinelPool(rawURL string, config *Config) ([]Pool, string, error) {
 		firstAt := strings.Index(rest, "@")
 		userinfo := rest[:firstAt]
 		rest = rest[firstAt+1:]
-		if colonIdx := strings.Index(userinfo, ":"); colonIdx != -1 {
-			username = userinfo[:colonIdx]
-			password = userinfo[colonIdx+1:]
+		if before, after, ok := strings.Cut(userinfo, ":"); ok {
+			username = before
+			password = after
 		} else {
 			username = userinfo
 		}
@@ -334,9 +334,9 @@ func createClusterPool(rawURL string, config *Config) ([]Pool, string, error) {
 	if atIdx := strings.Index(rest, "@"); atIdx != -1 {
 		userinfo := rest[:atIdx]
 		rest = rest[atIdx+1:]
-		if colonIdx := strings.Index(userinfo, ":"); colonIdx != -1 {
-			username = userinfo[:colonIdx]
-			password = userinfo[colonIdx+1:]
+		if before, after, ok := strings.Cut(userinfo, ":"); ok {
+			username = before
+			password = after
 		} else {
 			username = userinfo
 		}

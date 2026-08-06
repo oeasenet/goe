@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"go.oease.dev/goe/v2/contract"
@@ -183,10 +184,8 @@ func WithRedisAddrs(addrs ...string) Option {
 		if len(addrs) == 0 {
 			return errors.New("WithRedisAddrs: at least one address is required")
 		}
-		for _, a := range addrs {
-			if a == "" {
-				return errors.New("WithRedisAddrs: address must not be empty")
-			}
+		if slices.Contains(addrs, "") {
+			return errors.New("WithRedisAddrs: address must not be empty")
 		}
 		s.overrides["CACHE_REDIS_ADDRS"] = addrs
 		return nil
