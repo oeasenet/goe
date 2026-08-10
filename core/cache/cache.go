@@ -15,6 +15,7 @@ import (
 // cache implements the Cache interface
 type cache struct {
 	store      contract.CacheStore
+	atomic     contract.AtomicCacheStore // non-nil when store supports native atomic ops
 	prefix     string
 	defaultTTL time.Duration
 	mu         sync.RWMutex
@@ -28,11 +29,16 @@ type cache struct {
 // "no expiration". Forever and RememberForever always store without
 // expiration regardless of the default.
 func New(store contract.CacheStore, prefix string, defaultTTL time.Duration) contract.Cache {
-	return &cache{
+	c := &cache{
 		store:      store,
 		prefix:     prefix,
 		defaultTTL: defaultTTL,
 	}
+	// Stores that carry the optional capability get the compound operations
+	// (Increment/Decrement, Add, Pull) executed natively by the backend,
+	// making them atomic across processes instead of per-process.
+	c.atomic, _ = store.(contract.AtomicCacheStore)
+	return c
 }
 
 // resolveTTL maps the caller's ttl to the effective expiration: 0 means the
@@ -221,7 +227,9 @@ func (c *cache) RememberForever(key string, value any, callback func() (any, err
 	return c.remember(key, value, 0, callback)
 }
 
-// Pull retrieves and removes a value from cache atomically.
+// Pull retrieves and removes a value from cache. On a native atomic store
+// the get-and-delete is one server-side step shared across processes; on
+// other stores it is TOCTOU-safe within this process only.
 func (c *cache) Pull(key string, value any) error {
 	// Validate that value is a pointer
 	rv := reflect.ValueOf(value)
@@ -229,8 +237,23 @@ func (c *cache) Pull(key string, value any) error {
 		return errors.New("value must be a non-nil pointer")
 	}
 
-	// Use exclusive lock for the entire get-then-delete operation
-	// to prevent TOCTOU race conditions.
+	// A store with native atomic support retrieves and deletes in one
+	// server-side step (atomic across processes). Note the key is consumed
+	// even when unmarshaling the returned bytes fails.
+	if c.atomic != nil {
+		data, err := c.atomic.GetDelete(c.prefixKey(key))
+		if err != nil {
+			return err
+		}
+		if data == nil {
+			// Cache miss is not an error, just return nil
+			return nil
+		}
+		return json.Unmarshal(data, value)
+	}
+
+	// Emulated path: exclusive lock for the entire get-then-delete operation
+	// to prevent TOCTOU race conditions within this process.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -255,11 +278,30 @@ func (c *cache) Pull(key string, value any) error {
 	return nil
 }
 
-// Add stores a value only if key doesn't exist
-// This is an atomic check-and-set operation to prevent race conditions.
+// Add stores a value only if key doesn't exist. On a native atomic store the
+// check-and-set is one server-side step shared across processes; on other
+// stores it is atomic within this process only.
 // A ttl of 0 uses the configured default TTL when there is one, otherwise
 // the value never expires.
 func (c *cache) Add(key string, value any, ttl time.Duration) error {
+	// A store with native atomic support performs the check-and-set
+	// server-side (atomic across processes); no local locking needed.
+	if c.atomic != nil {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		stored, err := c.atomic.SetIfNotExists(c.prefixKey(key), data, c.resolveTTL(ttl))
+		if err != nil {
+			return err
+		}
+		if !stored {
+			return errors.New("key already exists")
+		}
+		return nil
+	}
+
+	// Emulated path: atomic within this process only.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -281,15 +323,25 @@ func (c *cache) Add(key string, value any, ttl time.Duration) error {
 	return c.store.Set(c.prefixKey(key), marshaledData, c.resolveTTL(ttl))
 }
 
-// Increment increments an integer value
-// This is an atomic read-modify-write operation to prevent race conditions
+// Increment increments an integer value. On a native atomic store the
+// operation is one server-side command shared across processes, leaving an
+// existing key's expiration untouched; on other stores it is a
+// read-modify-write under a process-local lock and the counter never expires.
 func (c *cache) Increment(key string, value ...int64) (int64, error) {
 	increment := int64(1)
 	if len(value) > 0 {
 		increment = value[0]
 	}
 
-	// Use exclusive lock for the entire read-modify-write operation
+	// A store with native atomic support executes the whole operation
+	// server-side (atomic across processes) and keeps an existing key's
+	// expiration untouched; no local locking needed.
+	if c.atomic != nil {
+		return c.atomic.Increment(c.prefixKey(key), increment)
+	}
+
+	// Emulated path: exclusive lock for the entire read-modify-write
+	// operation, atomic within this process only.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -326,8 +378,9 @@ func (c *cache) Increment(key string, value ...int64) (int64, error) {
 
 	// Store back (directly to avoid re-acquiring lock).
 	// Note: TTL is set to 0 (no expiration) because CacheStore does not expose
-	// a method to query the current key's TTL. For TTL-sensitive counters,
-	// consider using the underlying store directly.
+	// a method to query the current key's TTL. Stores with native atomic
+	// support (contract.AtomicCacheStore) preserve the key's expiration
+	// instead of taking this path.
 	marshaledData, err := json.Marshal(newValue)
 	if err != nil {
 		return 0, err

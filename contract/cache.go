@@ -47,16 +47,29 @@ type Cache interface {
 	// Pull retrieves and removes a value from cache
 	// The value parameter must be a pointer to the type you want to retrieve
 	// Returns nil if the key doesn't exist (no error)
+	// With a store implementing AtomicCacheStore the get-and-delete is one
+	// server-side step, atomic across processes (the key is consumed even if
+	// unmarshaling fails); otherwise it is atomic within this process only
 	Pull(key string, value any) error
 
 	// Add stores a value only if key doesn't exist
 	// A ttl of 0 uses the module's configured default TTL when one is set
+	// With a store implementing AtomicCacheStore the check-and-set is one
+	// server-side step, atomic across processes; otherwise it is atomic
+	// within this process only
 	Add(key string, value any, ttl time.Duration) error
 
-	// Increment increments an integer value
+	// Increment atomically adds the delta (default 1) to the integer at key
+	// and returns the new value; a missing key counts as 0. With a store
+	// implementing AtomicCacheStore the operation is one server-side command,
+	// atomic across processes, and an existing key's expiration is left
+	// untouched — a counter seeded with Add(key, 0, window) expires with its
+	// window. Otherwise it is emulated under a process-local lock and the
+	// stored counter never expires
 	Increment(key string, value ...int64) (int64, error)
 
-	// Decrement decrements an integer value
+	// Decrement decrements an integer value; it is Increment with a negated
+	// delta and shares its atomicity and expiration semantics
 	Decrement(key string, value ...int64) (int64, error)
 
 	// Store returns the underlying cache store
@@ -87,6 +100,32 @@ type CacheStore interface {
 	// Close closes the storage and will stop any running garbage
 	// collectors and open connections.
 	Close() error
+}
+
+// AtomicCacheStore is an optional capability interface for CacheStore
+// implementations whose backend can execute the cache's compound operations
+// server-side, in a single step that stays atomic across processes.
+//
+// When the configured store implements it, the Cache built on top routes
+// Increment/Decrement, Add and Pull through these methods instead of the
+// default lock-emulated read-modify-write, which is atomic only within one
+// process. The builtin Redis driver implements it (INCRBY, SET NX, GETDEL);
+// custom drivers registered through cache.WithCustomDriver opt in by simply
+// implementing the methods on their store.
+type AtomicCacheStore interface {
+	// Increment atomically adds delta (which may be negative) to the integer
+	// stored at key and returns the new value. A missing key counts as 0 and
+	// the key it creates never expires; an existing key's expiration is left
+	// untouched. It fails when the current value is not an integer.
+	Increment(key string, delta int64) (int64, error)
+
+	// SetIfNotExists stores val for key only when the key does not already
+	// exist, reporting whether it stored. An exp of 0 means no expiration.
+	SetIfNotExists(key string, val []byte, exp time.Duration) (bool, error)
+
+	// GetDelete retrieves the value for key and deletes it in the same
+	// atomic step. `nil, nil` is returned when the key does not exist.
+	GetDelete(key string) ([]byte, error)
 }
 
 // CacheStoreFactory creates cache store instances. Custom backends register
