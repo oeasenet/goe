@@ -115,6 +115,16 @@ func TestCache_Add_NativeStore(t *testing.T) {
 		store.AssertExpectations(t)
 	})
 
+	t.Run("propagates marshal errors without touching the store", func(t *testing.T) {
+		store := &MockAtomicCacheStore{}
+		cache := New(store, "test", 0)
+
+		err := cache.Add("key", make(chan int), time.Minute)
+		assert.Error(t, err)
+
+		store.AssertNotCalled(t, "SetIfNotExists", mock.Anything, mock.Anything, mock.Anything)
+	})
+
 	t.Run("resolves ttl 0 to the configured default", func(t *testing.T) {
 		store := &MockAtomicCacheStore{}
 		cache := New(store, "test", 45*time.Minute)
