@@ -18,6 +18,22 @@ jobs:
                 os: [ ubuntu-latest ]
                 go-version: [ '1.26' ]
 
+        # Redis for the probed default-lane tests (core/lock, the cache redis
+        # driver): they run wherever Redis is reachable and skip where it is
+        # not, so providing it here keeps that coverage visible to CI and
+        # codecov. Everything that REQUIRES external services stays in the
+        # integration lane (make test_integration).
+        services:
+            redis:
+                image: redis:7-alpine
+                ports:
+                    - 6379:6379
+                options: >-
+                    --health-cmd "redis-cli ping"
+                    --health-interval 2s
+                    --health-timeout 3s
+                    --health-retries 15
+
         steps:
             -   name: Checkout code
                 uses: actions/checkout@v4

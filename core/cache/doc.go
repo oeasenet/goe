@@ -38,7 +38,9 @@
 // CACHE_TTL / cache.WithTTL set the expiration used when a caller passes
 // ttl == 0 to Set, Add or Remember. Without a configured default, ttl == 0
 // keeps meaning "no expiration". Forever and RememberForever always store
-// without expiration, and Increment/Decrement counters never expire.
+// without expiration. Keys created by Increment/Decrement never expire; what
+// happens to an existing key's expiration depends on the driver — see
+// Atomicity below.
 //
 // # Typed access
 //
@@ -51,6 +53,29 @@
 // Get and Pull report found=false with a zero value on a miss; GetOr
 // substitutes a fallback; Remember keeps the untyped method's singleflight
 // deduplication and default-TTL handling.
+//
+// # Atomicity
+//
+// Add, Pull and Increment/Decrement are compound operations. On a store that
+// implements contract.AtomicCacheStore — the builtin redis driver — each one
+// executes as a single server-side command (SET NX, GETDEL, INCRBY), making
+// it atomic across every process sharing the cache. Increment then leaves an
+// existing key's expiration untouched, so a counter seeded with
+//
+//	c.Add("attempts:"+id, 0, window) // ignore "key already exists"
+//	n, _ := c.Increment("attempts:" + id)
+//
+// expires with its window — the classic rate-limiter shape. GETDEL requires
+// Redis 6.2+, and the atomicity is per-key on a healthy shard: asynchronous
+// replication means a failover can lose the most recent writes.
+//
+// On the embedded drivers (memory, badger, bbolt) the same operations are
+// serialized with an in-process lock instead. That is just as correct there,
+// because the process owning an embedded store is its only writer — but the
+// emulated Increment cannot read a key's remaining TTL, so it stores the
+// counter without expiration. Custom drivers opt into the native path by
+// implementing contract.AtomicCacheStore on their store; the cache detects
+// the capability automatically.
 //
 // # Custom drivers
 //

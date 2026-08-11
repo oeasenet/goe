@@ -1,7 +1,10 @@
 package cache
 
 import (
+	"context"
+	"errors"
 	"net/url"
+	"time"
 
 	"github.com/gofiber/storage/redis/v3"
 	goredis "github.com/redis/go-redis/v9"
@@ -10,7 +13,34 @@ import (
 
 // RedisStoreFactory creates Fiber Redis store instances
 func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
-	return redis.New(buildRedisConfig(config)), nil
+	return &redisStore{Storage: redis.New(buildRedisConfig(config))}, nil
+}
+
+// redisStore wraps the Fiber Redis storage to expose the backend's native
+// atomic commands as the contract.AtomicCacheStore capability: INCRBY,
+// SET NX and GETDEL run server-side, keeping the cache's compound operations
+// atomic across every process that shares this Redis — the process-local
+// locks of the emulated path cannot give that. GetDelete needs Redis 6.2+.
+type redisStore struct {
+	*redis.Storage
+}
+
+var _ contract.AtomicCacheStore = (*redisStore)(nil)
+
+func (s *redisStore) Increment(key string, delta int64) (int64, error) {
+	return s.Conn().IncrBy(context.Background(), key, delta).Result()
+}
+
+func (s *redisStore) SetIfNotExists(key string, val []byte, exp time.Duration) (bool, error) {
+	return s.Conn().SetNX(context.Background(), key, val, exp).Result()
+}
+
+func (s *redisStore) GetDelete(key string) ([]byte, error) {
+	data, err := s.Conn().GetDel(context.Background(), key).Bytes()
+	if errors.Is(err, goredis.Nil) {
+		return nil, nil
+	}
+	return data, err
 }
 
 // buildRedisConfig maps CACHE_REDIS_* configuration onto the Fiber Redis

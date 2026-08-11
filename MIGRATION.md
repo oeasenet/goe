@@ -5,6 +5,36 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## v2.6.0
+
+The redis driver now executes the cache's compound operations — `Add`, `Pull`,
+`Increment`/`Decrement` — as single server-side commands (`SET NX`, `GETDEL`,
+`INCRBY`). Choosing redis means the cache is shared across processes, and the
+previous lock-emulated operations were only atomic within one process: two app
+replicas could lose increments or both consume the same `Pull`ed key. The
+embedded drivers (memory, badger, bbolt) are unchanged — their process is the
+store's only writer, so the in-process lock was already correct.
+
+| Change | Action needed |
+|---|---|
+| Redis `Increment`/`Decrement` use `INCRBY`: atomic across processes, and an existing key's TTL is now **preserved** (previously reset to "never expires") | None for typical code — counters seeded with `Add(key, 0, window)` now expire with the window, which is the standard rate-limiter pattern. Keys *created* by `Increment` still never expire. If you relied on `Increment` immortalizing a TTL'd key, re-store the value without a TTL instead |
+| Redis `Increment` on non-integer values returns Redis's error | Previously stored floats were truncated to int64 and strings rejected with `value is not a number`. Counters written by `Increment` were always integers, so this only affects keys that mixed `Set(float)` with `Increment` |
+| Redis `Pull` uses `GETDEL`: atomic consume across processes | Requires Redis 6.2+ (2021). The key is now consumed even when unmarshaling into the destination fails; previously a failed unmarshal left it in place |
+| Redis `Add` uses `SET NX`: atomic across processes | None — same semantics and same "key already exists" error |
+| New optional `contract.AtomicCacheStore` capability interface | None. Custom drivers may implement it on their store to get the native path; stores without it keep the emulated per-process behaviour |
+
+### Behaviour: compound cache operations are distributed-atomic on redis
+
+The lock inside the cache is process-local, so on a shared Redis the emulated
+`Increment` (get, add, set) under-counted when several replicas raced, `Add`
+could double-admit, and `Pull` could hand the same one-time value to two
+processes. Auth-shaped code — attempt lockouts, one-time codes — silently
+depended on running a single replica. The native commands close exactly that
+gap; the guarantee is per-key atomicity on a healthy shard, not durability
+(Redis replication is asynchronous, so a failover can drop the newest writes).
+
+---
+
 ## v2.5.0
 
 The cache module drops its multi-store layer the same way MongoDB dropped
