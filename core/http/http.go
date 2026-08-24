@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	fiberzap "github.com/gofiber/contrib/v3/zap"
@@ -108,9 +109,19 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 			"/.well-known/health",
 		},
 		Logger: accessLogger.GetLogger().Desugar(),
-		Fields: []string{"method", "status", "latency", "ip", "url"},
+		// route is the matched template (bounded cardinality — the field to
+		// group latency by), host serves per-domain slicing when one app
+		// answers many domains, bytesSent is the response size.
+		Fields: []string{"method", "status", "route", "host", "latency", "ip", "url", "bytesSent"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
-			fields := []zap.Field{zap.String("request_id", requestIDFrom(c, reqIDHeader))}
+			fields := []zap.Field{
+				// The log contract's duration unit is integer milliseconds.
+				// fiberzap's own latency is a human-readable string, and its
+				// timing is not reachable from FieldsFunc — fasthttp's
+				// request-start clock measures the same span.
+				zap.Int64("duration_ms", time.Since(c.RequestCtx().Time()).Milliseconds()),
+				zap.String("request_id", requestIDFrom(c, reqIDHeader)),
+			}
 			if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
 				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
 			}

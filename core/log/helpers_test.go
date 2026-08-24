@@ -144,19 +144,6 @@ func TestConvertFieldsToArgs(t *testing.T) {
 	assert.Equal(t, 42, result[3])
 }
 
-func TestFieldsToArgs(t *testing.T) {
-	fields := []zap.Field{
-		zap.String("key1", "value1"),
-		zap.Int("key2", 123),
-	}
-
-	result := fieldsToArgs(fields)
-
-	assert.Len(t, result, 4)
-	assert.Equal(t, "key1", result[0])
-	assert.Equal(t, "key2", result[2])
-}
-
 func TestConvertArgsToFields(t *testing.T) {
 	t.Run("even number of args", func(t *testing.T) {
 		args := []any{"key1", "value1", "key2", 42}

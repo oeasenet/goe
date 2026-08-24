@@ -68,6 +68,7 @@ func New(opts ...Options) contract.Application {
 		opt.WithMetrics = o.WithMetrics
 		opt.WithOTel = o.WithOTel
 		opt.HTTP = o.HTTP
+		opt.Log = o.Log
 		opt.Cache = o.Cache
 		opt.Job = o.Job
 		opt.Lock = o.Lock
@@ -311,7 +312,7 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	instance.app = app.New(appName, appVersion, environment)
 
 	// Create log module
-	logModule := log.NewModule(instance.config)
+	logModule := log.NewModule(instance.config, opt.Log...)
 	instance.logger = logModule.Provide()
 
 	// Build Fx options

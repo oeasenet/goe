@@ -8,6 +8,7 @@ import (
 	"go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/job"
 	"go.oease.dev/goe/v2/core/lock"
+	"go.oease.dev/goe/v2/core/log"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
 )
@@ -46,6 +47,20 @@ type Options struct {
 	//
 	// See the core/http package for the full option list.
 	HTTP []http.Option
+
+	// Log configures the log module from Go code. The log module is always
+	// enabled, so unlike the other module option slices this implies nothing.
+	//
+	// Options are applied after the environment, so anything set here wins
+	// over the matching APP_* variable. The main use is carrying an
+	// ldflags-stamped build version onto every JSON log line:
+	//
+	//	goe.New(goe.Options{
+	//	    Log: []log.Option{log.WithVersion(buildinfo.Version)},
+	//	})
+	//
+	// See the core/log package for the full option list.
+	Log []log.Option
 
 	// Cache configures the cache module from Go code instead of environment
 	// variables. A non-nil value implies WithCache, so the module does not

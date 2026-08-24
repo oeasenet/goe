@@ -2,12 +2,15 @@ package log
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/internal/configvalidator"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -75,7 +78,10 @@ func buildLogger(config contract.LoggerConfig, moduleOverrides map[string]zapcor
 	// Create console encoder for text format
 	var encoder zapcore.Encoder
 	if config.Format() == "json" {
-		encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder // No color in JSON
+		// JSON is the machine-readable path; the log contract (and most log
+		// tooling) expects lowercase levels there. Console output keeps the
+		// capitalized/colored levels for humans.
+		encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	} else {
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
@@ -244,19 +250,36 @@ func (l *zapLogger) With(keysAndValues ...any) contract.Logger {
 	}
 }
 
-// WithContext creates a new logger with context
+// WithContext returns a request-scoped logger enriched from ctx: request_id
+// from the fiber requestid middleware (which stores into the request context
+// when PassLocalsToContext is on — GOE's default) and, when a valid
+// OpenTelemetry span is present, trace_id/span_id. It gives service-layer code
+// that holds only a context.Context the same correlation fields that
+// http.WithReqCtx provides inside handlers. A context carrying neither returns
+// the receiver unchanged.
 func (l *zapLogger) WithContext(ctx context.Context) contract.Logger {
-	// Extract request ID or trace ID from context if available
-	fields := make([]zap.Field, 0)
+	if ctx == nil {
+		return l
+	}
 
-	// You can extract values from context here
-	// Example: if requestID := ctx.Value("request_id"); requestID != nil {
-	//     fields = append(fields, zap.String("request_id", requestID.(string)))
-	// }
+	fields := make([]zap.Field, 0, 3)
+	if rid := requestid.FromContext(ctx); rid != "" {
+		fields = append(fields, zap.String("request_id", rid))
+	}
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		fields = append(fields,
+			zap.String("trace_id", sc.TraceID().String()),
+			zap.String("span_id", sc.SpanID().String()),
+		)
+	}
+	if len(fields) == 0 {
+		return l
+	}
 
+	logger := l.logger.With(fields...)
 	return &zapLogger{
-		logger: l.logger.With(fields...),
-		sugar:  l.sugar.With(fieldsToArgs(fields)...),
+		logger: logger,
+		sugar:  logger.Sugar(),
 	}
 }
 
@@ -266,15 +289,6 @@ func (l *zapLogger) WithError(err error) contract.Logger {
 		logger: l.logger.With(zap.Error(err)),
 		sugar:  l.sugar.With("error", err),
 	}
-}
-
-// fieldsToArgs converts zap fields to args
-func fieldsToArgs(fields []zap.Field) []any {
-	args := make([]any, 0, len(fields)*2)
-	for _, f := range fields {
-		args = append(args, f.Key, f.Interface)
-	}
-	return args
 }
 
 // convertArgsToFields converts key-value pairs to zap.Field slice
@@ -301,10 +315,27 @@ type Module struct {
 	logger contract.Logger
 	zap    *zap.Logger
 	config contract.Config
+
+	// optErrs holds failures from Option application. They are reported by
+	// ValidateConfig so that startup aborts before the application serves.
+	optErrs []error
 }
 
-// NewModule creates a new log module
-func NewModule(config contract.Config) *Module {
+// NewModule creates a new log module.
+//
+// Configuration resolves in layers: LOG_*/APP_* environment variables first,
+// then opts, so anything set through an Option wins over the environment.
+func NewModule(config contract.Config, opts ...Option) *Module {
+	// Apply code-first options. A failed option applies nothing; its error is
+	// collected and aborts startup through OnStart (and ValidateConfig).
+	var s settings
+	var optErrs []error
+	for _, opt := range opts {
+		if err := opt(&s); err != nil {
+			optErrs = append(optErrs, err)
+		}
+	}
+
 	// Create logger config from app config
 	logConfig := &defaultLoggerConfig{
 		level:      config.GetString("LOG_LEVEL"),
@@ -328,6 +359,17 @@ func NewModule(config contract.Config) *Module {
 	overrides, invalid := parseModuleLevels(config.GetString("LOG_MODULE_LEVELS"))
 	overrides = withDefaultModuleLevels(overrides)
 	logger := buildLogger(logConfig, overrides)
+
+	// Base identity fields (service/env/version, plus WithBaseFields extras)
+	// are stamped once at construction so every JSON line carries them,
+	// including the fx logger derived below. Text output is for humans and
+	// stays clean.
+	if logConfig.format == "json" {
+		base := append(baseIdentityFields(config, s.version), s.baseFields...)
+		if len(base) > 0 {
+			logger = logger.With(base...)
+		}
+	}
 	if len(invalid) > 0 {
 		logger.With(moduleFieldKey, "log").Warn(
 			"Ignored invalid LOG_MODULE_LEVELS entries",
@@ -340,10 +382,39 @@ func NewModule(config contract.Config) *Module {
 	zapLogger := logger.(*zapLogger).logger.With(zap.String(moduleFieldKey, fxModuleName))
 
 	return &Module{
-		logger: logger,
-		zap:    zapLogger,
-		config: config,
+		logger:  logger,
+		zap:     zapLogger,
+		config:  config,
+		optErrs: optErrs,
 	}
+}
+
+// baseIdentityFields resolves the identity fields stamped on every JSON log
+// line: service ← APP_NAME, env ← OEASE_ENV (falling back to GOE_ENV),
+// version ← versionOverride (from WithVersion) falling back to APP_VERSION.
+// Unset values are omitted rather than emitted empty — the log pipeline owns
+// service/env from deployment metadata, but version can only come from the
+// process.
+func baseIdentityFields(config contract.Config, versionOverride string) []any {
+	kv := make([]any, 0, 6)
+	if service := config.GetString("APP_NAME"); service != "" {
+		kv = append(kv, "service", service)
+	}
+	env := config.GetString("OEASE_ENV")
+	if env == "" {
+		env = config.GetString("GOE_ENV")
+	}
+	if env != "" {
+		kv = append(kv, "env", env)
+	}
+	version := versionOverride
+	if version == "" {
+		version = config.GetString("APP_VERSION")
+	}
+	if version != "" {
+		kv = append(kv, "version", version)
+	}
+	return kv
 }
 
 // Name returns the module name
@@ -353,6 +424,14 @@ func (m *Module) Name() string {
 
 // OnStart is called when the module starts
 func (m *Module) OnStart(ctx context.Context) error {
+	// Built-in modules are not registered with the startup validator, so a
+	// failed Option aborts startup here — the job module follows the same
+	// pattern. Bootstrap logging has already worked on the environment-only
+	// configuration, so the operator sees these errors on a working logger.
+	if len(m.optErrs) > 0 {
+		return errors.Join(m.optErrs...)
+	}
+
 	m.logger.With(moduleFieldKey, "log").Info("Log module started")
 	return nil
 }
@@ -377,6 +456,12 @@ func (m *Module) ProvideZap() *zap.Logger {
 
 // ValidateConfig validates the log module configuration
 func (m *Module) ValidateConfig() error {
+	// Option failures are reported first and abort startup, mirroring the
+	// http module's handling of its Options.
+	if len(m.optErrs) > 0 {
+		return errors.Join(m.optErrs...)
+	}
+
 	v := configvalidator.NewConfigValidator(m.config, "log")
 
 	// Log level validation
@@ -386,9 +471,10 @@ func (m *Module) ValidateConfig() error {
 		v.Optional("LOG_LEVEL", "Log level", configvalidator.ValidateOneOf(validLevels...))
 	}
 
-	// Log format validation
+	// Log format validation. "text" is the module's own default; "console" is
+	// accepted as its historical alias.
 	if m.config.Has("LOG_FORMAT") {
-		validFormats := []string{"json", "console"}
+		validFormats := []string{"json", "text", "console"}
 		v.Optional("LOG_FORMAT", "Log format", configvalidator.ValidateOneOf(validFormats...))
 	}
 
