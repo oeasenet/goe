@@ -232,6 +232,26 @@ func TestOptions_Precedence(t *testing.T) {
 	})
 }
 
+func TestOptions_SkipUnmatchedRoutes(t *testing.T) {
+	t.Run("default off", func(t *testing.T) {
+		k, _ := newTestKernel(t, nil)
+		assert.False(t, k.App().Config().SkipUnmatchedRoutes)
+	})
+
+	t.Run("env enables", func(t *testing.T) {
+		k, _ := newTestKernel(t, map[string]any{"FIBER_SKIP_UNMATCHED_ROUTES": true})
+		assert.True(t, k.App().Config().SkipUnmatchedRoutes)
+	})
+
+	t.Run("code wins over env", func(t *testing.T) {
+		k, _ := newTestKernel(t,
+			map[string]any{"FIBER_SKIP_UNMATCHED_ROUTES": true},
+			WithSkipUnmatchedRoutes(false),
+		)
+		assert.False(t, k.App().Config().SkipUnmatchedRoutes)
+	})
+}
+
 func TestOptions_Ordering(t *testing.T) {
 	t.Run("last option wins", func(t *testing.T) {
 		k, _ := newTestKernel(t, nil,

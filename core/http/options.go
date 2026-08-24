@@ -151,6 +151,7 @@ func (s *settings) applyEnv(config contract.Config) {
 	// Routing and request handling behaviour.
 	setBool("FIBER_STRICT_ROUTING", &s.fiber.StrictRouting)
 	setBool("FIBER_CASE_SENSITIVE", &s.fiber.CaseSensitive)
+	setBool("FIBER_SKIP_UNMATCHED_ROUTES", &s.fiber.SkipUnmatchedRoutes)
 	setBool("FIBER_IMMUTABLE", &s.fiber.Immutable)
 	setBool("FIBER_UNESCAPE_PATH", &s.fiber.UnescapePath)
 	setBool("FIBER_STREAM_REQUEST_BODY", &s.fiber.StreamRequestBody)

@@ -33,6 +33,16 @@ func WithCaseSensitive(enabled bool) Option {
 	return func(s *settings) error { s.fiber.CaseSensitive = enabled; return nil }
 }
 
+// WithSkipUnmatchedRoutes sets fiber.Config.SkipUnmatchedRoutes: requests whose
+// path and method match no registered route are answered with 404 (or 405)
+// before the middleware chain runs, so no work is spent on bots and scanners.
+// Warning: middleware never runs for skipped requests — catch-all Use handlers,
+// the access log and metrics will not see them. Replaces
+// FIBER_SKIP_UNMATCHED_ROUTES.
+func WithSkipUnmatchedRoutes(enabled bool) Option {
+	return func(s *settings) error { s.fiber.SkipUnmatchedRoutes = enabled; return nil }
+}
+
 // WithDisableHeadAutoRegister sets fiber.Config.DisableHeadAutoRegister, which
 // stops Fiber from registering a HEAD route for every GET route.
 func WithDisableHeadAutoRegister(disabled bool) Option {

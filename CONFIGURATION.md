@@ -232,6 +232,7 @@ cannot apply to a replacement.
 | `FIBER_SERVER_HEADER` | string | `Goe` | Value of the `Server` response header |
 | `FIBER_STRICT_ROUTING` | bool | `false` | Enable strict routing (`/foo` != `/foo/`) |
 | `FIBER_CASE_SENSITIVE` | bool | `false` | Enable case-sensitive routing |
+| `FIBER_SKIP_UNMATCHED_ROUTES` | bool | `false` | Answer unmatched requests with 404/405 before the middleware chain (skipped requests bypass catch-all handlers, access log, and metrics) |
 | `FIBER_IMMUTABLE` | bool | `false` | Enable immutable context values |
 | `FIBER_UNESCAPE_PATH` | bool | `false` | Unescape path before processing |
 | `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB) |
