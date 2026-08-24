@@ -5,6 +5,23 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## v2.7.0
+
+JSON logging now natively emits the log-contract shape that a collector
+previously had to normalize. Nothing changes for text/console output, and no
+code edits are required — but anything that parses the JSON log stream sees
+different lines.
+
+| Change | Action needed |
+|---|---|
+| JSON `level` values are lowercase: `"INFO"` → `"info"` (text/console output keeps `INFO`) | Update log queries, alerts, or parsers that match capitalized level values |
+| With `LOG_FORMAT=json`, every line gains `service` (from `APP_NAME`), `env` (from `OEASE_ENV`, falling back to `GOE_ENV`) and `version` (from `APP_VERSION`) when set; unset values are omitted | None for tolerant consumers. Strict-schema pipelines should allow the new keys |
+| The access log adds `route` (matched template), `host`, `bytesSent` and integer `duration_ms`; `latency` and all previous fields remain | None. Prefer `route` over `url` for grouping and `duration_ms` over the human-readable `latency` string |
+| `Logger.WithContext(ctx)` was a no-op and now adds `request_id`/`trace_id`/`span_id` when the context carries them | None — lines logged through it gain correlation fields |
+| Fiber upgraded v3.4.0 → v3.5.0 | None for GOE-managed configuration. The new `SkipUnmatchedRoutes` fast path is exposed as `http.WithSkipUnmatchedRoutes` / `FIBER_SKIP_UNMATCHED_ROUTES` and stays off by default |
+
+---
+
 ## v2.6.0
 
 The redis driver now executes the cache's compound operations — `Add`, `Pull`,
