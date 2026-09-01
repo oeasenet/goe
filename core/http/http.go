@@ -111,8 +111,9 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		Logger: accessLogger.GetLogger().Desugar(),
 		// route is the matched template (bounded cardinality — the field to
 		// group latency by), host serves per-domain slicing when one app
-		// answers many domains, bytesSent is the response size.
-		Fields: []string{"method", "status", "route", "host", "latency", "ip", "url", "bytesSent"},
+		// answers many domains. bytesSent is emitted from FieldsFunc: fiberzap's
+		// own reads the body, which drains a streamed response before it is sent.
+		Fields: []string{"method", "status", "route", "host", "latency", "ip", "url"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
 			fields := []zap.Field{
 				// The log contract's duration unit is integer milliseconds.
@@ -121,6 +122,13 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 				// request-start clock measures the same span.
 				zap.Int64("duration_ms", time.Since(c.RequestCtx().Time()).Milliseconds()),
 				zap.String("request_id", requestIDFrom(c, reqIDHeader)),
+			}
+			// A streamed body (SendStreamWriter, a streaming proxy) is written after
+			// this line is logged, so its size is unknown and reading it would drain it.
+			if c.Response().IsBodyStream() {
+				fields = append(fields, zap.Bool("streamed", true))
+			} else {
+				fields = append(fields, zap.Int("bytesSent", len(c.Response().Body())))
 			}
 			if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
 				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))

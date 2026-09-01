@@ -5,6 +5,20 @@ your application does. Releases with neither are not listed here.
 
 ---
 
+## v2.7.1 (unreleased)
+
+The access log no longer reads the response body to size it. fiberzap's
+`bytesSent` calls `Response.Body()`, which on a streamed response (SSE via
+`SendStreamWriter`, a proxy with `StreamResponseBody`) copies the whole stream
+into a buffer before the first byte reaches the client — every frame arrived at
+once, as `Content-Length`. No code edits are required.
+
+| Change | Action needed |
+|---|---|
+| Streamed responses are delivered live and their access-log line carries `streamed: true` instead of `bytesSent`; buffered responses keep `bytesSent` | None. A log query that requires `bytesSent` on every line should treat `streamed: true` as "size unknown" |
+
+---
+
 ## v2.7.0
 
 JSON logging now natively emits the log-contract shape that a collector
