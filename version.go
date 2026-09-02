@@ -1,4 +1,4 @@
 package goe
 
 // Version represents the current version of the Goe framework
-const Version = "2.7.0"
+const Version = "2.7.1"
