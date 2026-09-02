@@ -5,17 +5,21 @@ your application does. Releases with neither are not listed here.
 
 ---
 
-## v2.7.1 (unreleased)
+## v2.7.1
 
 The access log no longer reads the response body to size it. fiberzap's
 `bytesSent` calls `Response.Body()`, which on a streamed response (SSE via
 `SendStreamWriter`, a proxy with `StreamResponseBody`) copies the whole stream
 into a buffer before the first byte reaches the client — every frame arrived at
-once, as `Content-Length`. No code edits are required.
+once, as `Content-Length`. No code edits are required. Every dependency also
+moves to its latest release; the upgrades that change what a running
+application does are listed below.
 
 | Change | Action needed |
 |---|---|
 | Streamed responses are delivered live and their access-log line carries `streamed: true` instead of `bytesSent`; buffered responses keep `bytesSent` | None. A log query that requires `bytesSent` on every line should treat `streamed: true` as "size unknown" |
+| Cache drivers upgraded: fiber storage redis 3.5.1 → 3.6.0, badger 2.1.10 → 2.2.0, bbolt 2.1.9 → 2.2.0 | None for normal use. After `Close` (app shutdown) every store operation returns the driver's `ErrClosed` instead of reaching a closed client; badger TTLs round **up** to the next whole second instead of truncating down, so a key can no longer expire up to a second early; `CACHE_REDIS_RESET` on a cluster flushes every master instead of one shard |
+| mongo-driver v2.8.0 → v2.8.2 | None. Fixes CVE-2026-81521 (`Client.BulkWrite` with a `.` in a caller-controlled database name could address another namespace) and stops a failed first write attempt (`NoWritesPerformed`) from returning as success — callers now see the real server error |
 
 ---
 
