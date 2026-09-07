@@ -1,6 +1,6 @@
 module go.oease.dev/goe/v2
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/bytedance/sonic v1.15.3
@@ -28,7 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/sync v0.22.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.2
