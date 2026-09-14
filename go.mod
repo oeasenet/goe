@@ -20,7 +20,7 @@ require (
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.12.1
 	github.com/valyala/fasthttp v1.73.0
-	go.mongodb.org/mongo-driver/v2 v2.8.2
+	go.mongodb.org/mongo-driver/v2 v2.9.1
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0
