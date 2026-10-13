@@ -16,7 +16,9 @@ jobs:
         strategy:
             matrix:
                 os: [ ubuntu-latest ]
-                go-version: [ '1.26' ]
+                # The go.mod minimum and the current release: both are supported
+                # Go versions, and production builds usually use the newer one.
+                go-version: [ '1.26', '1.27' ]
 
         # Redis for the probed default-lane tests (core/lock, the cache redis
         # driver): they run wherever Redis is reachable and skip where it is
