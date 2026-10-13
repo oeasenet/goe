@@ -313,6 +313,31 @@ func Test_MightBeFile(t *testing.T) {
 	}
 }
 
+func Test_WithinRoot(t *testing.T) {
+	root := filepath.FromSlash("/srv/dist")
+
+	tests := []struct {
+		name   string
+		target string
+		want   bool
+	}{
+		{"root itself", "/srv/dist", true},
+		{"file in root", "/srv/dist/index.html", true},
+		{"nested file", "/srv/dist/assets/js/app.js", true},
+		{"name starting with dots", "/srv/dist/..hidden.js", true},
+		{"sibling sharing the root's name as a prefix", "/srv/dist-private/secret.txt", false},
+		{"parent directory", "/srv", false},
+		{"file in parent directory", "/srv/secret.txt", false},
+		{"unrelated path", "/etc/passwd", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, withinRoot(root, filepath.FromSlash(tt.target)))
+		})
+	}
+}
+
 // Benchmark tests
 func Benchmark_SPA_Index(b *testing.B) {
 	tmpDir := createTestSPAStructure(b)

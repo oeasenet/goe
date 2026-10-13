@@ -80,7 +80,7 @@ func New(config ...Config) fiber.Handler {
 			// We'll check if the file exists before serving
 			fullPath := filepath.Join(cfg.Root, path)
 			// Prevent path traversal outside the root directory
-			if !strings.HasPrefix(filepath.Clean(fullPath), filepath.Clean(cfg.Root)) {
+			if !withinRoot(cfg.Root, fullPath) {
 				return c.Next()
 			}
 			if fileExists(fullPath) {
@@ -151,6 +151,16 @@ func mightBeFile(path string) bool {
 	}
 
 	return false
+}
+
+// withinRoot reports whether target is root itself or lies inside it. A plain
+// prefix test would also admit a sibling that merely starts with root's name,
+// such as /srv/dist-private for /srv/dist. Fiber already removes dot segments
+// from request paths, but on Windows a backslash is a separator only the
+// filesystem honors, so this check is what keeps such a path inside root.
+func withinRoot(root, target string) bool {
+	rel, err := filepath.Rel(root, target)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // fileExists checks if a file exists and is not a directory
