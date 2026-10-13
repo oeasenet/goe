@@ -27,8 +27,12 @@ type Services struct {
 
 // InjectServices creates a middleware that injects services into the context
 func InjectServices(services Services) fiber.Handler {
+	// Boxed once here: storing the struct per request would allocate its
+	// interface copy every time, and SetLocal skips the slice Locals' variadic
+	// allocates. GOE installs this on every app, so it runs on every request.
+	var boxed any = services
 	return func(c fiber.Ctx) error {
-		c.Locals(string(ServicesKey), services)
+		c.SetLocal(string(ServicesKey), boxed)
 		return c.Next()
 	}
 }

@@ -49,6 +49,16 @@ func WithDisableHeadAutoRegister(disabled bool) Option {
 	return func(s *settings) error { s.fiber.DisableHeadAutoRegister = disabled; return nil }
 }
 
+// WithDisableFlashMessages sets fiber.Config.DisableFlashMessages, which turns
+// off redirect flash messages (Redirect().With and WithInput set no cookie) and
+// skips the scan of every request's headers for the fiber_flash cookie. Flash
+// messages only reach clients that keep cookies across a redirect, so an API
+// serving non-browser clients loses nothing by disabling them. Added in Fiber
+// v3.6. Replaces FIBER_DISABLE_FLASH_MESSAGES.
+func WithDisableFlashMessages(disabled bool) Option {
+	return func(s *settings) error { s.fiber.DisableFlashMessages = disabled; return nil }
+}
+
 // WithImmutable sets fiber.Config.Immutable, which makes values returned by
 // context methods valid after the handler returns, at the cost of allocation.
 // Replaces FIBER_IMMUTABLE.
@@ -56,16 +66,26 @@ func WithImmutable(enabled bool) Option {
 	return func(s *settings) error { s.fiber.Immutable = enabled; return nil }
 }
 
-// WithUnescapePath sets fiber.Config.UnescapePath, which URL-decodes path
-// segments before matching. Replaces FIBER_UNESCAPE_PATH.
+// WithUnescapePath sets fiber.Config.UnescapePath, which URL-decodes every
+// escape in the path before matching. Since Fiber v3.6 the router always
+// normalizes the path (RFC 3986): "." and ".." segments are removed and
+// escapes of unreserved characters decoded; this option additionally decodes
+// reserved ones such as %2F. Replaces FIBER_UNESCAPE_PATH.
 func WithUnescapePath(enabled bool) Option {
 	return func(s *settings) error { s.fiber.UnescapePath = enabled; return nil }
 }
 
 // WithBodyLimit sets fiber.Config.BodyLimit, the maximum request body size in
-// bytes. A negative value disables the limit. Replaces FIBER_BODY_LIMIT.
+// bytes. It must be positive: Fiber has no unlimited setting and replaces zero
+// or below with its 4MB default. Replaces FIBER_BODY_LIMIT.
 func WithBodyLimit(bytes int) Option {
-	return func(s *settings) error { s.fiber.BodyLimit = bytes; return nil }
+	return func(s *settings) error {
+		if bytes <= 0 {
+			return fmt.Errorf("WithBodyLimit: value must be positive, got %d", bytes)
+		}
+		s.fiber.BodyLimit = bytes
+		return nil
+	}
 }
 
 // WithMaxRanges sets fiber.Config.MaxRanges, the maximum number of ranges
@@ -160,7 +180,9 @@ func WithIdleTimeout(d time.Duration) Option {
 }
 
 // WithReadBufferSize sets fiber.Config.ReadBufferSize, the per-connection read
-// buffer. Increase it for requests with very large headers.
+// buffer, which also caps the size of the request line and headers. Fiber
+// defaults it to 8192 bytes (4096 before v3.6). Increase it for requests with
+// very large headers, such as big cookies.
 func WithReadBufferSize(bytes int) Option {
 	return func(s *settings) error {
 		if bytes <= 0 {
@@ -172,7 +194,7 @@ func WithReadBufferSize(bytes int) Option {
 }
 
 // WithWriteBufferSize sets fiber.Config.WriteBufferSize, the per-connection
-// write buffer.
+// write buffer. Fiber defaults it to 8192 bytes (4096 before v3.6).
 func WithWriteBufferSize(bytes int) Option {
 	return func(s *settings) error {
 		if bytes <= 0 {
@@ -197,7 +219,7 @@ func WithProxyHeader(header string) Option {
 }
 
 // WithGETOnly sets fiber.Config.GETOnly, which rejects every method other than
-// GET.
+// GET and HEAD with 405 and "Allow: GET, HEAD".
 func WithGETOnly(enabled bool) Option {
 	return func(s *settings) error { s.fiber.GETOnly = enabled; return nil }
 }

@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	fiberzap "github.com/gofiber/contrib/v3/zap"
@@ -118,9 +117,9 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 			fields := []zap.Field{
 				// The log contract's duration unit is integer milliseconds.
 				// fiberzap's own latency is a human-readable string, and its
-				// timing is not reachable from FieldsFunc — fasthttp's
-				// request-start clock measures the same span.
-				zap.Int64("duration_ms", time.Since(c.RequestCtx().Time()).Milliseconds()),
+				// timing is not reachable from FieldsFunc — Elapsed reads
+				// fasthttp's request-start clock, which measures the same span.
+				zap.Int64("duration_ms", c.Elapsed().Milliseconds()),
 				zap.String("request_id", requestIDFrom(c, reqIDHeader)),
 			}
 			// A streamed body (SendStreamWriter, a streaming proxy) is written after

@@ -233,9 +233,10 @@ cannot apply to a replacement.
 | `FIBER_STRICT_ROUTING` | bool | `false` | Enable strict routing (`/foo` != `/foo/`) |
 | `FIBER_CASE_SENSITIVE` | bool | `false` | Enable case-sensitive routing |
 | `FIBER_SKIP_UNMATCHED_ROUTES` | bool | `false` | Answer unmatched requests with 404/405 before the middleware chain (skipped requests bypass catch-all handlers, access log, and metrics) |
+| `FIBER_DISABLE_FLASH_MESSAGES` | bool | `false` | Turn off redirect flash messages (`Redirect().With`/`WithInput`) and skip the per-request scan for the `fiber_flash` cookie; safe for APIs whose clients are not browsers |
 | `FIBER_IMMUTABLE` | bool | `false` | Enable immutable context values |
-| `FIBER_UNESCAPE_PATH` | bool | `false` | Unescape path before processing |
-| `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB) |
+| `FIBER_UNESCAPE_PATH` | bool | `false` | Decode every escape in the path, `%2F` included, before routing. Dot segments and escaped unreserved characters are always normalized |
+| `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB). Must be positive: Fiber has no unlimited setting |
 | `FIBER_STREAM_REQUEST_BODY` | bool | `true` | Stream request body to reduce memory usage |
 | `FIBER_CONCURRENCY` | int | `262144` | Maximum number of concurrent connections |
 | `FIBER_PROXY_HEADER` | string | `X-Forwarded-For` | Header used to obtain client IP; only consulted when trusted proxies are enabled |
