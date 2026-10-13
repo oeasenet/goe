@@ -42,7 +42,7 @@ func TestOptions_LogCodeFirst_VersionWired(t *testing.T) {
 	instance.http = nil
 
 	var probe map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
 		var entry map[string]any
 		if json.Unmarshal([]byte(line), &entry) != nil {
 			continue

@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -239,8 +240,8 @@ func New(opts ...Options) contract.Application {
 				},
 				OnStop: func(ctx context.Context) error {
 					// Execute all OnStop hooks in reverse order
-					for i := len(opt.OnStop) - 1; i >= 0; i-- {
-						if err := opt.OnStop[i](ctx); err != nil {
+					for i, v := range slices.Backward(opt.OnStop) {
+						if err := v(ctx); err != nil {
 							logger.Error("OnStop hook failed", "index", i, "error", err)
 							// Continue with other hooks even if one fails
 						}

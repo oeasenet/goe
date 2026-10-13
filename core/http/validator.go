@@ -50,7 +50,7 @@ func newStructValidator() *structValidator {
 	// is told about "email", not "Email". A json:"-" field falls back to the
 	// Go field name.
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		name, _, _ := strings.Cut(fld.Tag.Get("json"), ",")
 		if name == "-" {
 			return ""
 		}

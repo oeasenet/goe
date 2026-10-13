@@ -33,10 +33,10 @@ type Manager struct {
 	mode   string // Detected mode for logging
 
 	// Stats tracking
-	activeLocks   int64
-	totalAcquired int64
-	totalReleased int64
-	totalFailed   int64
+	activeLocks   atomic.Int64
+	totalAcquired atomic.Int64
+	totalReleased atomic.Int64
+	totalFailed   atomic.Int64
 
 	// Mutex management
 	mutexes map[string]*Mutex
@@ -457,10 +457,10 @@ func (m *Manager) Stats(ctx context.Context) (*contract.LockStats, error) {
 	latency := time.Since(start)
 
 	return &contract.LockStats{
-		ActiveLocks:    atomic.LoadInt64(&m.activeLocks),
-		TotalAcquired:  atomic.LoadInt64(&m.totalAcquired),
-		TotalReleased:  atomic.LoadInt64(&m.totalReleased),
-		TotalFailed:    atomic.LoadInt64(&m.totalFailed),
+		ActiveLocks:    m.activeLocks.Load(),
+		TotalAcquired:  m.totalAcquired.Load(),
+		TotalReleased:  m.totalReleased.Load(),
+		TotalFailed:    m.totalFailed.Load(),
 		BackendLatency: latency,
 	}, nil
 }
@@ -495,19 +495,19 @@ func (m *Manager) Mode() string {
 
 // recordAcquire records a successful lock acquisition.
 func (m *Manager) recordAcquire() {
-	atomic.AddInt64(&m.activeLocks, 1)
-	atomic.AddInt64(&m.totalAcquired, 1)
+	m.activeLocks.Add(1)
+	m.totalAcquired.Add(1)
 }
 
 // recordRelease records a lock release.
 func (m *Manager) recordRelease() {
-	atomic.AddInt64(&m.activeLocks, -1)
-	atomic.AddInt64(&m.totalReleased, 1)
+	m.activeLocks.Add(-1)
+	m.totalReleased.Add(1)
 }
 
 // recordFailed records a failed lock attempt.
 func (m *Manager) recordFailed() {
-	atomic.AddInt64(&m.totalFailed, 1)
+	m.totalFailed.Add(1)
 }
 
 // trackedMutex wraps a Mutex to track statistics.
