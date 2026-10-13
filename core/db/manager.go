@@ -198,10 +198,9 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 		if timezone == "" {
 			timezone = "UTC" // Default
 		}
-		// Note: password might need to be escaped if it contains spaces or special characters.
-		// GORM pq driver handles this, but good to be aware.
 		return fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s TimeZone=%s",
-			host, port, user, dbname, pass, sslmode, timezone), nil
+			pgQuote(host), pgQuote(port), pgQuote(user), pgQuote(dbname), pgQuote(pass),
+			pgQuote(sslmode), pgQuote(timezone)), nil
 	case "sqlserver", "mssql":
 		// dsn := "sqlserver://username:password@host:port?database=dbname&encrypt=disable" // encrypt=disable for dev, true for prod with proper certs
 		if port == "" {
@@ -222,6 +221,18 @@ func (dbm *DatabaseModule) buildDSN(name, driver, configPrefix string) (string, 
 	default:
 		return "", fmt.Errorf("cannot build DSN for unsupported driver: %s for connection '%s'", driver, name)
 	}
+}
+
+// pgQuoteEscaper escapes the two characters that are special inside a quoted
+// libpq keyword/value setting.
+var pgQuoteEscaper = strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+
+// pgQuote renders v as a quoted libpq keyword/value setting, so a password with
+// a space, backslash or quote reaches the server exactly as configured. pgx
+// v5.11 parses these strings like libpq does: an unquoted backslash escapes the
+// next character and is dropped, and a space ends the value.
+func pgQuote(v string) string {
+	return "'" + pgQuoteEscaper.Replace(v) + "'"
 }
 
 // --- GORM Logger Wrapper ---
