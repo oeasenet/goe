@@ -57,10 +57,10 @@ type Manager struct {
 
 // NewManager creates a new shutdown manager
 func NewManager(logger contract.Logger, timeout, drainTimeout time.Duration) *Manager {
-	if timeout == 0 {
+	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	if drainTimeout == 0 {
+	if drainTimeout <= 0 {
 		drainTimeout = 5 * time.Second
 	}
 

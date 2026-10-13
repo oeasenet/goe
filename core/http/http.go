@@ -363,9 +363,18 @@ func (m *Module) OnStart(ctx context.Context) error {
 	}
 }
 
-// OnStop is called when the module stops
+// OnStop gracefully shuts the server down: it stops accepting connections,
+// closes idle ones and waits for in-flight requests until ctx is done — goe.New
+// bounds ctx with goe.Options.DrainTimeout. A request still running at the
+// deadline is not interrupted, and the deadline is returned so that a drain cut
+// short is reported.
 func (m *Module) OnStop(ctx context.Context) error {
-	return m.kernel.Shutdown()
+	k := m.kernel.(*kernel)
+	k.logger.Info("HTTP server shutting down")
+	if err := k.app.ShutdownWithContext(ctx); err != nil {
+		return fmt.Errorf("HTTP server drain: %w", err)
+	}
+	return nil
 }
 
 // Provide returns the HTTP kernel instance for Fx

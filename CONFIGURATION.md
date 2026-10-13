@@ -877,12 +877,22 @@ Liveness/readiness endpoints. Enable with `WithHealth: true`.
 
 ## Graceful Shutdown
 
-Timeouts applied when the application shuts down (SIGINT/SIGTERM).
+On SIGINT/SIGTERM the application stops in this order:
+
+1. `goe.Options.OnStop` hooks, while the server still serves.
+2. Shutdown-manager hooks (`shutdown.Manager.RegisterHook`), highest priority
+   first. The HTTP server drains at `shutdown.PriorityHTTP` (100): hooks above
+   it run while the server still accepts requests — deregister from service
+   discovery there — and the rest once it has stopped.
+3. Custom modules, then the built-in modules, in reverse start order.
+
+The server starts after every module, so no request reaches a module that has
+not started yet or has already stopped.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `SHUTDOWN_TIMEOUT` | duration | `30s` | Total graceful-shutdown timeout |
-| `SHUTDOWN_DRAIN_TIMEOUT` | duration | `5s` | HTTP connection drain timeout |
+| `SHUTDOWN_TIMEOUT` | duration | `30s` | Bound on the whole stop sequence (`goe.Options.ShutdownTimeout`) |
+| `SHUTDOWN_DRAIN_TIMEOUT` | duration | `5s` | How long the HTTP server waits for in-flight requests (`goe.Options.DrainTimeout`). Requests still running then are not interrupted, and the stop reports the drain as failed |
 
 ---
 

@@ -192,8 +192,9 @@ func registerShutdownHooks(shutdownManager *shutdown.Manager, logger contract.Lo
 		return nil
 	})
 
-	// Register a hook to notify external services about shutdown
-	shutdownManager.RegisterHook("notify-services", shutdown.PriorityHTTP-10, func(ctx context.Context) error {
+	// Register a hook to notify external services about shutdown. Above
+	// PriorityHTTP it runs while the server still serves, before the drain.
+	shutdownManager.RegisterHook("notify-services", shutdown.PriorityHTTP+10, func(ctx context.Context) error {
 		logger.Info("Notifying external services about shutdown...")
 		// In a real app, you might deregister from service discovery
 		return nil

@@ -220,6 +220,9 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, fx.Invoke(invoker))
 	}
 
+	// After every module, so the server starts last and drains first.
+	fxOptions = append(fxOptions, reg.serve())
+
 	// Add lifecycle hooks
 	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {
 		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle) {
@@ -369,25 +372,30 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	reg.addJob()
 
 	// Create shutdown manager with configured timeouts
+	// A value of zero or below falls back: a negative bound would expire the
+	// stop at once and skip every hook.
 	shutdownTimeout := opt.ShutdownTimeout
-	if shutdownTimeout == 0 {
+	if shutdownTimeout <= 0 {
 		shutdownTimeout = instance.config.GetDuration("SHUTDOWN_TIMEOUT")
-		if shutdownTimeout == 0 {
+		if shutdownTimeout <= 0 {
 			shutdownTimeout = 30 * time.Second
 		}
 	}
 	drainTimeout := opt.DrainTimeout
-	if drainTimeout == 0 {
+	if drainTimeout <= 0 {
 		drainTimeout = instance.config.GetDuration("SHUTDOWN_DRAIN_TIMEOUT")
-		if drainTimeout == 0 {
+		if drainTimeout <= 0 {
 			drainTimeout = 5 * time.Second
 		}
 	}
 	instance.shutdownManager = shutdown.NewManager(instance.logger, shutdownTimeout, drainTimeout)
+	reg.shutdown = instance.shutdownManager
 
-	// Always provide shutdown manager for dependency injection
+	// Always provide shutdown manager for dependency injection. The shutdown
+	// timeout bounds the whole stop sequence, not only the manager's hooks.
 	reg.fxOptions = append(reg.fxOptions,
 		fx.Provide(func() *shutdown.Manager { return instance.shutdownManager }),
+		fx.StopTimeout(shutdownTimeout),
 	)
 
 	reg.addHealth()

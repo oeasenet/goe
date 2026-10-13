@@ -16,6 +16,7 @@ import (
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/metrics"
 	"go.oease.dev/goe/v2/core/otel"
+	"go.oease.dev/goe/v2/core/shutdown"
 	"go.uber.org/fx"
 )
 
@@ -46,6 +47,8 @@ type moduleRegistry struct {
 	metrics *metrics.Module
 	otel    *otel.Module
 	http    *http.Module
+
+	shutdown *shutdown.Manager
 }
 
 func (r *moduleRegistry) addCache() {
@@ -306,18 +309,44 @@ func (r *moduleRegistry) addHTTP() {
 
 		instance.logger.Debug("Registering HTTP module")
 
+		// The server starts from serve, after every other module. It drains as
+		// a shutdown-manager hook at PriorityHTTP, so hooks registered above
+		// that priority run while it still serves and the rest once it stopped.
+		module, drainTimeout := r.http, r.shutdown.DrainTimeout()
+		r.shutdown.RegisterHook(module.Name(), shutdown.PriorityHTTP, func(ctx context.Context) error {
+			ctx, cancel := context.WithTimeout(ctx, drainTimeout)
+			defer cancel()
+			return module.OnStop(ctx)
+		})
+
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.HTTPKernel { return instance.http }),
-			fx.Module(r.http.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: r.http.OnStart,
-						OnStop:  r.http.OnStop,
-					})
-				}),
-			),
 		)
 	}
+}
+
+// serve returns the lifecycle hook that starts the HTTP server and runs the
+// shutdown manager. New appends it after the custom modules, providers and
+// invokers, so Fx starts it last and stops it first: the server accepts
+// requests only once every module is up, and drains before any module stops.
+// Without the HTTP module it only runs the shutdown manager's hooks.
+//
+// Unlike the add methods, New calls it after buildCore released instance.mu;
+// it reads only the registry, never the instance singleton.
+func (r *moduleRegistry) serve() fx.Option {
+	name, start := "shutdown", func(context.Context) error { return nil }
+	if r.http != nil {
+		name, start = r.http.Name(), r.http.OnStart
+	}
+
+	return fx.Module(name,
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: start,
+				OnStop:  r.shutdown.Shutdown,
+			})
+		}),
+	)
 }
 
 // checkAndProvideServices inspects a module for common service provider methods
