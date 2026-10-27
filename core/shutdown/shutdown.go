@@ -1,11 +1,20 @@
 // Package shutdown provides graceful shutdown management with priority-based hooks
 // for orderly shutdown of application components.
+//
+// Shutdown runs once, in three phases ordered by hook priority, highest first:
+// hooks above PriorityHTTP run while the HTTP server still serves (pre-drain
+// work such as deregistration), the hook at PriorityHTTP drains the server, and
+// hooks below it run once the server stopped — among them the wait for tasks
+// started with Go, at PriorityWorkers. Stopping is closed before the first hook
+// runs. All phases share three quarters of the shutdown timeout; the remaining
+// quarter is left for the modules that stop after the manager.
 package shutdown
 
 import (
 	"cmp"
 	"context"
 	"errors"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
@@ -28,6 +37,13 @@ const (
 	// PriorityTelemetry is the priority for telemetry flush (last to stop)
 	PriorityTelemetry = 10
 )
+
+// tasksHookName names the manager's own wait for tasks started with Go.
+const tasksHookName = "background-tasks"
+
+// lateHookGrace is how long a hook still gets to finish once the shared budget
+// is gone, so a quick hook that runs after a hung one is not reported as hung.
+const lateHookGrace = 25 * time.Millisecond
 
 // Hook represents a shutdown hook function
 // Deprecated: Use contract.ShutdownHook instead
@@ -53,6 +69,14 @@ type Manager struct {
 	drainTimeout time.Duration
 	logger       contract.Logger
 	isShutdown   bool
+	stopping     chan struct{}
+
+	tasksMu     sync.Mutex
+	tasks       sync.WaitGroup
+	running     map[string]int
+	tasksClosed bool
+	taskCtx     context.Context
+	cancelTasks context.CancelFunc
 }
 
 // NewManager creates a new shutdown manager
@@ -64,16 +88,28 @@ func NewManager(logger contract.Logger, timeout, drainTimeout time.Duration) *Ma
 		drainTimeout = 5 * time.Second
 	}
 
+	taskCtx, cancelTasks := context.WithCancel(context.Background())
 	return &Manager{
 		hooks:        make([]hookEntry, 0),
 		timeout:      timeout,
 		drainTimeout: drainTimeout,
 		logger:       logger,
+		stopping:     make(chan struct{}),
+		running:      make(map[string]int),
+		taskCtx:      taskCtx,
+		cancelTasks:  cancelTasks,
 	}
 }
 
-// RegisterHook adds a shutdown hook with the given priority
-// Higher priority hooks are executed first during shutdown
+// byPriority orders hooks highest priority first. It is used with a stable
+// sort, so hooks of equal priority keep their registration order.
+func byPriority(a, b hookEntry) int {
+	return cmp.Compare(b.priority, a.priority)
+}
+
+// RegisterHook adds a shutdown hook with the given priority.
+// Higher priority hooks are executed first during shutdown; hooks of equal
+// priority run in the order they were registered.
 func (m *Manager) RegisterHook(name string, priority int, hook contract.ShutdownHook) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -83,11 +119,7 @@ func (m *Manager) RegisterHook(name string, priority int, hook contract.Shutdown
 		priority: priority,
 		hook:     hook,
 	})
-
-	// Sort hooks by priority (descending)
-	slices.SortFunc(m.hooks, func(a, b hookEntry) int {
-		return cmp.Compare(b.priority, a.priority) // higher priority first
-	})
+	slices.SortStableFunc(m.hooks, byPriority)
 
 	m.logger.Debug("Shutdown hook registered",
 		"name", name,
@@ -109,7 +141,91 @@ func (m *Manager) UnregisterHook(name string) {
 	}
 }
 
-// Shutdown executes all registered hooks in priority order
+// Stopping returns a channel that is closed once shutdown starts, before any
+// hook runs. It is never closed when the application does not shut down.
+func (m *Manager) Stopping() <-chan struct{} {
+	return m.stopping
+}
+
+// Go runs fn in a new goroutine that shutdown waits for. Its context is not
+// cancelled when shutdown starts: tasks finish their work while the server
+// drains. The wait happens at PriorityWorkers; when the shutdown budget runs
+// out first, the context is cancelled and the tasks still running are reported.
+// A panic in fn is recovered and logged. Tasks started once the wait began are
+// not waited for, and those started after shutdown get a cancelled context.
+func (m *Manager) Go(name string, fn func(ctx context.Context)) {
+	m.tasksMu.Lock()
+	if m.tasksClosed {
+		m.tasksMu.Unlock()
+		go m.runTask(name, fn)
+		return
+	}
+	m.running[name]++
+	m.tasks.Add(1)
+	m.tasksMu.Unlock()
+
+	go func() {
+		defer m.tasks.Done()
+		defer m.taskFinished(name)
+		m.runTask(name, fn)
+	}()
+}
+
+func (m *Manager) runTask(name string, fn func(ctx context.Context)) {
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error("Background task panicked",
+				"task", name,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
+	fn(m.taskCtx)
+}
+
+func (m *Manager) taskFinished(name string) {
+	m.tasksMu.Lock()
+	defer m.tasksMu.Unlock()
+	if m.running[name]--; m.running[name] <= 0 {
+		delete(m.running, name)
+	}
+}
+
+// awaitTasks is the manager's own hook: it waits for the tasks started with Go
+// until its context is done, then cancels them and reports the ones left.
+func (m *Manager) awaitTasks(ctx context.Context) error {
+	m.tasksMu.Lock()
+	m.tasksClosed = true
+	m.tasksMu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		m.tasks.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		m.tasksMu.Lock()
+		names := make([]string, 0, len(m.running))
+		for name := range m.running {
+			names = append(names, name)
+		}
+		m.tasksMu.Unlock()
+		slices.Sort(names)
+
+		m.cancelTasks()
+		m.logger.Warn("Background tasks still running", "tasks", names)
+	}
+	return nil
+}
+
+// Shutdown runs the registered hooks once, highest priority first, within
+// three quarters of the shutdown timeout. A hook that is still running when
+// that budget is gone is reported and left behind; the hooks after it still
+// run. Errors returned by hooks are joined and returned.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
 	if m.isShutdown {
@@ -117,24 +233,29 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	m.isShutdown = true
-	hooks := make([]hookEntry, len(m.hooks))
-	copy(hooks, m.hooks)
+	// The task wait goes first among the hooks at PriorityWorkers.
+	hooks := append([]hookEntry{{name: tasksHookName, priority: PriorityWorkers, hook: m.awaitTasks}}, m.hooks...)
 	m.mu.Unlock()
+	slices.SortStableFunc(hooks, byPriority)
 
-	// Create timeout context if not already set
-	shutdownCtx, cancel := context.WithTimeout(ctx, m.timeout)
+	close(m.stopping)
+	defer m.cancelTasks()
+
+	budget := m.timeout * 3 / 4
+	shutdownCtx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
 	m.logger.Info("Starting graceful shutdown",
-		"hooks", len(hooks),
+		"hooks", len(hooks)-1,
 		"timeout", m.timeout.String(),
+		"budget", budget.String(),
 	)
 
 	var errs []error
 	for _, entry := range hooks {
 		m.logger.Debug("Executing shutdown hook", "name", entry.name, "priority", entry.priority)
 
-		if err := entry.hook(shutdownCtx); err != nil {
+		if err := m.run(shutdownCtx, entry); err != nil {
 			m.logger.Error("Shutdown hook failed",
 				"name", entry.name,
 				"error", err,
@@ -151,6 +272,52 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 	m.logger.Info("Graceful shutdown completed successfully")
 	return nil
+}
+
+// run runs one hook in its own goroutine and waits for it until ctx is done
+// (or, when the budget is already gone, for lateHookGrace).
+func (m *Manager) run(ctx context.Context, entry hookEntry) error {
+	done := make(chan error, 1)
+	go func() { done <- entry.hook(ctx) }()
+
+	wait := ctx
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		wait, cancel = context.WithTimeout(context.WithoutCancel(ctx), lateHookGrace)
+		defer cancel()
+	}
+
+	select {
+	case err := <-done:
+		return m.result(ctx, entry, err)
+	case <-wait.Done():
+		select {
+		case err := <-done:
+			return m.result(ctx, entry, err)
+		default:
+		}
+		m.outOfTime(entry, nil)
+		return nil
+	}
+}
+
+// result treats a hook that gave up because the budget ran out like one that
+// is still running: it is reported, not returned as a failure.
+func (m *Manager) result(ctx context.Context, entry hookEntry, err error) error {
+	if err != nil && ctx.Err() != nil &&
+		(errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+		m.outOfTime(entry, err)
+		return nil
+	}
+	return err
+}
+
+func (m *Manager) outOfTime(entry hookEntry, err error) {
+	args := []any{"name", entry.name, "priority", entry.priority}
+	if err != nil {
+		args = append(args, "error", err)
+	}
+	m.logger.Warn("Shutdown hook ran out of time", args...)
 }
 
 // DrainTimeout returns the drain timeout for HTTP connections

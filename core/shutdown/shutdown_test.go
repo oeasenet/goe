@@ -278,7 +278,7 @@ func TestManager_IsShutdown(t *testing.T) {
 }
 
 func TestManager_ShutdownTimeout(t *testing.T) {
-	logger := &testLogger{t: t}
+	logger := newRecorder(t)
 	manager := NewManager(logger, 100*time.Millisecond, 50*time.Millisecond)
 
 	manager.RegisterHook("slow-hook", 50, func(ctx context.Context) error {
@@ -295,9 +295,13 @@ func TestManager_ShutdownTimeout(t *testing.T) {
 	err := manager.Shutdown(ctx)
 	elapsed := time.Since(start)
 
-	// Should timeout and return context deadline exceeded
-	assert.Error(t, err)
+	// Running out of budget is reported, not returned: a hook that returns
+	// its context's error at the deadline is as late as one still running.
+	assert.NoError(t, err)
 	assert.True(t, elapsed < 500*time.Millisecond, "Should timeout quickly")
+	warns := logger.find("warn", "Shutdown hook ran out of time")
+	require.Len(t, warns, 1)
+	assert.Equal(t, "slow-hook", warns[0].fields["name"])
 }
 
 func TestPriorityConstants(t *testing.T) {
