@@ -14,11 +14,13 @@
 //
 // # Fetching happens once, at startup, and can stop the app from starting
 //
-// Ranges are fetched when you call Fetch, Options or TrustProxyConfig — normally
-// during construction, before goe.Run. There is no caching, no retry and no
-// background refresh: one request per provider, then done.
+// Ranges are fetched when you call Fetch, Options, TrustProxyConfig or Load —
+// normally during construction, before goe.Run. Transient failures (network
+// errors, 5xx, 429) are retried with backoff; there is no background refresh.
+// Load can also keep the last fully fetched ranges in a snapshot file and fall
+// back to them for a provider that stays down (see Config.SnapshotFile).
 //
-// That means a network failure surfaces as an error you must handle, and the
+// Without a snapshot, a failure surfaces as an error you must handle, and the
 // usual handling is to abort startup:
 //
 //	cdnOpts, err := cdntrust.Options(ctx, cdntrust.Cloudflare)
@@ -45,11 +47,11 @@ import (
 	"net/http"
 	"net/netip"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	goehttp "go.oease.dev/goe/v2/core/http"
-	"golang.org/x/sync/errgroup"
 )
 
 // Provider identifies a CDN whose edge ranges can be fetched.
@@ -77,6 +79,14 @@ const DefaultTimeout = 15 * time.Second
 
 // ErrNoProviders is returned when Fetch is called without any provider.
 var ErrNoProviders = errors.New("cdntrust: no providers specified")
+
+// defaultAttempts is how many times a source is tried when its failures are
+// transient (network errors, 5xx, 429).
+const defaultAttempts = 3
+
+// retryDelay is the wait before the second attempt; it doubles after that. A
+// variable so tests can shorten it.
+var retryDelay = 250 * time.Millisecond
 
 // endpoints maps each provider to its source URLs. It is a variable so tests can
 // point at local servers instead of the live APIs.
@@ -109,42 +119,72 @@ func Fetch(ctx context.Context, providers ...Provider) ([]string, error) {
 
 // Fetch is the method form of the package-level Fetch.
 func (f *Fetcher) Fetch(ctx context.Context, providers ...Provider) ([]string, error) {
+	if err := checkProviders(providers); err != nil {
+		return nil, err
+	}
+	ctx, cancel := withDefaultTimeout(ctx)
+	defer cancel()
+
+	results, errs := fetchEach(ctx, f.client(), providers, defaultAttempts)
+	for _, provider := range providers {
+		if err := errs[provider]; err != nil {
+			return nil, err
+		}
+	}
+	return union(results)
+}
+
+func (f *Fetcher) client() *http.Client {
+	if f.HTTPClient != nil {
+		return f.HTTPClient
+	}
+	return &http.Client{Timeout: DefaultTimeout}
+}
+
+func checkProviders(providers []Provider) error {
 	if len(providers) == 0 {
-		return nil, ErrNoProviders
+		return ErrNoProviders
 	}
 	for _, p := range providers {
 		if _, ok := endpoints[p]; !ok {
-			return nil, fmt.Errorf("cdntrust: unknown provider %q", p)
+			return fmt.Errorf("cdntrust: unknown provider %q", p)
 		}
 	}
+	return nil
+}
 
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, DefaultTimeout)
-		defer cancel()
+func withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
 	}
+	return context.WithTimeout(ctx, DefaultTimeout)
+}
 
-	client := f.HTTPClient
-	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
-	}
-
-	results := make([][]string, len(providers))
-	group, groupCtx := errgroup.WithContext(ctx)
-	for i, provider := range providers {
-		group.Go(func() error {
-			ranges, err := fetchProvider(groupCtx, client, provider)
+// fetchEach fetches every provider concurrently and returns the ranges of
+// those that succeeded and the errors of those that did not.
+func fetchEach(ctx context.Context, client *http.Client, providers []Provider, attempts int) (map[Provider][]string, map[Provider]error) {
+	var mu sync.Mutex
+	results := make(map[Provider][]string, len(providers))
+	errs := make(map[Provider]error)
+	var wg sync.WaitGroup
+	for _, provider := range providers {
+		wg.Go(func() {
+			ranges, err := fetchProvider(ctx, client, provider, attempts)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
-				return fmt.Errorf("cdntrust: %s: %w", provider, err)
+				errs[provider] = fmt.Errorf("cdntrust: %s: %w", provider, err)
+				return
 			}
-			results[i] = ranges
-			return nil
+			results[provider] = ranges
 		})
 	}
-	if err := group.Wait(); err != nil {
-		return nil, err
-	}
+	wg.Wait()
+	return results, errs
+}
 
+// union returns every range once, sorted, so the configuration is reproducible.
+func union(results map[Provider][]string) ([]string, error) {
 	var all []string
 	for _, ranges := range results {
 		all = append(all, ranges...)
@@ -152,7 +192,6 @@ func (f *Fetcher) Fetch(ctx context.Context, providers ...Provider) ([]string, e
 	if len(all) == 0 {
 		return nil, errors.New("cdntrust: providers returned no ranges")
 	}
-
 	slices.Sort(all)
 	return slices.Compact(all), nil
 }
@@ -201,10 +240,10 @@ func Options(ctx context.Context, providers ...Provider) ([]goehttp.Option, erro
 }
 
 // fetchProvider retrieves and parses every source for one provider.
-func fetchProvider(ctx context.Context, client *http.Client, provider Provider) ([]string, error) {
+func fetchProvider(ctx context.Context, client *http.Client, provider Provider, attempts int) ([]string, error) {
 	var out []string
 	for _, url := range endpoints[provider] {
-		body, err := get(ctx, client, url)
+		body, err := getWithRetry(ctx, client, url, attempts)
 		if err != nil {
 			return nil, err
 		}
@@ -233,6 +272,44 @@ func fetchProvider(ctx context.Context, client *http.Client, provider Provider) 
 	return out, nil
 }
 
+// statusError is a response with an unexpected status.
+type statusError struct {
+	code   int
+	status string
+}
+
+func (e *statusError) Error() string { return "unexpected status " + e.status }
+
+// retryable reports whether trying again may succeed: a network error, a
+// server error or rate limiting — not a malformed body or a cancelled context.
+func retryable(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	var status *statusError
+	if errors.As(err, &status) {
+		return status.code >= http.StatusInternalServerError || status.code == http.StatusTooManyRequests
+	}
+	return true
+}
+
+// getWithRetry gets url, retrying transient failures with doubling backoff.
+func getWithRetry(ctx context.Context, client *http.Client, url string, attempts int) ([]byte, error) {
+	delay := retryDelay
+	for attempt := 1; ; attempt++ {
+		body, err := get(ctx, client, url)
+		if err == nil || attempt >= attempts || !retryable(ctx, err) {
+			return body, err
+		}
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, err
+		}
+		delay *= 2
+	}
+}
+
 func get(ctx context.Context, client *http.Client, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -247,7 +324,7 @@ func get(ctx context.Context, client *http.Client, url string) ([]byte, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %s", resp.Status)
+		return nil, &statusError{code: resp.StatusCode, status: resp.Status}
 	}
 
 	// Cap the read: these lists are a few KB, and an unbounded read from a
