@@ -230,11 +230,7 @@ func createSentinelPool(rawURL string, config *Config) ([]Pool, string, error) {
 	rest := strings.TrimPrefix(rawURL, schemeSentinel+"://")
 
 	// Extract path (database number) from the end
-	var dbPath string
-	if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
-		dbPath = rest[slashIdx+1:]
-		rest = rest[:slashIdx]
-	}
+	rest, dbPath, _ := strings.CutLast(rest, "/")
 
 	// Extract userinfo if present.
 	// Sentinel URLs may have: user:pass@master@hosts or just master@hosts.
@@ -325,9 +321,7 @@ func createClusterPool(rawURL string, config *Config) ([]Pool, string, error) {
 	rest := strings.TrimPrefix(rawURL, schemeCluster+"://")
 
 	// Extract path (not typically used for cluster, but strip it)
-	if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
-		rest = rest[:slashIdx]
-	}
+	rest, _, _ = strings.CutLast(rest, "/")
 
 	// Extract userinfo if present (user:pass@hosts)
 	var username, password string

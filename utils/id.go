@@ -4,11 +4,11 @@ package utils
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math"
-	"strings"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/rs/xid"
 )
 
@@ -81,15 +81,12 @@ func GenerateNanoId(length ...int) string {
 	return result
 }
 
-// GenerateUUIDv7 returns a UUID version 7 with the dashes stripped, or an empty
-// string if one could not be generated. Version 7 is time-ordered, so the values
-// sort chronologically — useful as a database primary key.
+// GenerateUUIDv7 returns a UUID version 7 as 32 lowercase hex digits, without
+// dashes. Version 7 is time-ordered, so the values sort chronologically —
+// useful as a database primary key.
 func GenerateUUIDv7() string {
-	uuidWithDashes, err := uuid.NewV7()
-	if err != nil {
-		return ""
-	}
-	return strings.ReplaceAll(uuidWithDashes.String(), "-", "")
+	id := uuid.NewV7()
+	return hex.EncodeToString(id[:])
 }
 
 // GenerateXid returns a globally unique, 20-character, time-sortable identifier.
