@@ -9,7 +9,7 @@
 
 <br/>
 
-[![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![Go 1.27+](https://img.shields.io/badge/Go-1.27+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/oeasenet/goe?style=for-the-badge&color=blue)](https://github.com/oeasenet/goe/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/oeasenet/goe/ci.yml?branch=v2&style=for-the-badge&label=tests)](https://github.com/oeasenet/goe/actions)
 [![Coverage](https://img.shields.io/codecov/c/gh/oeasenet/goe/v2?token=9SWCFFQ38U&style=for-the-badge)](https://codecov.io/gh/oeasenet/goe)
@@ -111,7 +111,7 @@ go run main.go
 | 🧩 | **Module System** | Managed lifecycles (`OnStart`/`OnStop`), config validation, clean boundaries |
 | 🛡️ | **Contracts** | Interface-driven design — swap implementations, mock in tests |
 | ⚡ | **Concurrency Safe** | Singleflight cache protection, atomic operations, race-free by default |
-| 🧬 | **Go 1.26 Baseline** | Modern idioms throughout (generics, `WaitGroup.Go`, iterators); builds get the Green Tea GC and container-aware `GOMAXPROCS` automatically |
+| 🧬 | **Go 1.27 Baseline** | Modern idioms throughout (generics, `WaitGroup.Go`, iterators, the standard `uuid` package); builds get the Green Tea GC, container-aware `GOMAXPROCS` and the `encoding/json` v2 backend automatically |
 
 <br/>
 

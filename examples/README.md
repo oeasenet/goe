@@ -4,7 +4,7 @@ This directory contains example applications demonstrating the GOE framework's f
 
 ## Prerequisites
 
-- Go 1.26+
+- Go 1.27+
 - Docker and Docker Compose (for database/cache dependencies)
 
 ## Quick Start

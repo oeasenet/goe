@@ -1,6 +1,6 @@
 module go.oease.dev/goe/v2
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/bytedance/sonic v1.15.4

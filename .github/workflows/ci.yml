@@ -7,7 +7,7 @@ on:
         branches: [ v2 ]
 
 env:
-    GO_VERSION: '1.26'
+    GO_VERSION: '1.27'
 
 jobs:
     test:
@@ -16,9 +16,9 @@ jobs:
         strategy:
             matrix:
                 os: [ ubuntu-latest ]
-                # The go.mod minimum and the current release: both are supported
-                # Go versions, and production builds usually use the newer one.
-                go-version: [ '1.26', '1.27' ]
+                # The go.mod minimum. Add the next release here when it ships,
+                # so both supported Go versions are tested.
+                go-version: [ '1.27' ]
 
         # Redis for the probed default-lane tests (core/lock, the cache redis
         # driver): they run wherever Redis is reachable and skip where it is
@@ -56,7 +56,7 @@ jobs:
                 run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
             -   name: Upload coverage to Codecov
-                if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.26'
+                if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.27'
                 uses: codecov/codecov-action@v7
                 with:
                     files: ./coverage.txt
