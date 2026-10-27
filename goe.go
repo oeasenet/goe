@@ -307,9 +307,18 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	// reported now; later ones as they are read.
 	config.AttachLogger(instance.config, instance.logger.With("module", "config"))
 
+	// Start timeout: Options, then STARTUP_TIMEOUT, then two minutes.
+	startTimeout := opt.StartTimeout
+	if startTimeout <= 0 {
+		startTimeout = instance.config.GetDuration("STARTUP_TIMEOUT")
+		if startTimeout <= 0 {
+			startTimeout = 2 * time.Minute
+		}
+	}
+
 	// Build Fx options
 	fxOptions := []fx.Option{
-		fx.StartTimeout(2 * time.Minute),
+		fx.StartTimeout(startTimeout),
 		// Configure Fx to use our custom logger that logs at debug level
 		fx.WithLogger(func() fxevent.Logger {
 			zapLogger := logModule.ProvideZap()

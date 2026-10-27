@@ -173,6 +173,10 @@ type Options struct {
 	// precedence over it.
 	HTTPPort int
 
+	// StartTimeout bounds the whole start: every module's and hook's OnStart.
+	// Falls back to STARTUP_TIMEOUT, then two minutes.
+	StartTimeout time.Duration
+
 	// Shutdown configuration
 	ShutdownTimeout time.Duration // Total shutdown timeout (default: 30s)
 	DrainTimeout    time.Duration // HTTP drain timeout (default: 5s)

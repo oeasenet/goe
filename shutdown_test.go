@@ -527,3 +527,26 @@ func TestShutdown_StreamsEndBeforeTheDrain(t *testing.T) {
 	assert.True(t, endedBeforeDrain.Load(), "streams end when shutdown starts, before the drain")
 	assert.Contains(t, <-rest, "retry: 1000", "the client is told to reconnect")
 }
+
+func TestStartTimeout_FollowsOptionEnvAndDefault(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		assert.Equal(t, 2*time.Minute, goe.New(goe.Options{}).Container().StartTimeout())
+	})
+	t.Run("option", func(t *testing.T) {
+		app := goe.New(goe.Options{StartTimeout: 45 * time.Second})
+		assert.Equal(t, 45*time.Second, app.Container().StartTimeout())
+	})
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("STARTUP_TIMEOUT", "50s")
+		assert.Equal(t, 50*time.Second, goe.New(goe.Options{}).Container().StartTimeout())
+	})
+	t.Run("option wins over the environment", func(t *testing.T) {
+		t.Setenv("STARTUP_TIMEOUT", "50s")
+		app := goe.New(goe.Options{StartTimeout: 45 * time.Second})
+		assert.Equal(t, 45*time.Second, app.Container().StartTimeout())
+	})
+	t.Run("negative falls back to the default", func(t *testing.T) {
+		app := goe.New(goe.Options{StartTimeout: -time.Second})
+		assert.Equal(t, 2*time.Minute, app.Container().StartTimeout())
+	})
+}
