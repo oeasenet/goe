@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,10 +23,13 @@ type Manager struct {
 	histograms map[string]*prometheusHistogram
 }
 
-// NewManager creates a new metrics manager
+// NewManager creates a new metrics manager with a registry of its own
 func NewManager(config *Config, logger contract.Logger) *Manager {
-	registry := prometheus.NewRegistry()
+	return newManager(config, logger, prometheus.NewRegistry())
+}
 
+// newManager creates a metrics manager registering into registry.
+func newManager(config *Config, logger contract.Logger, registry *prometheus.Registry) *Manager {
 	m := &Manager{
 		registry:   registry,
 		config:     config,
@@ -37,15 +41,28 @@ func NewManager(config *Config, logger contract.Logger) *Manager {
 
 	// Register Go runtime metrics
 	if config.EnableGoMetrics() {
-		registry.MustRegister(collectors.NewGoCollector())
+		registerOnce(registry, collectors.NewGoCollector())
 	}
 
 	// Register process metrics
 	if config.EnableProcessMetrics() {
-		registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		registerOnce(registry, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	}
 
+	registerOnce(registry, newBuildInfo(config.Namespace(), config.AppVersion()))
+
 	return m
+}
+
+// registerOnce registers c, tolerating a registry — the application's own —
+// that already holds an equal collector.
+func registerOnce(registry *prometheus.Registry, c prometheus.Collector) {
+	if err := registry.Register(c); err != nil {
+		var already prometheus.AlreadyRegisteredError
+		if !errors.As(err, &already) {
+			panic(err)
+		}
+	}
 }
 
 // Counter returns a counter metric by name, creating it if necessary

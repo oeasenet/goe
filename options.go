@@ -9,6 +9,7 @@ import (
 	"go.oease.dev/goe/v2/core/job"
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
+	"go.oease.dev/goe/v2/core/metrics"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
 )
@@ -160,6 +161,10 @@ type Options struct {
 	//
 	// See the core/mongodb/migrate package for the full option list.
 	Migrate []migrate.Option
+
+	// Metrics configures the metrics module from code (port, registry, pprof).
+	// A non-nil slice implies WithMetrics.
+	Metrics []metrics.Option
 
 	// HTTPPort overrides the HTTP port.
 	//

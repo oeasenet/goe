@@ -254,7 +254,7 @@ func (r *moduleRegistry) addMetrics() {
 	// Add Metrics module if enabled
 
 	if r.opt.WithMetrics {
-		r.metrics = metrics.NewModule(instance.config, instance.logger)
+		r.metrics = metrics.NewModule(instance.config, instance.logger, r.opt.Metrics...)
 		instance.metricsManager = r.metrics.Manager()
 
 		instance.logger.Debug("Registering Metrics module")
@@ -306,7 +306,11 @@ func (r *moduleRegistry) addHTTP() {
 	if r.opt.WithHTTP {
 		// Streams end when shutdown starts, before the drain. App options come
 		// after GOE's, so they can still override it.
-		httpOpts := append([]http.Option{http.WithStoppingSignal(r.shutdown.Stopping())}, r.opt.HTTP...)
+		gopts := []http.Option{http.WithStoppingSignal(r.shutdown.Stopping())}
+		if r.metrics != nil {
+			gopts = append(gopts, http.WithStreamObserver(metrics.NewStreamMetrics(r.metrics.Manager())))
+		}
+		httpOpts := append(gopts, r.opt.HTTP...)
 		r.http = http.NewModule(instance.config, instance.logger, httpOpts...)
 		instance.http = r.http.Provide()
 

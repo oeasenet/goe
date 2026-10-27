@@ -61,6 +61,11 @@ func (c *Config) EnableProcessMetrics() bool {
 	return true // Enabled by default
 }
 
+// AppVersion returns the application version for the build info metric
+func (c *Config) AppVersion() string {
+	return c.config.GetString("APP_VERSION")
+}
+
 // HTTPRequestDurationBuckets returns histogram buckets for HTTP request duration
 func (c *Config) HTTPRequestDurationBuckets() []float64 {
 	// Could be configured via METRICS_HTTP_BUCKETS but for now use defaults

@@ -51,37 +51,10 @@ var (
 // just after New returns. Accessors for modules that are not enabled panic
 // with a descriptive message.
 func New(opts ...Options) contract.Application {
-	// Merge options
+	// A whole-struct copy, so a field added to Options can never be dropped here.
 	opt := Options{}
-
 	if len(opts) > 0 {
-		o := opts[0]
-		opt.Modules = o.Modules
-		opt.Providers = o.Providers
-		opt.Invokers = o.Invokers
-		opt.WithHTTP = o.WithHTTP
-		opt.WithCache = o.WithCache
-		opt.WithDB = o.WithDB
-		opt.WithMongoDB = o.WithMongoDB
-		opt.WithMigrate = o.WithMigrate
-		opt.WithLock = o.WithLock
-		opt.WithJob = o.WithJob
-		opt.WithHealth = o.WithHealth
-		opt.WithMetrics = o.WithMetrics
-		opt.WithOTel = o.WithOTel
-		opt.HTTP = o.HTTP
-		opt.Log = o.Log
-		opt.Cache = o.Cache
-		opt.Job = o.Job
-		opt.Lock = o.Lock
-		opt.MongoDB = o.MongoDB
-		opt.Migrate = o.Migrate
-		opt.HTTPPort = o.HTTPPort
-		opt.ConfigOverrides = o.ConfigOverrides
-		opt.ShutdownTimeout = o.ShutdownTimeout
-		opt.DrainTimeout = o.DrainTimeout
-		opt.OnStart = o.OnStart
-		opt.OnStop = o.OnStop
+		opt = opts[0]
 	}
 
 	// Supplying a module's options is an unambiguous request for that module,
@@ -103,6 +76,9 @@ func New(opts ...Options) contract.Application {
 	}
 	// Migration cannot run without MongoDB, so migrate options imply both
 	// modules. The plain WithMigrate flag keeps its explicit requirement.
+	if opt.Metrics != nil {
+		opt.WithMetrics = true
+	}
 	if opt.Migrate != nil {
 		opt.WithMigrate = true
 		opt.WithMongoDB = true
