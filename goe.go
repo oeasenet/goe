@@ -303,6 +303,10 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	logModule := log.NewModule(instance.config, opt.Log...)
 	instance.logger = logModule.Provide()
 
+	// Values that failed to parse while the logger did not exist yet are
+	// reported now; later ones as they are read.
+	config.AttachLogger(instance.config, instance.logger.With("module", "config"))
+
 	// Build Fx options
 	fxOptions := []fx.Option{
 		fx.StartTimeout(2 * time.Minute),
