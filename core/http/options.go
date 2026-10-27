@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -53,8 +54,15 @@ type settings struct {
 	htmlViewsRoot string
 	htmlViewsExt  string
 
-	requestIDEnabled bool
-	requestIDHeader  string
+	requestIDEnabled      bool
+	requestIDHeader       string
+	requestIDTrustInbound bool
+
+	// Access log: query parameters whose values are redacted, a replacement
+	// for the logged URL, and a predicate for requests left out.
+	accessLogRedactQuery []string
+	accessLogURL         func(fiber.Ctx) string
+	accessLogSkip        func(fiber.Ctx) bool
 
 	// allowDotSegments lets requests whose raw path has "." or ".." segments
 	// through the guard; they are answered 400 by default.
@@ -121,10 +129,12 @@ func defaultSettings(errorHandler fiber.ErrorHandler) settings {
 			// with WithListenerNetwork.
 			ListenerNetwork: fiber.NetworkTCP,
 		},
-		host:             "0.0.0.0",
-		port:             8080,
-		requestIDEnabled: true,
-		requestIDHeader:  fiber.HeaderXRequestID,
+		host:                  "0.0.0.0",
+		port:                  8080,
+		requestIDEnabled:      true,
+		requestIDHeader:       fiber.HeaderXRequestID,
+		requestIDTrustInbound: true,
+		accessLogRedactQuery:  defaultRedactedQuery,
 	}
 }
 
@@ -191,6 +201,12 @@ func (s *settings) applyEnv(config contract.Config) {
 		s.requestIDEnabled = config.GetBool("HTTP_REQUEST_ID")
 	}
 	setString("HTTP_REQUEST_ID_HEADER", &s.requestIDHeader)
+	setBool("HTTP_REQUEST_ID_TRUST_INBOUND", &s.requestIDTrustInbound)
+
+	// Access log.
+	if config.Has("HTTP_ACCESS_LOG_REDACT_QUERY") {
+		s.accessLogRedactQuery = splitList(config.GetString("HTTP_ACCESS_LOG_REDACT_QUERY"))
+	}
 
 	// Trusted proxies.
 	if config.GetBool("FIBER_TRUST_PROXY") {
@@ -436,4 +452,15 @@ func resolve(logger contract.Logger, base settings, opts []Option) (settings, []
 // strictBodyLimits reports whether body limits hold while bodies stream.
 func (s *settings) strictBodyLimits() bool {
 	return s.strictBodyLimit || len(s.routeLimits) > 0
+}
+
+// splitList splits a comma-separated value, dropping blanks.
+func splitList(value string) []string {
+	out := []string{}
+	for item := range strings.SplitSeq(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"sync"
@@ -105,6 +106,12 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// one when absent.
 	reqIDHeader := resolved.requestIDHeader
 	if resolved.requestIDEnabled {
+		if !resolved.requestIDTrustInbound {
+			app.Use(func(c fiber.Ctx) error {
+				c.Request().Header.Del(reqIDHeader)
+				return c.Next()
+			})
+		}
 		app.Use(requestid.New(requestid.Config{Header: reqIDHeader}))
 	}
 
@@ -112,7 +119,10 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// fiberzap maps by status: index 0 = >=500, 1 = >=400, 2 = other.
 	// So success requests log at Info, 4xx at Warn, 5xx at Error — and the
 	// "access" module tag lets operators silence success with access:warn.
+	redactor := newQueryRedactor(resolved.accessLogRedactQuery)
+	logURL := resolved.accessLogURL
 	fiberZap := fiberzap.New(fiberzap.Config{
+		Next: resolved.accessLogSkip,
 		SkipURIs: []string{
 			"/.well-known/liveness",
 			"/.well-known/readiness",
@@ -123,9 +133,15 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		// group latency by), host serves per-domain slicing when one app
 		// answers many domains. bytesSent is emitted from FieldsFunc: fiberzap's
 		// own reads the body, which drains a streamed response before it is sent.
-		Fields: []string{"method", "status", "route", "host", "latency", "ip", "url"},
+		// url comes from FieldsFunc, with secrets in the query redacted.
+		Fields: []string{"method", "status", "route", "host", "latency", "ip"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
+			url := redactor.redact(c.OriginalURL())
+			if logURL != nil {
+				url = logURL(c)
+			}
 			fields := []zap.Field{
+				zap.String("url", url),
 				// The log contract's duration unit is integer milliseconds.
 				// fiberzap's own latency is a human-readable string, and its
 				// timing is not reachable from FieldsFunc — Elapsed reads
@@ -143,6 +159,12 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 			if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
 				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
 			}
+			// A server error carries its cause; client errors stay terse.
+			if c.Response().StatusCode() >= fiber.StatusInternalServerError {
+				if err, ok := c.Locals(localHandlerError).(error); ok && !isNilError(err) {
+					fields = append(fields, zap.String("error", err.Error()))
+				}
+			}
 			return fields
 		},
 		Messages: []string{"http server error", "http client error", "http request"},
@@ -150,6 +172,31 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	})
 
 	app.Use(fiberZap)
+
+	// Keep the handler's error for the access log's 5xx lines.
+	app.Use(func(c fiber.Ctx) error {
+		err := c.Next()
+		if err != nil {
+			c.Locals(localHandlerError, err)
+		}
+		return err
+	})
+
+	// Recover handler panics inside the access log, so a panicked request is
+	// logged as a 500 with its cause, and log the stack. The recover registered
+	// first stays as the safety net for GOE's own middleware.
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c fiber.Ctx, e any) {
+			klog.Error("Request panicked",
+				"request_id", requestIDFrom(c, reqIDHeader),
+				"method", c.Method(),
+				"route", c.Route().Path,
+				"panic", e,
+				"stack", string(debug.Stack()),
+			)
+		},
+	}))
 
 	// After the access log, so rejected requests are logged with their status.
 	app.Use(newGuard(&resolved).handle)

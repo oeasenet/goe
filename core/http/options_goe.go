@@ -194,3 +194,37 @@ func WithStoppingSignal(stopping <-chan struct{}) Option {
 func WithStreamObserver(observer StreamObserver) Option {
 	return func(s *settings) error { s.streamObserver = observer; return nil }
 }
+
+// WithRequestIDTrustInbound controls whether the request-id middleware reuses
+// an id the client sent in the request-id header. Replaces
+// HTTP_REQUEST_ID_TRUST_INBOUND. Defaults to true; set it to false where
+// clients are not trusted, so every request gets a generated id.
+func WithRequestIDTrustInbound(trusted bool) Option {
+	return func(s *settings) error { s.requestIDTrustInbound = trusted; return nil }
+}
+
+// WithAccessLogRedactQuery sets the query parameters whose values the access log
+// records as REDACTED; names match case-insensitively. Replaces
+// HTTP_ACCESS_LOG_REDACT_QUERY (a comma-separated list). With no names nothing
+// is redacted. The default list covers common secrets: access_token, api_key,
+// apikey, auth, code, id_token, key, password, refresh_token, secret, sig,
+// signature and token.
+func WithAccessLogRedactQuery(names ...string) Option {
+	return func(s *settings) error {
+		s.accessLogRedactQuery = append([]string{}, names...)
+		return nil
+	}
+}
+
+// WithAccessLogURL makes the access log record fn's result as the url, instead
+// of the request URL with redacted query values — to drop the query entirely,
+// say, or hide identifiers in the path.
+func WithAccessLogURL(fn func(c fiber.Ctx) string) Option {
+	return func(s *settings) error { s.accessLogURL = fn; return nil }
+}
+
+// WithAccessLogSkip leaves the requests for which fn reports true out of the
+// access log, in addition to the health probe paths.
+func WithAccessLogSkip(fn func(c fiber.Ctx) bool) Option {
+	return func(s *settings) error { s.accessLogSkip = fn; return nil }
+}
