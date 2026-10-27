@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"net"
 	"reflect"
 	"slices"
@@ -60,14 +59,6 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// (e.g. LOG_MODULE_LEVELS=access:warn shows only 4xx/5xx requests).
 	klog := logger.With("module", "http")
 	accessLogger := logger.With("module", "access")
-
-	// Init error page template
-	var err error
-	tpl, err = template.ParseFS(templateFS, "error_page.gohtml")
-	if err != nil {
-		klog.Fatal(err.Error())
-		panic(err)
-	}
 
 	// Layer 1 and 2: GOE defaults, then the environment.
 	base := defaultSettings(defaultErrorHandler())
