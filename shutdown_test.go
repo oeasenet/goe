@@ -441,3 +441,36 @@ func TestShutdown_ProgrammaticShutdownExitsWithCode(t *testing.T) {
 	assert.Equal(t, 3, exitErr.ExitCode())
 	assert.Contains(t, string(out), "shutdown-hook-ran", "a programmatic shutdown runs the shutdown hooks")
 }
+
+func TestShutdown_ReadinessFailsWhileStopping(t *testing.T) {
+	srv := &serverAddr{}
+	var readyStatus atomic.Int32
+	app := goe.New(goe.Options{
+		HTTP:       shutdownTestHTTP(srv),
+		WithHealth: true,
+		Invokers: []any{
+			func(m *shutdown.Manager) {
+				m.RegisterHook("probe-readiness", shutdown.PriorityHTTP+10, func(context.Context) error {
+					resp, err := http.Get("http://" + srv.get() + "/health/ready")
+					if err != nil {
+						return err
+					}
+					_ = resp.Body.Close()
+					readyStatus.Store(int32(resp.StatusCode))
+					return nil
+				})
+			},
+		},
+	})
+
+	ctx := context.Background()
+	require.NoError(t, app.Start(ctx))
+	resp, err := http.Get("http://" + srv.get() + "/health/ready")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	require.NoError(t, app.Stop(ctx))
+	assert.Equal(t, int32(http.StatusServiceUnavailable), readyStatus.Load(),
+		"readiness must fail once the app is stopping, while the server still serves")
+}

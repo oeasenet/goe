@@ -231,7 +231,7 @@ func (r *moduleRegistry) addHealth() {
 	// Add Health module if enabled
 
 	if r.opt.WithHealth {
-		r.health = health.NewModule(instance.config, instance.logger)
+		r.health = health.NewModule(instance.config, instance.logger, health.WithStopping(r.shutdown.Stopping()))
 		instance.healthManager = r.health.Manager()
 
 		instance.logger.Debug("Registering Health module")
