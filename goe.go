@@ -39,6 +39,7 @@ var (
 		metricsManager  contract.MetricsManager // Metrics manager instance
 		otelProvider    contract.OTelProvider   // OpenTelemetry provider instance
 		shutdownManager *shutdown.Manager       // Shutdown manager instance
+		shutdowner      fx.Shutdowner           // Requests a graceful stop (goe.Shutdown)
 		mu              sync.RWMutex
 	}
 )
@@ -223,6 +224,13 @@ func New(opts ...Options) contract.Application {
 
 	// After every module, so the server starts last and drains first.
 	fxOptions = append(fxOptions, reg.serve())
+
+	// The shutdowner behind goe.Shutdown comes from this app's own graph.
+	fxOptions = append(fxOptions, fx.Invoke(func(s fx.Shutdowner) {
+		instance.mu.Lock()
+		defer instance.mu.Unlock()
+		instance.shutdowner = s
+	}))
 
 	// Add lifecycle hooks
 	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {

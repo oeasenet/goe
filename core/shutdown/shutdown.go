@@ -88,6 +88,14 @@ func NewManager(logger contract.Logger, timeout, drainTimeout time.Duration) *Ma
 		drainTimeout = 5 * time.Second
 	}
 
+	// The drain runs inside the hooks' shared budget, so it never gets more.
+	if budget := timeout * 3 / 4; drainTimeout > budget {
+		logger.Warn("Drain timeout exceeds the shutdown budget",
+			"drain_timeout", drainTimeout.String(),
+			"budget", budget.String(),
+		)
+	}
+
 	taskCtx, cancelTasks := context.WithCancel(context.Background())
 	return &Manager{
 		hooks:        make([]hookEntry, 0),

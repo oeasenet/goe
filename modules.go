@@ -326,27 +326,29 @@ func (r *moduleRegistry) addHTTP() {
 }
 
 // serve returns the lifecycle hook that starts the HTTP server and runs the
-// shutdown manager. New appends it after the custom modules, providers and
-// invokers, so Fx starts it last and stops it first: the server accepts
-// requests only once every module is up, and drains before any module stops.
-// Without the HTTP module it only runs the shutdown manager's hooks.
+// shutdown manager. It is a root-level invoke that New appends after the custom
+// modules, providers, the service-middleware invoke and the invokers: Fx runs
+// module invokes before root ones and root ones in order, so every hook those
+// append — including hooks of providers built for an invoker — is appended
+// before this one. Fx therefore starts the server after them and stops it
+// (the shutdown manager's drain) before them. Without the HTTP module it only
+// runs the shutdown manager's hooks. Hooks appended later, such as those of a
+// module added at runtime, are not covered.
 //
 // Unlike the add methods, New calls it after buildCore released instance.mu;
 // it reads only the registry, never the instance singleton.
 func (r *moduleRegistry) serve() fx.Option {
-	name, start := "shutdown", func(context.Context) error { return nil }
+	start := func(context.Context) error { return nil }
 	if r.http != nil {
-		name, start = r.http.Name(), r.http.OnStart
+		start = r.http.OnStart
 	}
 
-	return fx.Module(name,
-		fx.Invoke(func(lc fx.Lifecycle) {
-			lc.Append(fx.Hook{
-				OnStart: start,
-				OnStop:  r.shutdown.Shutdown,
-			})
-		}),
-	)
+	return fx.Invoke(func(lc fx.Lifecycle) {
+		lc.Append(fx.Hook{
+			OnStart: start,
+			OnStop:  r.shutdown.Shutdown,
+		})
+	})
 }
 
 // checkAndProvideServices inspects a module for common service provider methods

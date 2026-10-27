@@ -244,3 +244,19 @@ func TestManager_ShutdownRunsOnce(t *testing.T) {
 	require.NoError(t, m.Shutdown(context.Background()))
 	assert.Equal(t, int32(1), runs.Load())
 }
+
+func TestNewManager_WarnsWhenTheDrainExceedsTheBudget(t *testing.T) {
+	rec := newRecorder(t)
+	_ = NewManager(rec, 4*time.Second, 5*time.Second)
+
+	warns := rec.find("warn", "Drain timeout exceeds the shutdown budget")
+	require.Len(t, warns, 1, "the drain can never get more than three quarters of the shutdown timeout")
+	assert.Equal(t, "5s", warns[0].fields["drain_timeout"])
+	assert.Equal(t, "3s", warns[0].fields["budget"])
+}
+
+func TestNewManager_NoWarningForTheDefaults(t *testing.T) {
+	rec := newRecorder(t)
+	_ = NewManager(rec, 0, 0)
+	assert.Empty(t, rec.find("warn", "Drain timeout exceeds the shutdown budget"))
+}

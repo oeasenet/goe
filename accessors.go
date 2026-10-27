@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
+	"go.oease.dev/goe/v2/core/shutdown"
+	"go.uber.org/fx"
 
 	"go.oease.dev/goe/v2/contract"
 )
@@ -292,4 +294,45 @@ func AddInvoker(invoker contract.Invoker) error {
 	}
 
 	return app.AddInvoker(invoker)
+}
+
+// Stopping returns a channel that is closed when the application starts
+// shutting down, before any shutdown hook runs. Long-lived work — streams,
+// polling loops — watches it to end early, so the HTTP drain finishes fast.
+func Stopping() <-chan struct{} {
+	return shutdownManager().Stopping()
+}
+
+// Go runs fn in a goroutine that graceful shutdown waits for, at
+// shutdown.PriorityWorkers and within the shutdown budget. fn's context is not
+// cancelled when shutdown starts, only when the budget runs out before fn
+// returns. Use it instead of a bare go statement for work that should finish
+// before the process exits. A panic in fn is recovered and logged.
+func Go(name string, fn func(ctx context.Context)) {
+	shutdownManager().Go(name, fn)
+}
+
+// Shutdown asks the application to stop gracefully, exactly as SIGTERM does,
+// and to exit with code when it runs under Run. It returns at once; the stop
+// runs on the application's own goroutine. A request made before the
+// application finished starting is kept and acted on as soon as it runs.
+func Shutdown(code int) error {
+	instance.mu.RLock()
+	shutdowner := instance.shutdowner
+	instance.mu.RUnlock()
+
+	if shutdowner == nil {
+		panic("Application not initialized. Call goe.New() first")
+	}
+	return shutdowner.Shutdown(fx.ExitCode(code))
+}
+
+func shutdownManager() *shutdown.Manager {
+	instance.mu.RLock()
+	defer instance.mu.RUnlock()
+
+	if instance.shutdownManager == nil {
+		panic("Application not initialized. Call goe.New() first")
+	}
+	return instance.shutdownManager
 }
