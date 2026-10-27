@@ -59,6 +59,9 @@ type hookEntry struct {
 	name     string
 	priority int
 	hook     contract.ShutdownHook
+	// inline marks the manager's own hooks: they honour their context, so
+	// they run on the shutdown goroutine and finish (and report) in order.
+	inline bool
 }
 
 // Manager manages graceful shutdown of the application
@@ -242,7 +245,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 	m.isShutdown = true
 	// The task wait goes first among the hooks at PriorityWorkers.
-	hooks := append([]hookEntry{{name: tasksHookName, priority: PriorityWorkers, hook: m.awaitTasks}}, m.hooks...)
+	hooks := append([]hookEntry{{name: tasksHookName, priority: PriorityWorkers, hook: m.awaitTasks, inline: true}}, m.hooks...)
 	m.mu.Unlock()
 	slices.SortStableFunc(hooks, byPriority)
 
@@ -263,7 +266,11 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	for _, entry := range hooks {
 		m.logger.Debug("Executing shutdown hook", "name", entry.name, "priority", entry.priority)
 
-		if err := m.run(shutdownCtx, entry); err != nil {
+		run := m.run
+		if entry.inline {
+			run = func(ctx context.Context, entry hookEntry) error { return entry.hook(ctx) }
+		}
+		if err := run(shutdownCtx, entry); err != nil {
 			m.logger.Error("Shutdown hook failed",
 				"name", entry.name,
 				"error", err,
