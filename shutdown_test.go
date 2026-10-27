@@ -212,8 +212,8 @@ func TestShutdown_HTTPDrainIsBoundedByDrainTimeout(t *testing.T) {
 
 	assert.Less(t, elapsed, 2*time.Second,
 		"stopping must not wait for an in-flight request beyond the drain timeout")
-	assert.ErrorIs(t, err, context.DeadlineExceeded,
-		"a drain cut short by its timeout is reported")
+	assert.NoError(t, err,
+		"a drain cut short by its timeout closes what is left and is logged, not returned")
 }
 
 func TestShutdown_StopTimeoutFollowsShutdownTimeout(t *testing.T) {

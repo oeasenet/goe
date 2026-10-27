@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	fiberzap "github.com/gofiber/contrib/v3/zap"
@@ -41,6 +42,9 @@ type kernel struct {
 	// ValidateConfig so that startup aborts; the kernel itself was built from
 	// the environment-only configuration and is never served.
 	optErrs []error
+
+	// conns tracks open connections for the end of a drain.
+	conns *connTracker
 }
 
 // New creates a new HTTP kernel.
@@ -81,6 +85,13 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 
 	// Create fiber app
 	app := fiber.New(resolved.fiber)
+
+	// During a drain, responses carry Connection: close so keep-alive clients
+	// reconnect elsewhere; connections are tracked so a drain that runs out of
+	// time can close the ones left (see Module.OnStop).
+	app.Server().CloseOnShutdown = true
+	conns := newConnTracker()
+	conns.track(app.Server())
 
 	// Register default route constraints (uuid, uint, slug, email)
 	RegisterDefaultConstraints(app)
@@ -148,6 +159,7 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		host:      resolved.host,
 		port:      resolved.port,
 		optErrs:   optErrs,
+		conns:     conns,
 	}
 }
 
@@ -363,15 +375,27 @@ func (m *Module) OnStart(ctx context.Context) error {
 	}
 }
 
-// OnStop gracefully shuts the server down: it stops accepting connections,
-// closes idle ones and waits for in-flight requests until ctx is done — goe.New
-// bounds ctx with goe.Options.DrainTimeout. A request still running at the
-// deadline is not interrupted, and the deadline is returned so that a drain cut
-// short is reported.
+// OnStop drains the server: it stops accepting connections, closes idle ones
+// and waits for in-flight requests until ctx is done — goe.New bounds ctx with
+// goe.Options.DrainTimeout. Responses written meanwhile carry Connection:
+// close. When ctx ends first, the connections still open are closed, so their
+// requests end before the modules they use stop, and one warning reports how
+// many there were; that is the expected end of a drain with long requests or
+// streams, so it is not returned as an error.
 func (m *Module) OnStop(ctx context.Context) error {
 	k := m.kernel.(*kernel)
 	k.logger.Info("HTTP server shutting down")
-	if err := k.app.ShutdownWithContext(ctx); err != nil {
+	start := time.Now()
+	err := k.app.ShutdownWithContext(ctx)
+	if err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		open := k.conns.closeAll()
+		k.logger.Warn("HTTP drain incomplete",
+			"open_connections", open,
+			"waited", time.Since(start).Round(time.Millisecond).String(),
+		)
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("HTTP server drain: %w", err)
 	}
 	return nil
