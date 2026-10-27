@@ -289,3 +289,38 @@ func TestErrorHandler_QueryValidationIs400(t *testing.T) {
 
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
+
+func TestNewValidator_UsesGOERules(t *testing.T) {
+	type signup struct {
+		Email string `json:"email" validate:"required,email"`
+		Phone string `json:"phone" validate:"phone"`
+	}
+	v, err := NewValidator()
+	require.NoError(t, err)
+
+	require.NoError(t, v.Validate(signup{Email: "a@b.co", Phone: "+1 555 0100 77"}))
+
+	err = v.Validate(signup{Email: "not-an-email", Phone: "+1 555 0100 77"})
+	var verr *ValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, "email", verr.Fields[0].Field, "fields are named by their json tag, as in requests")
+
+	err = v.Validate(signup{Email: "a@b.co", Phone: "abc"})
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, "phone", verr.Fields[0].Tag, "GOE's bundled rules are registered")
+}
+
+func TestNewValidator_AppliesSetups(t *testing.T) {
+	v, err := NewValidator(func(validate *validator.Validate) error {
+		return validate.RegisterValidation("even", func(fl validator.FieldLevel) bool { return fl.Field().Int()%2 == 0 })
+	})
+	require.NoError(t, err)
+	type payload struct {
+		N int `json:"n" validate:"even"`
+	}
+	assert.NoError(t, v.Validate(payload{N: 2}))
+	assert.Error(t, v.Validate(payload{N: 3}))
+
+	_, err = NewValidator(func(*validator.Validate) error { return errors.New("setup failed") })
+	assert.ErrorContains(t, err, "setup failed")
+}
