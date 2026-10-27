@@ -142,6 +142,9 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 
 	app.Use(fiberZap)
 
+	// After the access log, so rejected requests are logged with their status.
+	app.Use(newGuard(&resolved).handle)
+
 	return &kernel{
 		app:       app,
 		config:    config,

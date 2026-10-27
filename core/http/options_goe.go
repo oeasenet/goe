@@ -3,13 +3,15 @@ package http
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 )
 
 // This file holds the options GOE defines itself, because Fiber has no
-// equivalent field: the listener address, the request-id middleware, and the
-// html/template engine GOE constructs on your behalf. Everything else follows
+// equivalent field: the listener address, the request-id middleware, the
+// html/template engine GOE constructs on your behalf, and the request guard. Everything else follows
 // Fiber's field names (see options_fiber.go and options_listen.go).
 
 // WithHost sets the interface the server binds to. Replaces HTTP_HOST.
@@ -121,6 +123,60 @@ func WithListenConfig(fn func(*fiber.ListenConfig)) Option {
 			return errors.New("WithListenConfig: function must not be nil")
 		}
 		s.listenHooks = append(s.listenHooks, fn)
+		return nil
+	}
+}
+
+// WithAllowDotSegments lets requests through whose raw path has "." or ".."
+// segments, also percent-encoded ones. Replaces HTTP_ALLOW_DOT_SEGMENTS.
+//
+// GOE answers such requests 400 by default. Browsers never send them, and since
+// Fiber v3.6 c.Path() is normalized while c.OriginalURL() stays raw, so code
+// that routes or authorizes on one and forwards the other can be steered to a
+// different route.
+func WithAllowDotSegments(allowed bool) Option {
+	return func(s *settings) error { s.allowDotSegments = allowed; return nil }
+}
+
+// WithStrictBodyLimit makes BodyLimit hold while request bodies are streamed —
+// GOE streams them by default (StreamRequestBody), and then Fiber reads past
+// BodyLimit. Replaces HTTP_STRICT_BODY_LIMIT. Off by default.
+//
+// When on, a declared Content-Length above the limit is answered 413 before any
+// handler runs and the connection is closed; a chunked body fails once it
+// passes the limit (413 when the handler returns the error); and multipart
+// forms are parsed when a handler asks for them rather than up front, since
+// parsing up front reads the whole form to temporary files first.
+func WithStrictBodyLimit(enabled bool) Option {
+	return func(s *settings) error { s.strictBodyLimit = enabled; return nil }
+}
+
+// RouteLimits overrides limits for the requests under a path prefix. Zero fields
+// keep the server's values.
+type RouteLimits struct {
+	// BodyLimit is the largest body accepted, in bytes.
+	BodyLimit int
+	// ReadTimeout bounds reading the request, body included, from its start.
+	// Set it for uploads that take longer than the server's ReadTimeout.
+	ReadTimeout time.Duration
+}
+
+// WithRouteLimits sets limits for the requests whose normalized path is prefix
+// or below it (segment by segment: "/files" covers "/files/x", not
+// "/filesx"). The longest matching prefix wins. Route limits imply
+// WithStrictBodyLimit(true) for every route.
+func WithRouteLimits(prefix string, limits RouteLimits) Option {
+	return func(s *settings) error {
+		if !strings.HasPrefix(prefix, "/") {
+			return fmt.Errorf("WithRouteLimits: prefix %q must start with /", prefix)
+		}
+		if limits.BodyLimit < 0 || limits.ReadTimeout < 0 {
+			return fmt.Errorf("WithRouteLimits: limits for %q must not be negative", prefix)
+		}
+		if len(prefix) > 1 {
+			prefix = strings.TrimSuffix(prefix, "/")
+		}
+		s.routeLimits = append(s.routeLimits, routeLimit{prefix: prefix, limits: limits})
 		return nil
 	}
 }
