@@ -66,6 +66,10 @@ type settings struct {
 	strictBodyLimit bool
 	routeLimits     []routeLimit
 
+	// stopping and streamObserver are shared with the stream helpers.
+	stopping       <-chan struct{}
+	streamObserver StreamObserver
+
 	// bundledValidator is the validator GOE installs by default. It is kept so
 	// that WithValidatorSetup can configure it, and so materialise can tell
 	// whether WithStructValidator has replaced it.

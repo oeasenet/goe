@@ -180,3 +180,17 @@ func WithRouteLimits(prefix string, limits RouteLimits) Option {
 		return nil
 	}
 }
+
+// WithStoppingSignal gives the kernel a channel that closes when the
+// application starts stopping: SSE and SendStream end their streams on it.
+// goe.New passes the shutdown manager's Stopping channel; without one, streams
+// end when the server shuts down.
+func WithStoppingSignal(stopping <-chan struct{}) Option {
+	return func(s *settings) error { s.stopping = stopping; return nil }
+}
+
+// WithStreamObserver reports the start and end of every stream served by SSE or
+// SendStream to observer. GOE's metrics module supplies one.
+func WithStreamObserver(observer StreamObserver) Option {
+	return func(s *settings) error { s.streamObserver = observer; return nil }
+}

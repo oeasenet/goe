@@ -84,6 +84,15 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	conns := newConnTracker()
 	conns.track(app.Server())
 
+	// Stream helpers find their dependencies through the app.
+	app.State().Set(stateStreamLogger, accessLogger)
+	if resolved.stopping != nil {
+		app.State().Set(stateStopping, resolved.stopping)
+	}
+	if resolved.streamObserver != nil {
+		app.State().Set(stateStreamObserver, resolved.streamObserver)
+	}
+
 	// Register default route constraints (uuid, uint, slug, email)
 	RegisterDefaultConstraints(app)
 

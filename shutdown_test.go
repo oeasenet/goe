@@ -1,9 +1,11 @@
 package goe_test
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -473,4 +475,55 @@ func TestShutdown_ReadinessFailsWhileStopping(t *testing.T) {
 	require.NoError(t, app.Stop(ctx))
 	assert.Equal(t, int32(http.StatusServiceUnavailable), readyStatus.Load(),
 		"readiness must fail once the app is stopping, while the server still serves")
+}
+
+func TestShutdown_StreamsEndBeforeTheDrain(t *testing.T) {
+	srv := &serverAddr{}
+	streamEnded := make(chan struct{})
+	var endedBeforeDrain atomic.Bool
+	app := goe.New(goe.Options{
+		HTTP: shutdownTestHTTP(srv),
+		Invokers: []any{
+			func(k contract.HTTPKernel) {
+				k.App().Get("/events", goehttp.SSE(func(c fiber.Ctx, s *goehttp.EventStream) error {
+					if err := s.Send(goehttp.Event{Data: "hello"}); err != nil {
+						return err
+					}
+					<-s.Context().Done()
+					return nil
+				}, goehttp.WithHeartbeat(0)))
+			},
+			func(m *shutdown.Manager) {
+				m.RegisterHook("wait-for-streams", shutdown.PriorityHTTP+10, func(context.Context) error {
+					select {
+					case <-streamEnded:
+						endedBeforeDrain.Store(true)
+					case <-time.After(2 * time.Second):
+					}
+					return nil
+				})
+			},
+		},
+	})
+
+	ctx := context.Background()
+	require.NoError(t, app.Start(ctx))
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get("http://" + srv.get() + "/events")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	reader := bufio.NewReader(resp.Body)
+	first, err := reader.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "data: hello\n", first)
+
+	rest := make(chan string, 1)
+	go func() {
+		tail, _ := io.ReadAll(reader)
+		close(streamEnded)
+		rest <- string(tail)
+	}()
+
+	require.NoError(t, app.Stop(ctx))
+	assert.True(t, endedBeforeDrain.Load(), "streams end when shutdown starts, before the drain")
+	assert.Contains(t, <-rest, "retry: 1000", "the client is told to reconnect")
 }

@@ -304,7 +304,10 @@ func (r *moduleRegistry) addHTTP() {
 	// Add HTTP module if enabled
 
 	if r.opt.WithHTTP {
-		r.http = http.NewModule(instance.config, instance.logger, r.opt.HTTP...)
+		// Streams end when shutdown starts, before the drain. App options come
+		// after GOE's, so they can still override it.
+		httpOpts := append([]http.Option{http.WithStoppingSignal(r.shutdown.Stopping())}, r.opt.HTTP...)
+		r.http = http.NewModule(instance.config, instance.logger, httpOpts...)
 		instance.http = r.http.Provide()
 
 		instance.logger.Debug("Registering HTTP module")
