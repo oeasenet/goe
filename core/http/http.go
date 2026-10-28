@@ -358,6 +358,10 @@ func defaultErrorHandler() fiber.ErrorHandler {
 // Module represents the HTTP module for Fx
 type Module struct {
 	kernel contract.HTTPKernel
+
+	// served is closed when the server's Listen call returns. It is nil before
+	// OnStart and in a prefork master, which serves nothing itself.
+	served chan struct{}
 }
 
 // NewModule creates a new HTTP module. See New for how opts resolve against
@@ -407,9 +411,15 @@ func (m *Module) OnStart(ctx context.Context) error {
 
 	// Buffered so the goroutine never blocks once OnStart has returned.
 	errc := make(chan error, 1)
+	served := make(chan struct{})
 	go func() {
+		defer close(served)
 		errc <- k.app.Listen(addr, listenCfg)
 	}()
+	// A prefork master's Listen runs until its children exit.
+	if !listenCfg.EnablePrefork || fiber.IsChild() {
+		m.served = served
+	}
 
 	select {
 	case <-ready:
@@ -436,7 +446,7 @@ func (m *Module) OnStop(ctx context.Context) error {
 	k := m.kernel.(*kernel)
 	k.logger.Info("HTTP server shutting down")
 	start := time.Now()
-	err := k.app.ShutdownWithContext(ctx)
+	err := m.shutdown(ctx)
 	if err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 		open := k.conns.closeAll()
 		k.logger.Warn("HTTP drain incomplete",
@@ -449,6 +459,33 @@ func (m *Module) OnStop(ctx context.Context) error {
 		return fmt.Errorf("HTTP server drain: %w", err)
 	}
 	return nil
+}
+
+// shutdown shuts the server down and waits until its Listen call returned.
+//
+// OnStart reports the server ready from Fiber's listen hooks, which run just
+// before fasthttp's Serve registers the listener. A shutdown that lands in
+// between finds no listener and returns at once, and Serve would then serve
+// on after the app stopped. So while Listen has not returned, the fasthttp
+// server is shut down again, without Fiber's shutdown hooks, which ran once.
+func (m *Module) shutdown(ctx context.Context) error {
+	k := m.kernel.(*kernel)
+	err := k.app.ShutdownWithContext(ctx)
+	if err != nil || m.served == nil {
+		return err
+	}
+	for {
+		select {
+		case <-m.served:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Millisecond):
+		}
+		if err := k.app.Server().ShutdownWithContext(ctx); err != nil {
+			return err
+		}
+	}
 }
 
 // Provide returns the HTTP kernel instance for Fx

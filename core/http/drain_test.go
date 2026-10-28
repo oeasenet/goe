@@ -160,3 +160,32 @@ func TestModule_DrainWithoutOpenConnectionsIsQuiet(t *testing.T) {
 	require.NoError(t, mod.OnStop(ctx))
 	assert.Empty(t, warnFields(logger, "HTTP drain incomplete"))
 }
+
+// OnStart reports the server ready from Fiber's listen hooks, just before
+// fasthttp's Serve registers the listener. A stop that lands in between must
+// still close it: fasthttp's shutdown finds no listener and returns at once,
+// and Serve would then serve on after the app stopped.
+func TestModule_StopBeforeServeRegisteredClosesTheListener(t *testing.T) {
+	release := make(chan struct{})
+	mod, _, addr := newServingModule(t, WithBeforeServeFunc(func(*fiber.App) error {
+		<-release // hold Listen between the ready signal and Serve
+		return nil
+	}))
+	shutDown := make(chan struct{})
+	mod.Provide().App().Hooks().OnPostShutdown(func(error) error {
+		close(shutDown)
+		return nil
+	})
+	require.NoError(t, mod.OnStart(context.Background()))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stopped := make(chan error, 1)
+	go func() { stopped <- mod.OnStop(ctx) }()
+	<-shutDown     // the shutdown ran before Serve registered the listener
+	close(release) // now Serve registers it
+	require.NoError(t, <-stopped)
+
+	_, err := net.DialTimeout("tcp", addr(), time.Second)
+	assert.Error(t, err, "the listener must be closed once OnStop returned")
+}
