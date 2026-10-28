@@ -5,6 +5,8 @@
 // - Prometheus metrics with custom counters, gauges, and histograms
 // - OpenTelemetry distributed tracing
 // - Graceful shutdown with priority-based hooks
+// - Server-Sent Events that outlive the write timeout and end cleanly at shutdown
+// - Background work that graceful shutdown waits for (goe.Go)
 // - Custom health checkers for external dependencies
 //
 // Run:
@@ -28,17 +30,27 @@
 //	# Application endpoint
 //	curl http://localhost:3000/api/hello
 //	curl -X POST http://localhost:3000/api/process -H "Content-Type: application/json" -d '{"name":"test"}'
+//
+//	# Server-Sent Events (one tick per second, resumable with Last-Event-ID)
+//	curl -N http://localhost:3000/api/events
+//	curl -N -H "Last-Event-ID: 41" http://localhost:3000/api/events
+//
+// Press Ctrl+C while a stream is open: readiness starts answering 503, the
+// stream receives "retry: 1000" and ends, the server drains, the audit task
+// started by /api/process finishes, then the modules stop.
 package main
 
 import (
 	"context"
 	"math/rand/v2"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"go.oease.dev/goe/v2"
 	"go.oease.dev/goe/v2/contract"
 	"go.oease.dev/goe/v2/core/health"
+	goehttp "go.oease.dev/goe/v2/core/http"
 	"go.oease.dev/goe/v2/core/shutdown"
 	"go.oease.dev/goe/v2/webresult"
 )
@@ -112,12 +124,51 @@ func registerRoutes(
 			return webresult.SendFailed(c, "Invalid request body")
 		}
 
+		// Work that outlives the request: graceful shutdown waits for it.
+		name := body.Name
+		goe.Go("audit", func(ctx context.Context) {
+			select {
+			case <-time.After(2 * time.Second): // simulate writing an audit record
+				logger.Info("Audit record written", "name", name)
+			case <-ctx.Done(): // only when the shutdown budget runs out
+				logger.Warn("Audit record abandoned", "name", name)
+			}
+		})
+
 		requestCounter.WithLabelValues("POST", "/api/process", "200").Inc()
 		return webresult.SendSucceed(c, fiber.Map{
 			"processed": body.Name,
 			"duration":  time.Since(start).String(),
 		})
 	})
+
+	// Server-Sent Events. Each write gets the write timeout rather than the
+	// whole stream, and when the app stops the stream ends with a reconnect
+	// hint; the client resumes from Last-Event-ID on the next instance.
+	app.Get("/api/events", goehttp.SSE(func(c fiber.Ctx, s *goehttp.EventStream) error {
+		next := 0
+		if last, err := strconv.Atoi(s.LastEventID()); err == nil {
+			next = last + 1
+		}
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.Context().Done(): // the client left or the app is stopping
+				return nil
+			case now := <-ticker.C:
+				err := s.Send(goehttp.Event{
+					ID:   strconv.Itoa(next),
+					Name: "tick",
+					Data: fiber.Map{"n": next, "at": now.Format(time.RFC3339)},
+				})
+				if err != nil {
+					return err
+				}
+				next++
+			}
+		}
+	}))
 
 	logger.Info("API routes registered with metrics instrumentation")
 }

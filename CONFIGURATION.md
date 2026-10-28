@@ -20,7 +20,18 @@ Environment files use standard `KEY=VALUE` format:
 APP_NAME=My Application
 HTTP_PORT=8080
 DB_PASSWORD="password with spaces"
+# Double quotes may span lines and understand \n \r \t \" \\
+JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA
+-----END PRIVATE KEY-----"
+# Single quotes may span lines and are taken literally
+PATTERN='^\d+$'
 ```
+
+Unquoted values are trimmed. A value that does not parse as the type a setting
+needs — `SHUTDOWN_TIMEOUT=30` without a unit, `FLAG=yes` for a boolean — still
+falls back to the default, and is reported once at startup:
+`Config value does not parse; using the default` (with `key`, `value`, `type`).
 
 ---
 
@@ -34,6 +45,9 @@ DB_PASSWORD="password with spaces"
 | `APP_NAME` | string | `Goe Application` | Application name used in logging and server headers |
 | `APP_VERSION` | string | `1.0.0` | Application version |
 | `DISABLE_CONFIG_VALIDATION` | bool | `false` | Skip configuration validation during startup (development only) |
+| `STARTUP_TIMEOUT` | duration | `2m` | Bound on the whole start: every module's and hook's OnStart (`goe.Options.StartTimeout`) |
+
+`goe.IsProduction()` reports whether `GOE_ENV` is `prod` or `production` (any case).
 
 ---
 
@@ -224,6 +238,10 @@ cannot apply to a replacement.
 | `HTTP_IDLE_TIMEOUT` | duration | `30s` | Maximum idle time for keep-alive connections |
 | `HTTP_REQUEST_ID` | bool | `true` | Register the request-id middleware (reuses an upstream id, generates one when absent, echoes the response header). Set `false` to disable and use your own. |
 | `HTTP_REQUEST_ID_HEADER` | string | `X-Request-ID` | Header used to read/set the request id. |
+| `HTTP_REQUEST_ID_TRUST_INBOUND` | bool | `true` | Reuse a request id the client sent. Set `false` where clients are not trusted: every request then gets a generated id (`WithRequestIDTrustInbound`). |
+| `HTTP_ACCESS_LOG_REDACT_QUERY` | []string | see below | Query parameters whose values the access log records as `REDACTED` (comma-separated, case-insensitive). Set empty to redact nothing (`WithAccessLogRedactQuery`). |
+| `HTTP_ALLOW_DOT_SEGMENTS` | bool | `false` | Let requests through whose raw path has `.` or `..` segments; they are answered 400 by default (`WithAllowDotSegments`). See [Request guard](#request-guard). |
+| `HTTP_STRICT_BODY_LIMIT` | bool | `false` | Make `FIBER_BODY_LIMIT` hold while request bodies stream (`WithStrictBodyLimit`). See [Request guard](#request-guard). |
 
 ### Fiber-Specific Settings
 
@@ -236,7 +254,7 @@ cannot apply to a replacement.
 | `FIBER_DISABLE_FLASH_MESSAGES` | bool | `false` | Turn off redirect flash messages (`Redirect().With`/`WithInput`) and skip the per-request scan for the `fiber_flash` cookie; safe for APIs whose clients are not browsers |
 | `FIBER_IMMUTABLE` | bool | `false` | Enable immutable context values |
 | `FIBER_UNESCAPE_PATH` | bool | `false` | Decode every escape in the path, `%2F` included, before routing. Dot segments and escaped unreserved characters are always normalized |
-| `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB). Must be positive: Fiber has no unlimited setting |
+| `FIBER_BODY_LIMIT` | int | `4194304` | Maximum allowed request body size in bytes (default: 4MB). Must be positive: Fiber has no unlimited setting. **While bodies stream (the default) Fiber reads past it** — set `HTTP_STRICT_BODY_LIMIT=true` to enforce it |
 | `FIBER_STREAM_REQUEST_BODY` | bool | `true` | Stream request body to reduce memory usage |
 | `FIBER_CONCURRENCY` | int | `262144` | Maximum number of concurrent connections |
 | `FIBER_PROXY_HEADER` | string | `X-Forwarded-For` | Header used to obtain client IP; only consulted when trusted proxies are enabled |
@@ -247,7 +265,7 @@ cannot apply to a replacement.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `FIBER_TRUST_PROXY` | bool | `false` | Enable trusted proxy mode |
+| `FIBER_TRUST_PROXY` | bool | `false` | Enable trusted proxy mode. On its own, without trusted proxies, it trusts nobody: forwarded headers are ignored from every peer — a hardening setting |
 | `FIBER_TRUST_PROXIES` | []string | - | Comma-separated list of trusted proxy IPs/CIDRs |
 | `FIBER_TRUST_LINK_LOCAL` | bool | `true` | Trust link-local addresses when `FIBER_TRUST_PROXY` is enabled |
 | `FIBER_TRUST_LOOPBACK` | bool | `true` | Trust loopback addresses when `FIBER_TRUST_PROXY` is enabled |
@@ -283,13 +301,32 @@ Supported providers: `cdntrust.Cloudflare`, `cdntrust.Fastly`, `cdntrust.BunnyCD
 (Cloudflare and Fastly publish CIDR blocks; Bunny publishes several hundred
 individual edge addresses, which Fiber accepts equally).
 
-**It fetches once, at boot, and can stop the app from starting.** There is no
-cache, no retry and no background refresh — one request per provider. A network
-failure is returned as an error, and the expected response is to abort startup:
-booting with an unknown trust set means either ignoring the forwarded header
-entirely or trusting the wrong hops. Because the list is a point-in-time snapshot,
-redeploy periodically to pick up provider changes. If you would rather tolerate a
-failed fetch, pin the ranges in config and use `WithTrustProxyConfig` directly.
+**It fetches once, at boot, and can stop the app from starting.** Transient
+failures — network errors, 5xx, 429 — are retried with backoff (3 attempts); a
+provider that still fails returns an error, and the expected response is to abort
+startup: booting with an unknown trust set means either ignoring the forwarded
+header entirely or trusting the wrong hops. There is no background refresh, so
+redeploy periodically to pick up provider changes.
+
+To survive a provider outage at deploy time, keep a last-known-good snapshot:
+
+```go
+cfg, err := cdntrust.Load(ctx, cdntrust.Config{
+    Providers:    []cdntrust.Provider{cdntrust.BunnyCDN, cdntrust.Cloudflare},
+    SnapshotFile: "/data/cdntrust.json", // persistent volume
+})
+if err != nil {
+    log.Fatalf("cdn trust: %v", err)
+}
+goe.New(goe.Options{HTTP: []goehttp.Option{
+    goehttp.WithTrustProxy(true), goehttp.WithTrustProxyConfig(cfg),
+}})
+```
+
+The snapshot is rewritten after every fetch in which all providers succeeded.
+When a provider still fails after its retries, its ranges come from the snapshot,
+with a warning (logged through `slog.Default()` unless `Config.Logger` is set). A
+provider the snapshot does not cover still fails the call.
 
 The package is genuinely optional: nothing in GOE imports it, so neither the code
 nor the network calls exist in your binary unless you use it. It adds no
@@ -301,6 +338,96 @@ CDN would let anything inside your network forge a client address. Set those
 fields yourself if your topology needs them.
 
 See [examples/07-cdn-trusted-proxy](examples/07-cdn-trusted-proxy/).
+
+### Request guard
+
+GOE answers some requests before your routes see them (after the access log, so
+they are logged with their status):
+
+- **Dot segments.** A raw path with a `.` or `..` segment — percent-encoded dots
+  and slashes included — is answered 400. Browsers never send these. Since Fiber
+  v3.6, `c.Path()` is normalized while `c.OriginalURL()` stays raw, so code that
+  routes or authorizes on one and forwards the other (a proxy) could be steered
+  onto another route. `HTTP_ALLOW_DOT_SEGMENTS=true` turns this off; a proxy
+  should forward `c.Path()` and the query, not `c.OriginalURL()`.
+- **Body limits (opt-in).** GOE streams request bodies by default, and then
+  Fiber reads past `FIBER_BODY_LIMIT`; a multipart upload is even parsed to
+  temporary files before any handler could refuse it. With
+  `HTTP_STRICT_BODY_LIMIT=true` (`goehttp.WithStrictBodyLimit(true)`), a declared
+  `Content-Length` over the limit is answered 413 before the body is read and the
+  connection is closed, a chunked body is capped (a handler that fails past the
+  cap gets 413), and multipart forms are parsed when a handler asks for them.
+
+Per-path limits and read timeouts — larger or slower uploads — turn strict
+limits on as well:
+
+```go
+goehttp.WithBodyLimit(4 << 20),
+goehttp.WithRouteLimits("/api/files", goehttp.RouteLimits{
+    BodyLimit:   250 << 20,       // bytes
+    ReadTimeout: 10 * time.Minute, // from the start of the request
+}),
+```
+
+Prefixes match whole segments on the normalized path (`/api/files` covers
+`/api/files/x`, not `/api/filesx`); the longest matching prefix wins.
+
+### Streaming responses (SSE)
+
+fasthttp applies `HTTP_WRITE_TIMEOUT` (10s) once to the whole response, so a
+Server-Sent Events or proxied LLM stream longer than that is cut mid-way, and a
+handler's context is never cancelled, so it learns neither that the client left
+nor that the server is stopping. Use the stream helpers instead of raising the
+write timeout for every route:
+
+```go
+app.Get("/events", goehttp.SSE(func(c fiber.Ctx, s *goehttp.EventStream) error {
+    // s.Context() is cancelled when the client leaves (cause goehttp.ErrClientGone)
+    // or the application starts stopping (goehttp.ErrServerStopping).
+    for token := range llm.Stream(s.Context(), prompt(c)) {
+        if err := s.Send(goehttp.Event{ID: token.ID, Data: token.Text}); err != nil {
+            return err
+        }
+    }
+    return nil
+}))
+
+// A raw stream, e.g. proxying an upstream body:
+app.Get("/proxy", func(c fiber.Ctx) error {
+    c.Set(fiber.HeaderContentType, "text/event-stream")
+    return goehttp.SendStream(c, func(w *goehttp.StreamWriter) error {
+        return copyUpstream(w.Context(), w) // Write + Flush
+    })
+})
+```
+
+- Every write gets the write timeout (`goehttp.WithStreamWriteTimeout`,
+  default `HTTP_WRITE_TIMEOUT`): a stream lasts as long as it keeps writing.
+- SSE sends a heartbeat comment every 15s (`goehttp.WithHeartbeat`), which keeps
+  proxies from closing quiet streams and detects clients that left.
+- When the application starts stopping, the context is cancelled; once the
+  handler returns, SSE sends `retry: 1000` (`goehttp.WithReconnectDelay`) and
+  ends the response. Browsers reconnect with `Last-Event-ID`
+  (`s.LastEventID()`), to another instance.
+- `Send` may be called from several goroutines. A panic in the handler is
+  recovered and logged. One line, `Stream ended`, records `route`,
+  `duration_ms`, `bytes`, `events` and `outcome` (`completed`, `client_gone`,
+  `server_stopping`, `error`); with metrics enabled, streams are also counted.
+
+### Access log
+
+One line per request under module `access` (2xx/3xx Info, 4xx Warn, 5xx Error).
+Values of sensitive query parameters are recorded as `REDACTED` — by default
+`access_token`, `api_key`, `apikey`, `auth`, `code`, `id_token`, `key`,
+`password`, `refresh_token`, `secret`, `sig`, `signature`, `token`
+(`HTTP_ACCESS_LOG_REDACT_QUERY` / `WithAccessLogRedactQuery` replace the list).
+`WithAccessLogURL(func(fiber.Ctx) string)` replaces the recorded `url` entirely and
+`WithAccessLogSkip(func(fiber.Ctx) bool)` leaves requests out. Lines with status
+500 and above carry the handler's `error`; a panicking handler is logged as a 500
+and with `Request panicked` (stack, `request_id`, `route`) at Error.
+
+`goehttp.NewValidator()` returns the request validator GOE installs, for tests of
+payload types and validation outside a request.
 
 ### View Engine Settings
 
@@ -319,7 +446,7 @@ See [examples/07-cdn-trusted-proxy](examples/07-cdn-trusted-proxy/).
 |----------|------|---------|-------------|
 | `LOG_LEVEL` | string | `info` | Global log level (baseline for every module): `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | string | `text` | Log format: `text` (console) or `json` |
-| `LOG_OUTPUT` | []string | `console` | Comma-separated outputs: `console`, `stdout`, `stderr`, or file path |
+| `LOG_OUTPUT` | []string | `console` | Comma-separated outputs: `console` (or `stdout`), `stderr`, `file` (writes `app.log`). An unknown value logs to the console, with a warning naming it |
 | `LOG_CALLER` | bool | `false` | Include caller information in logs |
 | `LOG_STACKTRACE` | bool | `false` | Include stack traces for error logs |
 | `LOG_MODULE_LEVELS` | string | `""` | Per-module level overrides, comma-separated `module:level` pairs (e.g. `gorm:warn,job:debug`). Overrides `LOG_LEVEL` for those modules, up or down. |
@@ -858,6 +985,26 @@ Prometheus metrics endpoint and collectors. Enable with `WithMetrics: true`.
 | `METRICS_SUBSYSTEM` | string | - | Optional Prometheus subsystem |
 | `METRICS_GO_ENABLED` | bool | `true` | Collect Go runtime metrics |
 | `METRICS_PROCESS_ENABLED` | bool | `true` | Collect process metrics |
+| `METRICS_PORT` | int | - | Serve `METRICS_PATH` on a listener of its own at this port; the app's port then does not serve it. Startup fails when the port is taken |
+| `METRICS_HOST` | string | all interfaces | Interface for the separate listener |
+| `METRICS_PPROF` | bool | `false` | Serve Go's profiles under `/debug/pprof/` (including `goroutineleak`) on the separate listener — never on the app's port |
+
+From code, `goe.Options.Metrics` (a non-nil slice implies the module):
+
+```go
+goe.New(goe.Options{
+    Metrics: []metrics.Option{
+        metrics.WithPort(9181),
+        metrics.WithRegistry(appRegistry), // your *prometheus.Registry: GOE registers into it
+        metrics.WithPprof(true),
+    },
+})
+```
+
+Always exported: `<namespace>_build_info{goe_version,go_version,version}` (`version`
+from `APP_VERSION`). With HTTP enabled, streams served by `goehttp.SSE` /
+`SendStream` are recorded as `<namespace>_http_streams_active{route}` and
+`<namespace>_http_stream_duration_seconds{route,outcome}`.
 
 ---
 
@@ -873,26 +1020,94 @@ Liveness/readiness endpoints. Enable with `WithHealth: true`.
 | `HEALTH_READINESS_PATH` | string | `/health/ready` | Readiness probe path |
 | `HEALTH_TIMEOUT` | duration | `5s` | Per-check timeout |
 
+**Readiness while stopping.** Once shutdown starts, readiness answers 503 (status
+`down`, one check `shutdown`: `shutting down`) without running its checkers, so a
+load balancer stops sending new requests while the server drains.
+
+**Liveness checkers.** Liveness is up unless a liveness checker says otherwise:
+
+```go
+goe.Health().RegisterLivenessChecker(health.NewCustomChecker("control-loop",
+    func(ctx context.Context) contract.HealthCheckResult {
+        if time.Since(lastTick.Load()) > time.Minute {
+            return contract.HealthCheckResult{Status: contract.HealthStatusDown, Message: "stalled"}
+        }
+        return contract.HealthCheckResult{Status: contract.HealthStatusUp}
+    }))
+```
+
+Keep liveness checks to conditions a restart fixes: a failing liveness probe gets
+the process restarted.
+
 ---
 
 ## Graceful Shutdown
 
-On SIGINT/SIGTERM the application stops in this order:
+**Set `SHUTDOWN_TIMEOUT` below your orchestrator's stop grace period** — Docker
+Compose `stop_grace_period` (default 10s), Kubernetes
+`terminationGracePeriodSeconds` (default 30s). The process is killed when the
+grace period ends, wherever the stop is.
 
-1. `goe.Options.OnStop` hooks, while the server still serves.
-2. Shutdown-manager hooks (`shutdown.Manager.RegisterHook`), highest priority
-   first. The HTTP server drains at `shutdown.PriorityHTTP` (100): hooks above
-   it run while the server still accepts requests — deregister from service
-   discovery there — and the rest once it has stopped.
-3. Custom modules, then the built-in modules, in reverse start order.
+```yaml
+# docker-compose.yml
+services:
+  api:
+    stop_grace_period: 20s
+    environment:
+      SHUTDOWN_TIMEOUT: 18s
+```
 
-The server starts after every module, so no request reaches a module that has
-not started yet or has already stopped.
+On SIGINT/SIGTERM — or `goe.Shutdown(code)` — `goe.Options.OnStop` hooks run
+first (newest first, while the server still serves), then the application stops
+in phases:
+
+1. **Stopping.** `goe.Stopping()` closes; readiness starts answering 503; streams
+   served by `goehttp.SSE`/`SendStream` end with a reconnect hint. Shutdown hooks
+   above `shutdown.PriorityHTTP` (100) run while the server still serves: put
+   deregistration and work that must finish before the drain here.
+2. **Drain.** The HTTP server stops accepting, closes idle connections and waits
+   up to `SHUTDOWN_DRAIN_TIMEOUT` for in-flight requests; responses carry
+   `Connection: close`. Connections still open at the deadline are closed and one
+   warning, `HTTP drain incomplete`, reports how many.
+3. **Settle.** Hooks below `PriorityHTTP` run, in priority order; at
+   `shutdown.PriorityWorkers` (80) GOE waits for tasks started with `goe.Go`.
+4. **Teardown.** Everything else that registered with Fx stops, in reverse
+   start order: hooks appended by your Providers and Invokers, custom modules,
+   then the built-in modules (cache, database, …).
+
+Phases 1–3 share three quarters of `SHUTDOWN_TIMEOUT`; the last quarter is kept
+for teardown. A hook still running when that budget is gone — or giving up with
+its context's error — is reported once (`Shutdown hook ran out of time`) and the
+next hooks still run; tasks still running are cancelled and listed. These are
+warnings, and the process exits 0. A hook that returns an error fails the stop
+(exit 1).
+
+The server starts after every module and hook GOE knows about — custom modules,
+Providers, Invokers — and drains before they stop. Hooks added later, through
+`App().AddModule` at runtime, are not covered.
+
+```go
+// Work that outlives a request: shutdown waits for it, within the budget.
+goe.Go("index-document", func(ctx context.Context) {
+    indexer.Index(ctx, doc) // ctx is cancelled only when the budget runs out
+})
+
+// Stop the app from code, as SIGTERM does; exits with code under goe.Run.
+if err := engine.Run(); err != nil {
+    goe.Log().Error("engine failed", "error", err)
+    _ = goe.Shutdown(1)
+}
+
+// Pre-drain work: deregister while the server still serves.
+func(m *shutdown.Manager) {
+    m.RegisterHook("deregister", shutdown.PriorityHTTP+10, registry.Deregister)
+}
+```
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `SHUTDOWN_TIMEOUT` | duration | `30s` | Bound on the whole stop sequence (`goe.Options.ShutdownTimeout`) |
-| `SHUTDOWN_DRAIN_TIMEOUT` | duration | `5s` | How long the HTTP server waits for in-flight requests (`goe.Options.DrainTimeout`). Requests still running then are not interrupted, and the stop reports the drain as failed |
+| `SHUTDOWN_TIMEOUT` | duration | `30s` | Bound on the whole stop (`goe.Options.ShutdownTimeout`); also Fx's stop timeout. Three quarters go to phases 1–3 |
+| `SHUTDOWN_DRAIN_TIMEOUT` | duration | `5s` | How long the drain waits for in-flight requests (`goe.Options.DrainTimeout`), within phases 1–3's budget |
 
 ---
 

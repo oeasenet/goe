@@ -85,6 +85,8 @@ go run main.go
 |---|---|---|
 | 🔌 | **Dependency Injection** | Uber Fx — type-safe, automatic resolution, lifecycle hooks |
 | 🌐 | **HTTP Server** | GoFiber v3 — fast routing, middleware, request logging |
+| 📡 | **Streaming** | SSE and raw streams that outlive the write timeout, notice disconnects, and end with a reconnect hint at shutdown |
+| 🛑 | **Graceful Shutdown** | Phased stop: readiness fails, streams end, the server drains, background tasks finish, then modules stop — within one budget |
 | 📝 | **Logging** | Uber Zap — structured JSON for production, colored console for dev |
 | ⚙️ | **Configuration** | `.env` files with environment layering, type-safe accessors |
 

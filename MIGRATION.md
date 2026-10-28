@@ -7,31 +7,90 @@ your application does. Releases with neither are not listed here.
 
 ## v2.8.0 (unreleased)
 
-Graceful shutdown now does what its configuration says. The shutdown manager was
-never invoked, so hooks registered with it never ran, `SHUTDOWN_TIMEOUT` and
-`SHUTDOWN_DRAIN_TIMEOUT` had no effect, and every app stopped under Fx's own 15s
-limit with an unbounded HTTP drain. Every dependency also moves to its latest
-release, Fiber v3.5.0 → v3.6.0 among them. Several of the upgrades close
-security holes, so upgrading is recommended even without the shutdown fix.
+No public API is removed. This release makes graceful shutdown do what its
+configuration says, gives long-lived responses (SSE, proxied LLM streams) helpers
+that survive the write timeout and end cleanly at shutdown, and puts a guard in
+front of your routes. It also raises the minimum Go version to 1.27 and moves
+every dependency to its latest release — Fiber v3.6.1 and fasthttp v1.77.0 among
+them — closing several security holes. The behaviour changes below need no code
+edit, but check the upgrade checklist first.
+
+### Upgrade checklist
+
+1. **Build with Go 1.27 or later.** GOE's `go.mod` now says `go 1.27.0`: update
+   builder images (`golang:1.27`) and CI. With `GOTOOLCHAIN=local` an older Go
+   fails with "go.mod requires go >= 1.27.0".
+2. **Set `SHUTDOWN_TIMEOUT` per service, below its stop grace period** (Compose
+   `stop_grace_period` defaults to 10s). The stop now lasts up to
+   `SHUTDOWN_TIMEOUT` (30s by default; Fx's own 15s applied before), so an unset
+   value is longer than most grace periods.
+3. **Move pre-drain work to a shutdown hook above `shutdown.PriorityHTTP`.** Fx
+   hooks appended by your Providers and Invokers now stop *after* the HTTP drain
+   (they stopped while the server still served). Work that must happen while
+   requests are still accepted — deregistration, ending runs that hold open
+   streams — belongs in `RegisterHook(name, shutdown.PriorityHTTP+10, fn)`.
+4. **Replace workarounds:** self-SIGTERM → `goe.Shutdown(code)`; a custom run
+   loop to escape Fx's 15s stop limit → `goe.Options.ShutdownTimeout`; untracked
+   goroutines that should finish → `goe.Go(name, fn)`; a global multi-minute
+   `HTTP_WRITE_TIMEOUT` for streams → `goehttp.SSE` / `goehttp.SendStream`;
+   hand-rolled metrics servers → `metrics.WithPort`; string-matching
+   "key already exists" → `errors.Is(err, cache.ErrKeyExists)`.
+5. **Proxies:** if a handler routes or authorizes on `c.Path()` and forwards
+   `c.OriginalURL()`, forward `c.Path()` plus the query instead. Fiber v3.6
+   normalizes the former and not the latter; GOE now refuses dot-segment paths,
+   which closes the known way to exploit the mismatch.
+6. **Uploads:** `FIBER_BODY_LIMIT` does nothing while bodies stream (GOE's
+   default). Turn on `HTTP_STRICT_BODY_LIMIT` or use `goehttp.WithRouteLimits`.
+
+### Behaviour changes
 
 | Change | Action needed |
 |---|---|
-| Hooks registered with `shutdown.Manager.RegisterHook` now run when the app stops, highest priority first. The HTTP drain is one of them, at `shutdown.PriorityHTTP` | Review your hooks: they execute for the first time. Deregistration from service discovery belongs above `PriorityHTTP`, so it runs before the drain |
-| `SHUTDOWN_TIMEOUT` / `goe.Options.ShutdownTimeout` (default 30s) bounds the whole stop sequence; the Fx default of 15s applied before | Keep it within your orchestrator's grace period (Kubernetes defaults to 30s) |
-| `SHUTDOWN_DRAIN_TIMEOUT` / `goe.Options.DrainTimeout` (default 5s) bounds how long the HTTP server waits for in-flight requests; the wait was unbounded until the 15s Fx limit. Requests still running then are not interrupted, and the stop returns an error | Raise `SHUTDOWN_DRAIN_TIMEOUT` if requests legitimately run longer than 5s, such as large uploads or report generation |
-| Custom modules (`goe.Options.Modules`) start before the HTTP server and stop after it drained. The server used to accept requests before they started and keep serving while they stopped | None |
+| GOE requires Go 1.27 | Update builders and CI (checklist 1) |
+| Shutdown hooks registered with `shutdown.Manager.RegisterHook` now run when the app stops — the manager was never invoked, so they never ran — highest priority first, equal priorities in registration order | Review your hooks: they execute for the first time |
+| Stop order: `goe.Options.OnStop` hooks, then the shutdown manager's phases (hooks above `PriorityHTTP`; the HTTP drain; hooks below it, with the wait for `goe.Go` tasks at `PriorityWorkers`), then Fx teardown (Provider/Invoker hooks, custom modules, built-in modules). The server starts after Provider/Invoker hooks and custom modules, and drains before they stop | Checklist 3 |
+| `SHUTDOWN_TIMEOUT` (30s) bounds the whole stop and is Fx's stop timeout; the manager's phases get three quarters of it, the rest is kept for teardown. `SHUTDOWN_DRAIN_TIMEOUT` (5s) bounds the drain within that | Checklist 2. A drain timeout above three quarters of the shutdown timeout is capped, with a startup warning |
+| A drain that runs out of time closes the connections still open and logs one warning, `HTTP drain incomplete`; a hook that runs out of budget logs `Shutdown hook ran out of time`. Both exit 0. Before, the drain was unbounded and Fx's 15s limit ended the stop with exit code 1 | None |
+| Responses written during the drain carry `Connection: close`; readiness answers 503 once shutdown starts | None |
+| A request whose raw path has a `.` or `..` segment (percent-encoded too) is answered 400 | None for browsers. `HTTP_ALLOW_DOT_SEGMENTS=true` restores routing them |
+| The access log redacts the values of sensitive query parameters (`code`, `token`, `password`, … — see [Access log](CONFIGURATION.md#access-log)), adds `error` to lines with status ≥ 500, and logs requests whose handler panicked as 500 (they were missing); the panic is logged at Error with its stack | Dashboards keyed on the full query see `REDACTED` values. `HTTP_ACCESS_LOG_REDACT_QUERY=` (empty) turns redaction off |
+| MongoDB connects and pings while `goe.New` builds the app, so `DB()` works in Providers and Invokers; an unreachable database ends the process in `goe.New` ("Failed to connect to MongoDB") instead of at start | None. `goe.New` may take up to `MONGO_PING_TIMEOUT` when the database is slow |
+| `LOG_OUTPUT=stdout` and `stderr` work (they silently dropped every line); an unknown value logs to the console with a warning | None |
+| A config value that does not parse — `SHUTDOWN_TIMEOUT=30` without a unit — still falls back to the default, now with a warning | Fix the values the warnings name |
+| `.env` values in double quotes may span lines and understand `\n`, `\r`, `\t`, `\"`, `\\`; single-quoted values may span lines | A double-quoted value that contains a backslash sequence by accident (a Windows path such as `"C:\new"`) changes — single-quote it |
+| `contract.ShutdownManager` gains `Stopping()` and `Go(name, fn)`; `contract.HealthManager` gains `RegisterLivenessChecker` | Only third-party implementations of these interfaces must add the methods |
+| fasthttp v1.77: the default file server, used by Fiber's static middleware, refuses symlinks that leave its root and absolute symlinks | Copy files instead of linking them, or serve that directory yourself |
+| fasthttp v1.76: bytes after a multipart body are drained; a request with both `Content-Length` and `Transfer-Encoding` closes the connection; IPv6 clients count against `MaxConnsPerIP` | None |
 | Fiber's default `ReadBufferSize` and `WriteBufferSize` double to 8 KB. The read buffer caps request-line plus header size, so requests with 4–8 KB of headers are now served instead of answered with 431 | None for most apps. Pin the previous limit with `http.WithReadBufferSize(4096)` and `http.WithWriteBufferSize(4096)` |
-| Request paths are normalized before routing (RFC 3986): `.` and `..` segments are removed and escapes of unreserved characters decoded, so `/api/./users` matches `/api/users`. `FIBER_UNESCAPE_PATH` additionally decodes reserved escapes such as `%2F` | None, unless a route or middleware depended on a raw, unnormalized path |
+| Request paths are normalized before routing (RFC 3986): escapes of unreserved characters are decoded and `/./` and `/../` resolved, so `/api/./users` matches `/api/users`. `FIBER_UNESCAPE_PATH` additionally decodes reserved escapes such as `%2F` | None, unless a route or middleware depended on a raw path (and see checklist 5) |
 | Requests the HTTP parser rejects — oversized headers (431), malformed (400), read timeout (408), unknown transfer coding (501), and with `FIBER_STREAM_REQUEST_BODY=false` a body over the limit (413) — reach the access log and metrics with their real status. They were logged at info level as 200 | None. Dashboards counting these requests see them under their real status |
 | `http.WithBodyLimit` rejects zero and negative values at startup. Fiber replaced them with its 4 MB default, so they never disabled the limit as documented | Pass a positive byte count |
 | `http.WithGETOnly` admits HEAD and answers other methods with 405 and `Allow: GET, HEAD` | None |
-| New `http.WithDisableFlashMessages` / `FIBER_DISABLE_FLASH_MESSAGES` turns off redirect flash messages and the per-request `fiber_flash` cookie scan. Off by default | None |
+| Fiber v3.6.1: with `PassLocalsToContext` (GOE's default) the session middleware no longer hands a pooled middleware to a retained context; client `Debug()` now logs raw requests and responses | None |
 | The Postgres DSN built from `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD`, … now quotes every value. pgx v5.11 parses DSNs like libpq, so a password with a backslash lost it, and a space or trailing backslash broke the connection | None. A hand-written `DB_DSN` in keyword/value form must quote values containing backslashes or spaces; in URL form, `+` is now literal and a repeated parameter's last value wins |
 | pgx v5.11 returns `timestamptz` values read in text format — simple protocol, as behind PgBouncer — in `time.Local` rather than the server's offset | None for the instant itself; JSON that renders the offset changes |
 | mongo-driver v2.8.2 → v2.9.2 requires MongoDB server 4.4 or newer, and a client `timeoutMS` now also bounds `CommitTransaction`/`AbortTransaction` | Upgrade MongoDB servers older than 4.4 first: the startup ping fails against them |
 | go-redis v9.23 gives each client a separate pool for pipelines, up to 10 extra connections opened on demand (the job module pipelines dead-letter moves) | Size Redis `maxclients` for it, or append `pipeline_pool_size=-1` to `JOB_REDIS_URL` |
 | A Redis URL whose `skip_verify` is not a boolean fails startup instead of being read as false; `CACHE_REDIS_URL` errors no longer surface as a raw panic from the storage package | Use `true`/`false` |
 | fasthttp v1.75 drains a request body the handler left unread, up to 256 KiB, and closes the connection above that; it rejects HTTP/1.0 requests carrying `Transfer-Encoding` and an out-of-range `Content-Length` with 400 | None |
+
+### New
+
+- **Lifecycle:** `goe.Stopping()`, `goe.Go(name, fn)`, `goe.Shutdown(code)`,
+  `goe.Options.StartTimeout` / `STARTUP_TIMEOUT`, liveness checkers
+  (`RegisterLivenessChecker`). See [Graceful Shutdown](CONFIGURATION.md#graceful-shutdown).
+- **Streams:** `goehttp.SSE`, `goehttp.SendStream`. See
+  [Streaming responses](CONFIGURATION.md#streaming-responses-sse).
+- **Request guard:** `HTTP_STRICT_BODY_LIMIT`, `goehttp.WithRouteLimits`,
+  `HTTP_ALLOW_DOT_SEGMENTS`. See [Request guard](CONFIGURATION.md#request-guard).
+- **Metrics:** `goe.Options.Metrics` with `metrics.WithPort` / `METRICS_PORT`,
+  `metrics.WithRegistry`, `metrics.WithPprof` / `METRICS_PPROF`, build info and
+  stream metrics.
+- **cdntrust:** retries, and `cdntrust.Load` with a last-known-good snapshot.
+- **Smaller:** `WithAccessLogRedactQuery`, `WithAccessLogURL`,
+  `WithAccessLogSkip`, `WithRequestIDTrustInbound`, `goehttp.NewValidator`,
+  `cache.ErrKeyExists`, `goe.IsProduction`, `spa.Config.Exclude` and
+  `NotFoundForMissingFiles`.
 
 ### Security fixes in this release
 
@@ -42,27 +101,28 @@ security holes, so upgrading is recommended even without the shutdown fix.
 - **Request smuggling with streamed request bodies.** GOE enables
   `StreamRequestBody` by default; before fasthttp v1.75, body bytes a handler
   left unread were parsed as the next request on the same connection.
+- **Dot-segment paths through proxies.** Fiber v3.6 normalizes `c.Path()` but
+  not `c.OriginalURL()`; a proxy checking one and forwarding the other could be
+  steered onto routes it never meant to expose. GOE answers such paths 400.
+- **Unbounded uploads.** With streamed request bodies, multipart forms were
+  parsed to temporary files without any size limit before a handler could
+  refuse them. `HTTP_STRICT_BODY_LIMIT` bounds them (opt-in).
 - **Process crash in the JSON decoder.** sonic v1.15.4 fixes an amd64 JIT
   decoder crash when a request fills a fixed-size array field whose elements
-  hold pointers, such as `[4]string`.
+  hold pointers, such as `[4]string`; v1.15.5 restores a register after native
+  calls.
 - **SPA middleware read files from sibling directories.** With `Root: "./dist"`,
   `GET /../dist-private/secret.txt` was served from `./dist-private`, or any
   sibling whose name starts with the root's. Fiber v3.6's path normalization
   now blocks the request, and `spa` checks containment itself, which also
   covers Windows backslash paths.
+- **fasthttp v1.76/v1.77 hardening:** outgoing framing validated, static files
+  confined to their root, a rejected TLS connection no longer blocks the accept
+  loop, kept hijacked connections no longer read a recycled request context.
 - **mongo-driver v2.9.2**: CVE-2026-107324 and CVE-2026-107325 (`bson.Raw` and
   `RawArray` validation panics) and CVE-2026-88031 (GridFS delete matching file
   IDs too loosely). It keeps v2.8.2's CVE-2026-81521 fix, which v2.9.0 and
   v2.9.1 lost — do not pin those two.
-
-### Behaviour: graceful shutdown follows its configuration
-
-On SIGINT/SIGTERM the stop now runs `goe.Options.OnStop` hooks, then the
-shutdown manager's hooks by priority with the HTTP drain at
-`shutdown.PriorityHTTP`, then custom modules, then the built-in modules. The
-server starts after every module and drains before any of them stops, so a
-request can no longer reach a module that has not started or has already shut
-down. See [Graceful Shutdown](CONFIGURATION.md#graceful-shutdown).
 
 ---
 
