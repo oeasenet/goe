@@ -75,6 +75,11 @@ type HealthManager interface {
 
 	// GetCheckers returns all registered health checkers
 	GetCheckers() []HealthChecker
+
+	// RegisterLivenessChecker adds a checker to the liveness probe, which is
+	// otherwise always up. Keep it to conditions a restart fixes, such as a
+	// stalled control loop: a failing liveness probe gets the process restarted.
+	RegisterLivenessChecker(checker HealthChecker)
 }
 
 // HealthConfig defines configuration for the health module

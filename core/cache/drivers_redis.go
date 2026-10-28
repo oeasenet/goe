@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -11,8 +12,16 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// RedisStoreFactory creates Fiber Redis store instances
-func RedisStoreFactory(config contract.Config) (contract.CacheStore, error) {
+// RedisStoreFactory creates Fiber Redis store instances. The storage package
+// panics when it cannot build its client (an invalid CACHE_REDIS_URL, an
+// unreachable server); that panic is converted into an error so the failure
+// carries the driver's name.
+func RedisStoreFactory(config contract.Config) (store contract.CacheStore, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			store, err = nil, fmt.Errorf("redis: creating client failed: %v", r)
+		}
+	}()
 	return &redisStore{Storage: redis.New(buildRedisConfig(config))}, nil
 }
 

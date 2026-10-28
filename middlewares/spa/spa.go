@@ -72,6 +72,9 @@ func New(config ...Config) fiber.Handler {
 
 		// Get the requested path
 		path := c.Path()
+		if excluded(cfg.Exclude, path) {
+			return c.Next()
+		}
 
 		// Check if this could be a file request (has extension or ends with /)
 		// This is a heuristic to avoid file system checks for obvious routes
@@ -80,13 +83,15 @@ func New(config ...Config) fiber.Handler {
 			// We'll check if the file exists before serving
 			fullPath := filepath.Join(cfg.Root, path)
 			// Prevent path traversal outside the root directory
-			if !strings.HasPrefix(filepath.Clean(fullPath), filepath.Clean(cfg.Root)) {
+			if !withinRoot(cfg.Root, fullPath) {
 				return c.Next()
 			}
 			if fileExists(fullPath) {
 				return serveStatic(c, fullPath)
 			}
-
+			if cfg.NotFoundForMissingFiles && strings.Contains(filepath.Base(path), ".") {
+				return fiber.ErrNotFound
+			}
 		}
 
 		// For SPA routing, serve the index file for all non-file routes
@@ -153,6 +158,16 @@ func mightBeFile(path string) bool {
 	return false
 }
 
+// withinRoot reports whether target is root itself or lies inside it. A plain
+// prefix test would also admit a sibling that merely starts with root's name,
+// such as /srv/dist-private for /srv/dist. Fiber already removes dot segments
+// from request paths, but on Windows a backslash is a separator only the
+// filesystem honors, so this check is what keeps such a path inside root.
+func withinRoot(root, target string) bool {
+	rel, err := filepath.Rel(root, target)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 // fileExists checks if a file exists and is not a directory
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
@@ -160,4 +175,16 @@ func fileExists(path string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+// excluded reports whether path is one of prefixes or below one of them,
+// segment by segment.
+func excluded(prefixes []string, path string) bool {
+	for _, prefix := range prefixes {
+		prefix = strings.TrimSuffix(prefix, "/")
+		if prefix == "" || path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }

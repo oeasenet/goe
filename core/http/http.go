@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"net"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"sync"
@@ -42,6 +42,9 @@ type kernel struct {
 	// ValidateConfig so that startup aborts; the kernel itself was built from
 	// the environment-only configuration and is never served.
 	optErrs []error
+
+	// conns tracks open connections for the end of a drain.
+	conns *connTracker
 }
 
 // New creates a new HTTP kernel.
@@ -57,14 +60,6 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// (e.g. LOG_MODULE_LEVELS=access:warn shows only 4xx/5xx requests).
 	klog := logger.With("module", "http")
 	accessLogger := logger.With("module", "access")
-
-	// Init error page template
-	var err error
-	tpl, err = template.ParseFS(templateFS, "error_page.gohtml")
-	if err != nil {
-		klog.Fatal(err.Error())
-		panic(err)
-	}
 
 	// Layer 1 and 2: GOE defaults, then the environment.
 	base := defaultSettings(defaultErrorHandler())
@@ -83,6 +78,22 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// Create fiber app
 	app := fiber.New(resolved.fiber)
 
+	// During a drain, responses carry Connection: close so keep-alive clients
+	// reconnect elsewhere; connections are tracked so a drain that runs out of
+	// time can close the ones left (see Module.OnStop).
+	app.Server().CloseOnShutdown = true
+	conns := newConnTracker()
+	conns.track(app.Server())
+
+	// Stream helpers find their dependencies through the app.
+	app.State().Set(stateStreamLogger, accessLogger)
+	if resolved.stopping != nil {
+		app.State().Set(stateStopping, resolved.stopping)
+	}
+	if resolved.streamObserver != nil {
+		app.State().Set(stateStreamObserver, resolved.streamObserver)
+	}
+
 	// Register default route constraints (uuid, uint, slug, email)
 	RegisterDefaultConstraints(app)
 
@@ -95,6 +106,12 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// one when absent.
 	reqIDHeader := resolved.requestIDHeader
 	if resolved.requestIDEnabled {
+		if !resolved.requestIDTrustInbound {
+			app.Use(func(c fiber.Ctx) error {
+				c.Request().Header.Del(reqIDHeader)
+				return c.Next()
+			})
+		}
 		app.Use(requestid.New(requestid.Config{Header: reqIDHeader}))
 	}
 
@@ -102,7 +119,10 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	// fiberzap maps by status: index 0 = >=500, 1 = >=400, 2 = other.
 	// So success requests log at Info, 4xx at Warn, 5xx at Error — and the
 	// "access" module tag lets operators silence success with access:warn.
+	redactor := newQueryRedactor(resolved.accessLogRedactQuery)
+	logURL := resolved.accessLogURL
 	fiberZap := fiberzap.New(fiberzap.Config{
+		Next: resolved.accessLogSkip,
 		SkipURIs: []string{
 			"/.well-known/liveness",
 			"/.well-known/readiness",
@@ -113,14 +133,20 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		// group latency by), host serves per-domain slicing when one app
 		// answers many domains. bytesSent is emitted from FieldsFunc: fiberzap's
 		// own reads the body, which drains a streamed response before it is sent.
-		Fields: []string{"method", "status", "route", "host", "latency", "ip", "url"},
+		// url comes from FieldsFunc, with secrets in the query redacted.
+		Fields: []string{"method", "status", "route", "host", "latency", "ip"},
 		FieldsFunc: func(c fiber.Ctx) []zap.Field {
+			url := redactor.redact(c.OriginalURL())
+			if logURL != nil {
+				url = logURL(c)
+			}
 			fields := []zap.Field{
+				zap.String("url", url),
 				// The log contract's duration unit is integer milliseconds.
 				// fiberzap's own latency is a human-readable string, and its
-				// timing is not reachable from FieldsFunc — fasthttp's
-				// request-start clock measures the same span.
-				zap.Int64("duration_ms", time.Since(c.RequestCtx().Time()).Milliseconds()),
+				// timing is not reachable from FieldsFunc — Elapsed reads
+				// fasthttp's request-start clock, which measures the same span.
+				zap.Int64("duration_ms", c.Elapsed().Milliseconds()),
 				zap.String("request_id", requestIDFrom(c, reqIDHeader)),
 			}
 			// A streamed body (SendStreamWriter, a streaming proxy) is written after
@@ -133,6 +159,12 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 			if sc := trace.SpanContextFromContext(c.Context()); sc.IsValid() {
 				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
 			}
+			// A server error carries its cause; client errors stay terse.
+			if c.Response().StatusCode() >= fiber.StatusInternalServerError {
+				if err, ok := c.Locals(localHandlerError).(error); ok && !isNilError(err) {
+					fields = append(fields, zap.String("error", err.Error()))
+				}
+			}
 			return fields
 		},
 		Messages: []string{"http server error", "http client error", "http request"},
@@ -140,6 +172,34 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 	})
 
 	app.Use(fiberZap)
+
+	// Keep the handler's error for the access log's 5xx lines.
+	app.Use(func(c fiber.Ctx) error {
+		err := c.Next()
+		if err != nil {
+			c.Locals(localHandlerError, err)
+		}
+		return err
+	})
+
+	// Recover handler panics inside the access log, so a panicked request is
+	// logged as a 500 with its cause, and log the stack. The recover registered
+	// first stays as the safety net for GOE's own middleware.
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c fiber.Ctx, e any) {
+			klog.Error("Request panicked",
+				"request_id", requestIDFrom(c, reqIDHeader),
+				"method", c.Method(),
+				"route", c.Route().Path,
+				"panic", e,
+				"stack", string(debug.Stack()),
+			)
+		},
+	}))
+
+	// After the access log, so rejected requests are logged with their status.
+	app.Use(newGuard(&resolved).handle)
 
 	return &kernel{
 		app:       app,
@@ -149,6 +209,7 @@ func New(config contract.Config, logger contract.Logger, opts ...Option) contrac
 		host:      resolved.host,
 		port:      resolved.port,
 		optErrs:   optErrs,
+		conns:     conns,
 	}
 }
 
@@ -364,9 +425,30 @@ func (m *Module) OnStart(ctx context.Context) error {
 	}
 }
 
-// OnStop is called when the module stops
+// OnStop drains the server: it stops accepting connections, closes idle ones
+// and waits for in-flight requests until ctx is done — goe.New bounds ctx with
+// goe.Options.DrainTimeout. Responses written meanwhile carry Connection:
+// close. When ctx ends first, the connections still open are closed, so their
+// requests end before the modules they use stop, and one warning reports how
+// many there were; that is the expected end of a drain with long requests or
+// streams, so it is not returned as an error.
 func (m *Module) OnStop(ctx context.Context) error {
-	return m.kernel.Shutdown()
+	k := m.kernel.(*kernel)
+	k.logger.Info("HTTP server shutting down")
+	start := time.Now()
+	err := k.app.ShutdownWithContext(ctx)
+	if err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		open := k.conns.closeAll()
+		k.logger.Warn("HTTP drain incomplete",
+			"open_connections", open,
+			"waited", time.Since(start).Round(time.Millisecond).String(),
+		)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("HTTP server drain: %w", err)
+	}
+	return nil
 }
 
 // Provide returns the HTTP kernel instance for Fx

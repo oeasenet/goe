@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -95,15 +96,36 @@ func buildLogger(config contract.LoggerConfig, moduleOverrides map[string]zapcor
 
 	// Leaf cores are enabled at Debug; the moduleLevelCore wrapper performs all
 	// real level gating so per-module overrides can go above OR below global.
-	var cores []zapcore.Core
+	// An output GOE does not know goes to the console — and is reported once the
+	// logger exists — rather than silently dropping every line.
+	var toStdout, toStderr, toFile bool
+	var unknown []string
 	for _, output := range config.Output() {
-		switch output {
-		case "console":
-			cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel))
+		switch strings.ToLower(strings.TrimSpace(output)) {
+		case "console", "stdout":
+			toStdout = true
+		case "stderr":
+			toStderr = true
 		case "file":
-			file, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(file), zapcore.DebugLevel))
+			toFile = true
+		default:
+			unknown = append(unknown, output)
+			toStdout = true
 		}
+	}
+	if !toStdout && !toStderr && !toFile {
+		toStdout = true
+	}
+	var cores []zapcore.Core
+	if toStdout {
+		cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel))
+	}
+	if toStderr {
+		cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(os.Stderr), zapcore.DebugLevel))
+	}
+	if toFile {
+		file, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(file), zapcore.DebugLevel))
 	}
 
 	// Wrap the combined core with per-module level gating.
@@ -122,10 +144,15 @@ func buildLogger(config contract.LoggerConfig, moduleOverrides map[string]zapcor
 	// Create the logger
 	logger := zap.New(core, opts...)
 
-	return &zapLogger{
+	created := &zapLogger{
 		logger: logger,
 		sugar:  logger.Sugar(),
 	}
+	for _, output := range unknown {
+		created.With("module", "log").Warn("LOG_OUTPUT value is not recognised; logging to console",
+			"value", output, "accepted", "console, stdout, stderr, file")
+	}
+	return created
 }
 
 // NewDefault creates a new logger with default configuration

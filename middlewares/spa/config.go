@@ -30,6 +30,21 @@ type Config struct {
 	// Optional. Default: "" (uses Index)
 	NotFoundFile string
 
+	// Exclude lists path prefixes the middleware leaves to the next handler —
+	// never a file, never the index — so that, for example, "/api" keeps a
+	// missing API route from being answered with the app's HTML. Prefixes match
+	// whole segments: "/api" covers "/api" and "/api/x", not "/apiary".
+	//
+	// Optional. Default: nil
+	Exclude []string
+
+	// NotFoundForMissingFiles answers 404 for a path with a file extension that
+	// does not exist, instead of the index: a stale hashed asset after a deploy
+	// then fails visibly rather than arriving as HTML.
+	//
+	// Optional. Default: false
+	NotFoundForMissingFiles bool
+
 	// MaxAge defines the max-age header value for static files in seconds.
 	// Set to 0 to disable caching headers.
 	//

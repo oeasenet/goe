@@ -2,6 +2,7 @@ package http
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"net/http/httptest"
@@ -139,4 +140,140 @@ func TestAccessLog_StreamedResponseIsNotDrained(t *testing.T) {
 	assert.Equal(t, true, fields["streamed"], "a streamed response must be marked streamed")
 	assert.NotContains(t, fields, "bytesSent", "bytesSent is unknown at log time for a stream")
 	assert.EqualValues(t, fiber.StatusOK, fields["status"])
+}
+
+// newObservedKernel builds a kernel from env and opts whose access log writes
+// into an observer, and whose kernel logger records calls.
+func newObservedKernel(t *testing.T, env map[string]any, opts ...Option) (contract.HTTPKernel, *observer.ObservedLogs, *MockLogger) {
+	t.Helper()
+	core, logs := observer.New(zap.DebugLevel)
+	logger := &MockLogger{}
+	for _, method := range []string{"Debug", "Info", "Warn", "Error", "Fatal"} {
+		logger.On(method, mock.Anything, mock.Anything).Return()
+	}
+	logger.On("GetLogger").Return(zap.New(core).Sugar())
+	return New(newFakeConfig(env), logger, opts...), logs, logger
+}
+
+func accessLine(t *testing.T, logs *observer.ObservedLogs) map[string]any {
+	t.Helper()
+	var lines []observer.LoggedEntry
+	for _, entry := range logs.All() {
+		if strings.HasPrefix(entry.Message, "http ") {
+			lines = append(lines, entry)
+		}
+	}
+	require.Len(t, lines, 1)
+	return lines[0].ContextMap()
+}
+
+func TestAccessLog_RedactsSensitiveQueryValues(t *testing.T) {
+	kernel, logs, _ := newObservedKernel(t, nil)
+	kernel.App().Get("/cb", func(c fiber.Ctx) error { return c.SendString("ok") })
+
+	_, err := kernel.App().Test(httptest.NewRequest("GET", "/cb?code=abc&state=x&Token=t", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "/cb?code=REDACTED&state=x&Token=REDACTED", accessLine(t, logs)["url"])
+}
+
+func TestAccessLog_RedactListReplacesTheDefault(t *testing.T) {
+	kernel, logs, _ := newObservedKernel(t, nil, WithAccessLogRedactQuery("state"))
+	kernel.App().Get("/cb", func(c fiber.Ctx) error { return c.SendString("ok") })
+	_, err := kernel.App().Test(httptest.NewRequest("GET", "/cb?code=abc&state=x", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "/cb?code=abc&state=REDACTED", accessLine(t, logs)["url"])
+
+	kernel, logs, _ = newObservedKernel(t, map[string]any{"HTTP_ACCESS_LOG_REDACT_QUERY": "state"})
+	kernel.App().Get("/cb", func(c fiber.Ctx) error { return c.SendString("ok") })
+	_, err = kernel.App().Test(httptest.NewRequest("GET", "/cb?code=abc&state=x", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "/cb?code=abc&state=REDACTED", accessLine(t, logs)["url"], "from the environment")
+}
+
+func TestAccessLog_CustomURL(t *testing.T) {
+	kernel, logs, _ := newObservedKernel(t, nil,
+		WithAccessLogURL(func(c fiber.Ctx) string { return c.Path() }))
+	kernel.App().Get("/cb", func(c fiber.Ctx) error { return c.SendString("ok") })
+	_, err := kernel.App().Test(httptest.NewRequest("GET", "/cb?email=a@b.c", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "/cb", accessLine(t, logs)["url"])
+}
+
+func TestAccessLog_SkipPredicate(t *testing.T) {
+	kernel, logs, _ := newObservedKernel(t, nil,
+		WithAccessLogSkip(func(c fiber.Ctx) bool { return c.Path() == "/quiet" }))
+	kernel.App().Get("/quiet", func(c fiber.Ctx) error { return c.SendString("ok") })
+	kernel.App().Get("/loud", func(c fiber.Ctx) error { return c.SendString("ok") })
+
+	_, err := kernel.App().Test(httptest.NewRequest("GET", "/quiet", nil))
+	require.NoError(t, err)
+	_, err = kernel.App().Test(httptest.NewRequest("GET", "/loud", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "/loud", accessLine(t, logs)["url"])
+}
+
+func TestAccessLog_ErrorOnlyOn5xx(t *testing.T) {
+	kernel, logs, _ := newObservedKernel(t, nil)
+	kernel.App().Get("/boom", func(c fiber.Ctx) error { return errors.New("database down") })
+
+	_, err := kernel.App().Test(httptest.NewRequest("GET", "/boom", nil))
+	require.NoError(t, err)
+	assert.Equal(t, "database down", accessLine(t, logs)["error"])
+
+	kernel, logs, _ = newObservedKernel(t, nil)
+	_, err = kernel.App().Test(httptest.NewRequest("GET", "/missing", nil))
+	require.NoError(t, err)
+	assert.NotContains(t, accessLine(t, logs), "error", "a 404 is not an error worth a field")
+}
+
+func TestRecover_LogsPanicWithStackAndRequestID(t *testing.T) {
+	kernel, logs, logger := newObservedKernel(t, nil)
+	kernel.App().Get("/panic", func(c fiber.Ctx) error { panic("kaboom") })
+
+	resp, err := kernel.App().Test(httptest.NewRequest("GET", "/panic", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+	var panics []map[string]any
+	for _, call := range logger.Calls {
+		if call.Method == "Error" && call.Arguments[0] == "Request panicked" {
+			args, _ := call.Arguments[1].([]any)
+			fields := map[string]any{}
+			for i := 0; i+1 < len(args); i += 2 {
+				fields[args[i].(string)] = args[i+1]
+			}
+			panics = append(panics, fields)
+		}
+	}
+	require.Len(t, panics, 1)
+	assert.Equal(t, "kaboom", fmt.Sprint(panics[0]["panic"]))
+	assert.Contains(t, panics[0]["stack"], "accesslog_test.go")
+	assert.NotEmpty(t, panics[0]["request_id"])
+	assert.Equal(t, "/panic", panics[0]["route"])
+
+	line := accessLine(t, logs)
+	assert.Equal(t, int64(500), line["status"], "a panicked request is in the access log")
+	assert.Contains(t, line["error"], "kaboom")
+}
+
+func TestRequestID_IgnoresInboundWhenNotTrusted(t *testing.T) {
+	req := func(kernel contract.HTTPKernel) string {
+		kernel.App().Get("/x", func(c fiber.Ctx) error { return c.SendString("ok") })
+		r := httptest.NewRequest("GET", "/x", nil)
+		r.Header.Set("X-Request-ID", "client-chosen")
+		resp, err := kernel.App().Test(r)
+		require.NoError(t, err)
+		return resp.Header.Get("X-Request-ID")
+	}
+
+	trusted, _, _ := newObservedKernel(t, nil)
+	assert.Equal(t, "client-chosen", req(trusted), "by default an inbound id is reused")
+
+	untrusted, _, _ := newObservedKernel(t, nil, WithRequestIDTrustInbound(false))
+	id := req(untrusted)
+	assert.NotEmpty(t, id)
+	assert.NotEqual(t, "client-chosen", id)
+
+	fromEnv, _, _ := newObservedKernel(t, map[string]any{"HTTP_REQUEST_ID_TRUST_INBOUND": false})
+	assert.NotEqual(t, "client-chosen", req(fromEnv))
 }

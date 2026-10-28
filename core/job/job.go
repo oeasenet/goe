@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"go.oease.dev/goe/v2/contract"
 )
 

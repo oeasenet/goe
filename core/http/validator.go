@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v3"
 )
 
 // structValidator adapts go-playground/validator to fiber.StructValidator.
@@ -50,7 +51,7 @@ func newStructValidator() *structValidator {
 	// is told about "email", not "Email". A json:"-" field falls back to the
 	// Go field name.
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		name, _, _ := strings.Cut(fld.Tag.Get("json"), ",")
 		if name == "-" {
 			return ""
 		}
@@ -153,3 +154,20 @@ func WithValidatorSetup(setup ValidatorSetup) Option {
 
 // errValidatorSetupNil is returned when WithValidatorSetup is given no function.
 var errValidatorSetupNil = errors.New("WithValidatorSetup: setup must not be nil")
+
+// NewValidator returns the validator GOE installs on the kernel — json tag names
+// in errors, the bundled rules, setups applied in order — for use outside a
+// request: tests of handlers' payload types, or validating data from queues.
+// It fails when a setup does.
+func NewValidator(setups ...ValidatorSetup) (fiber.StructValidator, error) {
+	v := newStructValidator()
+	for _, setup := range setups {
+		if setup == nil {
+			return nil, errValidatorSetupNil
+		}
+		if err := setup(v.validate); err != nil {
+			return nil, err
+		}
+	}
+	return v, nil
+}

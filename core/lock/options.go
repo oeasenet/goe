@@ -81,14 +81,10 @@ func urlHasCredentials(rawURL string) bool {
 		u, err := url.Parse(rawURL)
 		return err == nil && u.User != nil
 	case schemeSentinel:
-		if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
-			rest = rest[:slashIdx]
-		}
+		rest, _, _ = strings.CutLast(rest, "/")
 		return strings.Count(rest, "@") >= 2
 	case schemeCluster:
-		if slashIdx := strings.LastIndex(rest, "/"); slashIdx != -1 {
-			rest = rest[:slashIdx]
-		}
+		rest, _, _ = strings.CutLast(rest, "/")
 		return strings.Contains(rest, "@")
 	default:
 		return false

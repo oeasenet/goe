@@ -9,6 +9,7 @@ import (
 	"go.oease.dev/goe/v2/core/job"
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/log"
+	"go.oease.dev/goe/v2/core/metrics"
 	"go.oease.dev/goe/v2/core/mongodb"
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
 )
@@ -161,12 +162,20 @@ type Options struct {
 	// See the core/mongodb/migrate package for the full option list.
 	Migrate []migrate.Option
 
+	// Metrics configures the metrics module from code (port, registry, pprof).
+	// A non-nil slice implies WithMetrics.
+	Metrics []metrics.Option
+
 	// HTTPPort overrides the HTTP port.
 	//
 	// Deprecated: use HTTP with goehttp.WithPort instead. This field still
 	// works, but it is applied as an environment override, so WithPort takes
 	// precedence over it.
 	HTTPPort int
+
+	// StartTimeout bounds the whole start: every module's and hook's OnStart.
+	// Falls back to STARTUP_TIMEOUT, then two minutes.
+	StartTimeout time.Duration
 
 	// Shutdown configuration
 	ShutdownTimeout time.Duration // Total shutdown timeout (default: 30s)

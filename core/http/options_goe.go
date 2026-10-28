@@ -3,13 +3,15 @@ package http
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 )
 
 // This file holds the options GOE defines itself, because Fiber has no
-// equivalent field: the listener address, the request-id middleware, and the
-// html/template engine GOE constructs on your behalf. Everything else follows
+// equivalent field: the listener address, the request-id middleware, the
+// html/template engine GOE constructs on your behalf, and the request guard. Everything else follows
 // Fiber's field names (see options_fiber.go and options_listen.go).
 
 // WithHost sets the interface the server binds to. Replaces HTTP_HOST.
@@ -123,4 +125,106 @@ func WithListenConfig(fn func(*fiber.ListenConfig)) Option {
 		s.listenHooks = append(s.listenHooks, fn)
 		return nil
 	}
+}
+
+// WithAllowDotSegments lets requests through whose raw path has "." or ".."
+// segments, also percent-encoded ones. Replaces HTTP_ALLOW_DOT_SEGMENTS.
+//
+// GOE answers such requests 400 by default. Browsers never send them, and since
+// Fiber v3.6 c.Path() is normalized while c.OriginalURL() stays raw, so code
+// that routes or authorizes on one and forwards the other can be steered to a
+// different route.
+func WithAllowDotSegments(allowed bool) Option {
+	return func(s *settings) error { s.allowDotSegments = allowed; return nil }
+}
+
+// WithStrictBodyLimit makes BodyLimit hold while request bodies are streamed —
+// GOE streams them by default (StreamRequestBody), and then Fiber reads past
+// BodyLimit. Replaces HTTP_STRICT_BODY_LIMIT. Off by default.
+//
+// When on, a declared Content-Length above the limit is answered 413 before any
+// handler runs and the connection is closed; a chunked body fails once it
+// passes the limit (413 when the handler returns the error); and multipart
+// forms are parsed when a handler asks for them rather than up front, since
+// parsing up front reads the whole form to temporary files first.
+func WithStrictBodyLimit(enabled bool) Option {
+	return func(s *settings) error { s.strictBodyLimit = enabled; return nil }
+}
+
+// RouteLimits overrides limits for the requests under a path prefix. Zero fields
+// keep the server's values.
+type RouteLimits struct {
+	// BodyLimit is the largest body accepted, in bytes.
+	BodyLimit int
+	// ReadTimeout bounds reading the request, body included, from its start.
+	// Set it for uploads that take longer than the server's ReadTimeout.
+	ReadTimeout time.Duration
+}
+
+// WithRouteLimits sets limits for the requests whose normalized path is prefix
+// or below it (segment by segment: "/files" covers "/files/x", not
+// "/filesx"). The longest matching prefix wins. Route limits imply
+// WithStrictBodyLimit(true) for every route.
+func WithRouteLimits(prefix string, limits RouteLimits) Option {
+	return func(s *settings) error {
+		if !strings.HasPrefix(prefix, "/") {
+			return fmt.Errorf("WithRouteLimits: prefix %q must start with /", prefix)
+		}
+		if limits.BodyLimit < 0 || limits.ReadTimeout < 0 {
+			return fmt.Errorf("WithRouteLimits: limits for %q must not be negative", prefix)
+		}
+		if len(prefix) > 1 {
+			prefix = strings.TrimSuffix(prefix, "/")
+		}
+		s.routeLimits = append(s.routeLimits, routeLimit{prefix: prefix, limits: limits})
+		return nil
+	}
+}
+
+// WithStoppingSignal gives the kernel a channel that closes when the
+// application starts stopping: SSE and SendStream end their streams on it.
+// goe.New passes the shutdown manager's Stopping channel; without one, streams
+// end when the server shuts down.
+func WithStoppingSignal(stopping <-chan struct{}) Option {
+	return func(s *settings) error { s.stopping = stopping; return nil }
+}
+
+// WithStreamObserver reports the start and end of every stream served by SSE or
+// SendStream to observer. GOE's metrics module supplies one.
+func WithStreamObserver(observer StreamObserver) Option {
+	return func(s *settings) error { s.streamObserver = observer; return nil }
+}
+
+// WithRequestIDTrustInbound controls whether the request-id middleware reuses
+// an id the client sent in the request-id header. Replaces
+// HTTP_REQUEST_ID_TRUST_INBOUND. Defaults to true; set it to false where
+// clients are not trusted, so every request gets a generated id.
+func WithRequestIDTrustInbound(trusted bool) Option {
+	return func(s *settings) error { s.requestIDTrustInbound = trusted; return nil }
+}
+
+// WithAccessLogRedactQuery sets the query parameters whose values the access log
+// records as REDACTED; names match case-insensitively. Replaces
+// HTTP_ACCESS_LOG_REDACT_QUERY (a comma-separated list). With no names nothing
+// is redacted. The default list covers common secrets: access_token, api_key,
+// apikey, auth, code, id_token, key, password, refresh_token, secret, sig,
+// signature and token.
+func WithAccessLogRedactQuery(names ...string) Option {
+	return func(s *settings) error {
+		s.accessLogRedactQuery = append([]string{}, names...)
+		return nil
+	}
+}
+
+// WithAccessLogURL makes the access log record fn's result as the url, instead
+// of the request URL with redacted query values — to drop the query entirely,
+// say, or hide identifiers in the path.
+func WithAccessLogURL(fn func(c fiber.Ctx) string) Option {
+	return func(s *settings) error { s.accessLogURL = fn; return nil }
+}
+
+// WithAccessLogSkip leaves the requests for which fn reports true out of the
+// access log, in addition to the health probe paths.
+func WithAccessLogSkip(fn func(c fiber.Ctx) bool) Option {
+	return func(s *settings) error { s.accessLogSkip = fn; return nil }
 }

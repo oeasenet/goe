@@ -46,13 +46,16 @@
 
 ## Go Toolchain Follow-ups
 
-- **`encoding/json/v2`**: becomes the default `encoding/json` backend in Go
-  1.27 — evaluate the cache serialization path and webresult once GOE's
-  baseline moves to 1.27 (it is GOEXPERIMENT-only on 1.26).
-- **Goroutine-leak profile**: experimental in 1.26
-  (`GOEXPERIMENT=goroutineleakprofile`), aimed at on-by-default in 1.27 —
-  consider surfacing `/debug/pprof/goroutineleak` alongside the existing
-  observability endpoints when it stabilizes.
+- **`encoding/json/v2`**: the default `encoding/json` backend since Go 1.27,
+  GOE's baseline. Checked for the cache and job serialization paths: the v1
+  API keeps v1 semantics on it (duplicate names, invalid UTF-8 replacement,
+  `null` into `RawMessage`); only the encoding of a replaced character differs
+  (a literal U+FFFD instead of `�`). HTTP bodies use sonic. Moving the
+  internal call sites to the v2 API is optional and has no user-visible effect.
+- **Goroutine-leak profile**: generally available in Go 1.27
+  (`runtime/pprof` profile `goroutineleak`). Consider surfacing
+  `/debug/pprof/goroutineleak` alongside the existing observability endpoints,
+  on an operator-only port.
 
 ## Gap Analysis
 

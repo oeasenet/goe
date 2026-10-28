@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ var (
 		metricsManager  contract.MetricsManager // Metrics manager instance
 		otelProvider    contract.OTelProvider   // OpenTelemetry provider instance
 		shutdownManager *shutdown.Manager       // Shutdown manager instance
+		shutdowner      fx.Shutdowner           // Requests a graceful stop (goe.Shutdown)
 		mu              sync.RWMutex
 	}
 )
@@ -49,37 +51,10 @@ var (
 // just after New returns. Accessors for modules that are not enabled panic
 // with a descriptive message.
 func New(opts ...Options) contract.Application {
-	// Merge options
+	// A whole-struct copy, so a field added to Options can never be dropped here.
 	opt := Options{}
-
 	if len(opts) > 0 {
-		o := opts[0]
-		opt.Modules = o.Modules
-		opt.Providers = o.Providers
-		opt.Invokers = o.Invokers
-		opt.WithHTTP = o.WithHTTP
-		opt.WithCache = o.WithCache
-		opt.WithDB = o.WithDB
-		opt.WithMongoDB = o.WithMongoDB
-		opt.WithMigrate = o.WithMigrate
-		opt.WithLock = o.WithLock
-		opt.WithJob = o.WithJob
-		opt.WithHealth = o.WithHealth
-		opt.WithMetrics = o.WithMetrics
-		opt.WithOTel = o.WithOTel
-		opt.HTTP = o.HTTP
-		opt.Log = o.Log
-		opt.Cache = o.Cache
-		opt.Job = o.Job
-		opt.Lock = o.Lock
-		opt.MongoDB = o.MongoDB
-		opt.Migrate = o.Migrate
-		opt.HTTPPort = o.HTTPPort
-		opt.ConfigOverrides = o.ConfigOverrides
-		opt.ShutdownTimeout = o.ShutdownTimeout
-		opt.DrainTimeout = o.DrainTimeout
-		opt.OnStart = o.OnStart
-		opt.OnStop = o.OnStop
+		opt = opts[0]
 	}
 
 	// Supplying a module's options is an unambiguous request for that module,
@@ -98,6 +73,9 @@ func New(opts ...Options) contract.Application {
 	}
 	if opt.MongoDB != nil {
 		opt.WithMongoDB = true
+	}
+	if opt.Metrics != nil {
+		opt.WithMetrics = true
 	}
 	// Migration cannot run without MongoDB, so migrate options imply both
 	// modules. The plain WithMigrate flag keeps its explicit requirement.
@@ -220,6 +198,16 @@ func New(opts ...Options) contract.Application {
 		fxOptions = append(fxOptions, fx.Invoke(invoker))
 	}
 
+	// After every module, so the server starts last and drains first.
+	fxOptions = append(fxOptions, reg.serve())
+
+	// The shutdowner behind goe.Shutdown comes from this app's own graph.
+	fxOptions = append(fxOptions, fx.Invoke(func(s fx.Shutdowner) {
+		instance.mu.Lock()
+		defer instance.mu.Unlock()
+		instance.shutdowner = s
+	}))
+
 	// Add lifecycle hooks
 	if len(opt.OnStart) > 0 || len(opt.OnStop) > 0 {
 		fxOptions = append(fxOptions, fx.Invoke(func(lc fx.Lifecycle) {
@@ -236,8 +224,8 @@ func New(opts ...Options) contract.Application {
 				},
 				OnStop: func(ctx context.Context) error {
 					// Execute all OnStop hooks in reverse order
-					for i := len(opt.OnStop) - 1; i >= 0; i-- {
-						if err := opt.OnStop[i](ctx); err != nil {
+					for i, v := range slices.Backward(opt.OnStop) {
+						if err := v(ctx); err != nil {
 							logger.Error("OnStop hook failed", "index", i, "error", err)
 							// Continue with other hooks even if one fails
 						}
@@ -315,9 +303,22 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	logModule := log.NewModule(instance.config, opt.Log...)
 	instance.logger = logModule.Provide()
 
+	// Values that failed to parse while the logger did not exist yet are
+	// reported now; later ones as they are read.
+	config.AttachLogger(instance.config, instance.logger.With("module", "config"))
+
+	// Start timeout: Options, then STARTUP_TIMEOUT, then two minutes.
+	startTimeout := opt.StartTimeout
+	if startTimeout <= 0 {
+		startTimeout = instance.config.GetDuration("STARTUP_TIMEOUT")
+		if startTimeout <= 0 {
+			startTimeout = 2 * time.Minute
+		}
+	}
+
 	// Build Fx options
 	fxOptions := []fx.Option{
-		fx.StartTimeout(2 * time.Minute),
+		fx.StartTimeout(startTimeout),
 		// Configure Fx to use our custom logger that logs at debug level
 		fx.WithLogger(func() fxevent.Logger {
 			zapLogger := logModule.ProvideZap()
@@ -369,25 +370,30 @@ func buildCore(opt Options) (contract.Application, contract.Config, contract.Log
 	reg.addJob()
 
 	// Create shutdown manager with configured timeouts
+	// A value of zero or below falls back: a negative bound would expire the
+	// stop at once and skip every hook.
 	shutdownTimeout := opt.ShutdownTimeout
-	if shutdownTimeout == 0 {
+	if shutdownTimeout <= 0 {
 		shutdownTimeout = instance.config.GetDuration("SHUTDOWN_TIMEOUT")
-		if shutdownTimeout == 0 {
+		if shutdownTimeout <= 0 {
 			shutdownTimeout = 30 * time.Second
 		}
 	}
 	drainTimeout := opt.DrainTimeout
-	if drainTimeout == 0 {
+	if drainTimeout <= 0 {
 		drainTimeout = instance.config.GetDuration("SHUTDOWN_DRAIN_TIMEOUT")
-		if drainTimeout == 0 {
+		if drainTimeout <= 0 {
 			drainTimeout = 5 * time.Second
 		}
 	}
 	instance.shutdownManager = shutdown.NewManager(instance.logger, shutdownTimeout, drainTimeout)
+	reg.shutdown = instance.shutdownManager
 
-	// Always provide shutdown manager for dependency injection
+	// Always provide shutdown manager for dependency injection. The shutdown
+	// timeout bounds the whole stop sequence, not only the manager's hooks.
 	reg.fxOptions = append(reg.fxOptions,
 		fx.Provide(func() *shutdown.Manager { return instance.shutdownManager }),
+		fx.StopTimeout(shutdownTimeout),
 	)
 
 	reg.addHealth()

@@ -1,4 +1,4 @@
-.PHONY: test test_coverage clean lint fmt vet test_services_up test_services_down test_integration test_integration_full
+.PHONY: test test_coverage clean lint fmt vet test_services_up test_services_down test_integration test_integration_full downstream
 
 # Go parameters
 GOCMD=go
@@ -57,6 +57,15 @@ test_integration_full: test_services_up
 	status=$$?; \
 	$(MAKE) test_services_down; \
 	exit $$status
+
+# Build, vet and test the apps that depend on GOE against this working tree,
+# and report what fails only against it. Run before every release:
+#   make downstream DOWNSTREAM="../app/module ../other/module=./api/...,./web"
+#   DOWNSTREAM_TEST_FLAGS="-short" make downstream DOWNSTREAM=...
+# After "=", only the listed packages are tested (build and vet stay whole).
+downstream:
+	@test -n "$(DOWNSTREAM)" || { echo 'usage: make downstream DOWNSTREAM="<module dir>..."'; exit 2; }
+	./scripts/downstream.sh $(DOWNSTREAM)
 
 # Run all tests (unit + integration)
 test_all:

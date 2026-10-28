@@ -356,7 +356,7 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 	const numGoroutines = 10
 	const numIterations = 5
 
-	var counter int64
+	var counter atomic.Int64
 	var wg sync.WaitGroup
 
 	for range numGoroutines {
@@ -377,9 +377,9 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 				}
 
 				// Critical section
-				current := atomic.LoadInt64(&counter)
+				current := counter.Load()
 				time.Sleep(10 * time.Millisecond) // Simulate work
-				atomic.StoreInt64(&counter, current+1)
+				counter.Store(current + 1)
 
 				if err := mutex.Unlock(ctx); err != nil {
 					t.Logf("Unlock failed: %v", err)
@@ -391,7 +391,7 @@ func TestMutex_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// All increments should have happened safely
-	assert.Equal(t, int64(numGoroutines*numIterations), atomic.LoadInt64(&counter))
+	assert.Equal(t, int64(numGoroutines*numIterations), counter.Load())
 }
 
 func TestMutex_ContextCancellation(t *testing.T) {

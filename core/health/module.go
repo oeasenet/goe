@@ -17,16 +17,29 @@ type Module struct {
 	logger  contract.Logger
 }
 
+// Option configures the health module.
+type Option func(*Module)
+
+// WithStopping makes readiness report down once stopping is closed — GOE
+// passes the shutdown manager's Stopping channel.
+func WithStopping(stopping <-chan struct{}) Option {
+	return func(m *Module) { m.manager.stopping = stopping }
+}
+
 // NewModule creates a new health module
-func NewModule(cfg contract.Config, logger contract.Logger) *Module {
+func NewModule(cfg contract.Config, logger contract.Logger, opts ...Option) *Module {
 	config := NewConfig(cfg)
 	manager := NewManager(config, logger)
 
-	return &Module{
+	module := &Module{
 		manager: manager,
 		config:  config,
 		logger:  logger.With("module", "health"),
 	}
+	for _, opt := range opts {
+		opt(module)
+	}
+	return module
 }
 
 // Name returns the module name

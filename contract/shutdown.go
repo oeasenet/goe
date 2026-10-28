@@ -28,6 +28,14 @@ type ShutdownManager interface {
 
 	// IsShutdown returns true if shutdown has been initiated
 	IsShutdown() bool
+
+	// Stopping returns a channel that is closed once shutdown starts, before
+	// any hook runs: long-lived work (streams, loops) watches it to end early.
+	Stopping() <-chan struct{}
+
+	// Go runs fn in a new goroutine that shutdown waits for. fn's context is
+	// cancelled only when the shutdown budget runs out before fn returns.
+	Go(name string, fn func(ctx context.Context))
 }
 
 // ShutdownConfig defines configuration for the shutdown module

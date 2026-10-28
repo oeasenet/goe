@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -53,8 +54,29 @@ type settings struct {
 	htmlViewsRoot string
 	htmlViewsExt  string
 
-	requestIDEnabled bool
-	requestIDHeader  string
+	requestIDEnabled      bool
+	requestIDHeader       string
+	requestIDTrustInbound bool
+
+	// Access log: query parameters whose values are redacted, a replacement
+	// for the logged URL, and a predicate for requests left out.
+	accessLogRedactQuery []string
+	accessLogURL         func(fiber.Ctx) string
+	accessLogSkip        func(fiber.Ctx) bool
+
+	// allowDotSegments lets requests whose raw path has "." or ".." segments
+	// through the guard; they are answered 400 by default.
+	allowDotSegments bool
+
+	// strictBodyLimit enforces BodyLimit while request bodies stream;
+	// routeLimits override it (and the read timeout) per path prefix and turn
+	// it on too.
+	strictBodyLimit bool
+	routeLimits     []routeLimit
+
+	// stopping and streamObserver are shared with the stream helpers.
+	stopping       <-chan struct{}
+	streamObserver StreamObserver
 
 	// bundledValidator is the validator GOE installs by default. It is kept so
 	// that WithValidatorSetup can configure it, and so materialise can tell
@@ -107,10 +129,12 @@ func defaultSettings(errorHandler fiber.ErrorHandler) settings {
 			// with WithListenerNetwork.
 			ListenerNetwork: fiber.NetworkTCP,
 		},
-		host:             "0.0.0.0",
-		port:             8080,
-		requestIDEnabled: true,
-		requestIDHeader:  fiber.HeaderXRequestID,
+		host:                  "0.0.0.0",
+		port:                  8080,
+		requestIDEnabled:      true,
+		requestIDHeader:       fiber.HeaderXRequestID,
+		requestIDTrustInbound: true,
+		accessLogRedactQuery:  defaultRedactedQuery,
 	}
 }
 
@@ -152,6 +176,7 @@ func (s *settings) applyEnv(config contract.Config) {
 	setBool("FIBER_STRICT_ROUTING", &s.fiber.StrictRouting)
 	setBool("FIBER_CASE_SENSITIVE", &s.fiber.CaseSensitive)
 	setBool("FIBER_SKIP_UNMATCHED_ROUTES", &s.fiber.SkipUnmatchedRoutes)
+	setBool("FIBER_DISABLE_FLASH_MESSAGES", &s.fiber.DisableFlashMessages)
 	setBool("FIBER_IMMUTABLE", &s.fiber.Immutable)
 	setBool("FIBER_UNESCAPE_PATH", &s.fiber.UnescapePath)
 	setBool("FIBER_STREAM_REQUEST_BODY", &s.fiber.StreamRequestBody)
@@ -167,11 +192,21 @@ func (s *settings) applyEnv(config contract.Config) {
 	setString("HTTP_HOST", &s.host)
 	setInt("HTTP_PORT", &s.port)
 
+	// Request guard.
+	setBool("HTTP_ALLOW_DOT_SEGMENTS", &s.allowDotSegments)
+	setBool("HTTP_STRICT_BODY_LIMIT", &s.strictBodyLimit)
+
 	// Request ID middleware.
 	if config.Has("HTTP_REQUEST_ID") {
 		s.requestIDEnabled = config.GetBool("HTTP_REQUEST_ID")
 	}
 	setString("HTTP_REQUEST_ID_HEADER", &s.requestIDHeader)
+	setBool("HTTP_REQUEST_ID_TRUST_INBOUND", &s.requestIDTrustInbound)
+
+	// Access log.
+	if config.Has("HTTP_ACCESS_LOG_REDACT_QUERY") {
+		s.accessLogRedactQuery = splitList(config.GetString("HTTP_ACCESS_LOG_REDACT_QUERY"))
+	}
 
 	// Trusted proxies.
 	if config.GetBool("FIBER_TRUST_PROXY") {
@@ -276,6 +311,12 @@ func trustProxyConfigured(c fiber.TrustProxyConfig) bool {
 // It runs before the escape hatches so that a raw hook can still override
 // anything decided here.
 func (s *settings) materialise(logger contract.Logger) {
+	// A multipart form parsed up front is read to the end, to temporary files,
+	// before any handler can refuse it; strict limits parse it on demand.
+	if s.strictBodyLimits() {
+		s.fiber.DisablePreParseMultipartForm = true
+	}
+
 	// Apply validator setups to the bundled validator. Skipped when
 	// WithStructValidator replaced it; validate() rejects that combination, so
 	// reaching here with both set is not possible.
@@ -406,4 +447,20 @@ func resolve(logger contract.Logger, base settings, opts []Option) (settings, []
 	warnOnTrustWithoutProxyHeader(s.fiber, logger)
 
 	return s, errs
+}
+
+// strictBodyLimits reports whether body limits hold while bodies stream.
+func (s *settings) strictBodyLimits() bool {
+	return s.strictBodyLimit || len(s.routeLimits) > 0
+}
+
+// splitList splits a comma-separated value, dropping blanks.
+func splitList(value string) []string {
+	out := []string{}
+	for item := range strings.SplitSeq(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }

@@ -252,6 +252,26 @@ func TestOptions_SkipUnmatchedRoutes(t *testing.T) {
 	})
 }
 
+func TestOptions_DisableFlashMessages(t *testing.T) {
+	t.Run("default off", func(t *testing.T) {
+		k, _ := newTestKernel(t, nil)
+		assert.False(t, k.App().Config().DisableFlashMessages)
+	})
+
+	t.Run("env enables", func(t *testing.T) {
+		k, _ := newTestKernel(t, map[string]any{"FIBER_DISABLE_FLASH_MESSAGES": true})
+		assert.True(t, k.App().Config().DisableFlashMessages)
+	})
+
+	t.Run("code wins over env", func(t *testing.T) {
+		k, _ := newTestKernel(t,
+			map[string]any{"FIBER_DISABLE_FLASH_MESSAGES": true},
+			WithDisableFlashMessages(false),
+		)
+		assert.False(t, k.App().Config().DisableFlashMessages)
+	})
+}
+
 func TestOptions_Ordering(t *testing.T) {
 	t.Run("last option wins", func(t *testing.T) {
 		k, _ := newTestKernel(t, nil,
@@ -320,6 +340,16 @@ func TestOptions_AllErrorsReportedTogether(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "WithConcurrency")
 	assert.Contains(t, err.Error(), "WithPort")
+}
+
+func TestOptions_BodyLimitMustBePositive(t *testing.T) {
+	// Fiber replaces a limit of zero or below with its 4MB default, so a
+	// caller asking for "no limit" would silently get 4MB instead.
+	for _, limit := range []int{0, -1} {
+		k, _ := newTestKernel(t, nil, WithBodyLimit(limit))
+		require.NotEmpty(t, k.optErrs, "WithBodyLimit(%d) must be rejected", limit)
+		assert.Contains(t, errors.Join(k.optErrs...).Error(), "WithBodyLimit")
+	}
 }
 
 func TestOptions_CrossFieldValidation(t *testing.T) {

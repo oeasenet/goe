@@ -5,6 +5,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildRedisConfig_EnvURLPassthrough(t *testing.T) {
@@ -100,4 +101,18 @@ func TestBuildRedisConfig_InvalidURLPassedThrough(t *testing.T) {
 
 	rc := buildRedisConfig(cfg)
 	assert.Equal(t, "redis://not a url::", rc.URL)
+}
+
+func TestRedisFactory_InvalidURLIsError(t *testing.T) {
+	// The storage package panics when it cannot build its client; the factory
+	// converts that into a labeled error instead of a raw panic. go-redis
+	// v9.23 rejects a skip_verify that is not a boolean, which used to be
+	// read as false.
+	cfg := newMapConfig()
+	cfg.Set("CACHE_REDIS_URL", "rediss://redis.internal:6379/0?skip_verify=maybe")
+
+	var err error
+	require.NotPanics(t, func() { _, err = RedisStoreFactory(cfg) })
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "skip_verify")
 }

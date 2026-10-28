@@ -219,14 +219,14 @@ func TestManager_ShutdownContinuesAfterError(t *testing.T) {
 	logger := &testLogger{t: t}
 	manager := NewManager(logger, 30*time.Second, 5*time.Second)
 
-	var executed int32
+	var executed atomic.Int32
 
 	manager.RegisterHook("hook1", PriorityHTTP, func(ctx context.Context) error {
-		atomic.AddInt32(&executed, 1)
+		executed.Add(1)
 		return errors.New("error 1")
 	})
 	manager.RegisterHook("hook2", PriorityDatabase, func(ctx context.Context) error {
-		atomic.AddInt32(&executed, 1)
+		executed.Add(1)
 		return nil
 	})
 
@@ -236,17 +236,17 @@ func TestManager_ShutdownContinuesAfterError(t *testing.T) {
 	// Should return the first error
 	assert.Error(t, err)
 	// But both hooks should have executed
-	assert.Equal(t, int32(2), atomic.LoadInt32(&executed))
+	assert.Equal(t, int32(2), executed.Load())
 }
 
 func TestManager_ShutdownOnlyOnce(t *testing.T) {
 	logger := &testLogger{t: t}
 	manager := NewManager(logger, 30*time.Second, 5*time.Second)
 
-	var count int32
+	var count atomic.Int32
 
 	manager.RegisterHook("counter", 50, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return nil
 	})
 
@@ -262,7 +262,7 @@ func TestManager_ShutdownOnlyOnce(t *testing.T) {
 	require.NoError(t, err3)
 
 	// Hook should only execute once
-	assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+	assert.Equal(t, int32(1), count.Load())
 }
 
 func TestManager_IsShutdown(t *testing.T) {
@@ -278,7 +278,7 @@ func TestManager_IsShutdown(t *testing.T) {
 }
 
 func TestManager_ShutdownTimeout(t *testing.T) {
-	logger := &testLogger{t: t}
+	logger := newRecorder(t)
 	manager := NewManager(logger, 100*time.Millisecond, 50*time.Millisecond)
 
 	manager.RegisterHook("slow-hook", 50, func(ctx context.Context) error {
@@ -295,9 +295,13 @@ func TestManager_ShutdownTimeout(t *testing.T) {
 	err := manager.Shutdown(ctx)
 	elapsed := time.Since(start)
 
-	// Should timeout and return context deadline exceeded
-	assert.Error(t, err)
+	// Running out of budget is reported, not returned: a hook that returns
+	// its context's error at the deadline is as late as one still running.
+	assert.NoError(t, err)
 	assert.True(t, elapsed < 500*time.Millisecond, "Should timeout quickly")
+	warns := logger.find("warn", "Shutdown hook ran out of time")
+	require.Len(t, warns, 1)
+	assert.Equal(t, "slow-hook", warns[0].fields["name"])
 }
 
 func TestPriorityConstants(t *testing.T) {

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"maps"
@@ -20,6 +19,13 @@ type config struct {
 	data    map[string]any
 	sources []contract.ConfigSource
 	cache   map[string]any
+
+	// Values that failed to parse, reported once each through logger (kept
+	// pending until one is attached).
+	warnMu  sync.Mutex
+	warned  map[parseWarning]bool
+	pending []parseWarning
+	logger  contract.Logger
 }
 
 // New creates a new config instance
@@ -57,36 +63,18 @@ func (c *config) loadEnvFiles() {
 	c.loadEnvFile(envFile)
 }
 
-// loadEnvFile loads a single env file
+// loadEnvFile loads a single env file (see parseEnvFile for the format)
 func (c *config) loadEnvFile(filename string) {
-	file, err := os.Open(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return // File doesn't exist, skip
 	}
-	defer func() { _ = file.Close() }()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		// Parse key=value
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Remove quotes if present
-		value = strings.Trim(value, `"'`)
-
-		c.data[key] = value
+	values, unbalanced := parseEnvFile(string(content))
+	for _, kv := range values {
+		c.data[kv[0]] = kv[1]
+	}
+	for _, key := range unbalanced {
+		c.unbalancedQuotes(filename, key)
 	}
 }
 
@@ -150,7 +138,10 @@ func (c *config) GetInt(key string) int {
 		return 0
 	}
 
-	i, _ := strconv.Atoi(val)
+	i, err := strconv.Atoi(val)
+	if err != nil {
+		c.parseFailed(key, val, "int")
+	}
 	return i
 }
 
@@ -161,7 +152,10 @@ func (c *config) GetInt64(key string) int64 {
 		return 0
 	}
 
-	i, _ := strconv.ParseInt(val, 10, 64)
+	i, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		c.parseFailed(key, val, "int64")
+	}
 	return i
 }
 
@@ -172,7 +166,10 @@ func (c *config) GetFloat64(key string) float64 {
 		return 0
 	}
 
-	f, _ := strconv.ParseFloat(val, 64)
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		c.parseFailed(key, val, "float64")
+	}
 	return f
 }
 
@@ -183,7 +180,10 @@ func (c *config) GetBool(key string) bool {
 		return false
 	}
 
-	b, _ := strconv.ParseBool(val)
+	b, err := strconv.ParseBool(val)
+	if err != nil {
+		c.parseFailed(key, val, "bool")
+	}
 	return b
 }
 
@@ -194,7 +194,10 @@ func (c *config) GetDuration(key string) time.Duration {
 		return 0
 	}
 
-	d, _ := time.ParseDuration(val)
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		c.parseFailed(key, val, "duration")
+	}
 	return d
 }
 

@@ -16,6 +16,7 @@ import (
 	"go.oease.dev/goe/v2/core/lock"
 	"go.oease.dev/goe/v2/core/metrics"
 	"go.oease.dev/goe/v2/core/otel"
+	"go.oease.dev/goe/v2/core/shutdown"
 	"go.uber.org/fx"
 )
 
@@ -46,6 +47,8 @@ type moduleRegistry struct {
 	metrics *metrics.Module
 	otel    *otel.Module
 	http    *http.Module
+
+	shutdown *shutdown.Manager
 }
 
 func (r *moduleRegistry) addCache() {
@@ -103,6 +106,11 @@ func (r *moduleRegistry) addMongoDB() {
 
 	if r.opt.WithMongoDB {
 		r.mongodb = mongodb.NewDBModule(instance.config, instance.logger, r.opt.MongoDB...)
+		// Connect now, like cache, job and lock: DB() is then ready for
+		// providers and invokers, and an unreachable database stops startup here.
+		if err := r.mongodb.Connect(context.Background()); err != nil {
+			instance.logger.Fatal("Failed to connect to MongoDB", "error", err)
+		}
 		instance.mongoDB = r.mongodb.Provide()
 
 		instance.logger.Debug("Registering MongoDB module")
@@ -228,7 +236,7 @@ func (r *moduleRegistry) addHealth() {
 	// Add Health module if enabled
 
 	if r.opt.WithHealth {
-		r.health = health.NewModule(instance.config, instance.logger)
+		r.health = health.NewModule(instance.config, instance.logger, health.WithStopping(r.shutdown.Stopping()))
 		instance.healthManager = r.health.Manager()
 
 		instance.logger.Debug("Registering Health module")
@@ -251,7 +259,7 @@ func (r *moduleRegistry) addMetrics() {
 	// Add Metrics module if enabled
 
 	if r.opt.WithMetrics {
-		r.metrics = metrics.NewModule(instance.config, instance.logger)
+		r.metrics = metrics.NewModule(instance.config, instance.logger, r.opt.Metrics...)
 		instance.metricsManager = r.metrics.Manager()
 
 		instance.logger.Debug("Registering Metrics module")
@@ -301,23 +309,58 @@ func (r *moduleRegistry) addHTTP() {
 	// Add HTTP module if enabled
 
 	if r.opt.WithHTTP {
-		r.http = http.NewModule(instance.config, instance.logger, r.opt.HTTP...)
+		// Streams end when shutdown starts, before the drain. App options come
+		// after GOE's, so they can still override it.
+		gopts := []http.Option{http.WithStoppingSignal(r.shutdown.Stopping())}
+		if r.metrics != nil {
+			gopts = append(gopts, http.WithStreamObserver(metrics.NewStreamMetrics(r.metrics.Manager())))
+		}
+		httpOpts := append(gopts, r.opt.HTTP...)
+		r.http = http.NewModule(instance.config, instance.logger, httpOpts...)
 		instance.http = r.http.Provide()
 
 		instance.logger.Debug("Registering HTTP module")
 
+		// The server starts from serve, after every other module. It drains as
+		// a shutdown-manager hook at PriorityHTTP, so hooks registered above
+		// that priority run while it still serves and the rest once it stopped.
+		module, drainTimeout := r.http, r.shutdown.DrainTimeout()
+		r.shutdown.RegisterHook(module.Name(), shutdown.PriorityHTTP, func(ctx context.Context) error {
+			ctx, cancel := context.WithTimeout(ctx, drainTimeout)
+			defer cancel()
+			return module.OnStop(ctx)
+		})
+
 		r.fxOptions = append(r.fxOptions,
 			fx.Provide(func() contract.HTTPKernel { return instance.http }),
-			fx.Module(r.http.Name(),
-				fx.Invoke(func(lc fx.Lifecycle) {
-					lc.Append(fx.Hook{
-						OnStart: r.http.OnStart,
-						OnStop:  r.http.OnStop,
-					})
-				}),
-			),
 		)
 	}
+}
+
+// serve returns the lifecycle hook that starts the HTTP server and runs the
+// shutdown manager. It is a root-level invoke that New appends after the custom
+// modules, providers, the service-middleware invoke and the invokers: Fx runs
+// module invokes before root ones and root ones in order, so every hook those
+// append — including hooks of providers built for an invoker — is appended
+// before this one. Fx therefore starts the server after them and stops it
+// (the shutdown manager's drain) before them. Without the HTTP module it only
+// runs the shutdown manager's hooks. Hooks appended later, such as those of a
+// module added at runtime, are not covered.
+//
+// Unlike the add methods, New calls it after buildCore released instance.mu;
+// it reads only the registry, never the instance singleton.
+func (r *moduleRegistry) serve() fx.Option {
+	start := func(context.Context) error { return nil }
+	if r.http != nil {
+		start = r.http.OnStart
+	}
+
+	return fx.Invoke(func(lc fx.Lifecycle) {
+		lc.Append(fx.Hook{
+			OnStart: start,
+			OnStop:  r.shutdown.Shutdown,
+		})
+	})
 }
 
 // checkAndProvideServices inspects a module for common service provider methods

@@ -11,9 +11,10 @@ import (
 //go:embed error_page.gohtml
 var templateFS embed.FS
 
-// tpl is a package-level variable that holds the parsed template.
-// Parsing it once at startup is efficient.
-var tpl *template.Template
+// tpl is the parsed error page. It is parsed once, when the package loads:
+// every kernel shares it, and re-parsing it per kernel raced with one that
+// was already rendering it.
+var tpl = template.Must(template.ParseFS(templateFS, "error_page.gohtml"))
 
 // ErrorPageData defines the structure of data passed to the template.
 // Fields must be exported (start with a capital letter) to be accessible in the template.
