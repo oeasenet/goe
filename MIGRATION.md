@@ -5,7 +5,7 @@ your application does. Releases with neither are not listed here.
 
 ---
 
-## v2.8.0 (unreleased)
+## v2.8.0
 
 No public API is removed. This release makes graceful shutdown do what its
 configuration says, gives long-lived responses (SSE, proxied LLM streams) helpers
