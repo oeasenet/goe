@@ -4,6 +4,7 @@ package goe_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,13 +13,18 @@ import (
 	"go.oease.dev/goe/v2/contract"
 )
 
-// Needs the test stack's MongoDB (make test_services_up).
+// Needs a MongoDB: the test stack's (make test_services_up), or the one
+// GOE_TEST_MONGO_URI names.
 func TestMongoDB_AvailableToInvokers(t *testing.T) {
+	uri := os.Getenv("GOE_TEST_MONGO_URI")
+	if uri == "" {
+		uri = "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true"
+	}
 	var dbReady bool
 	app := goe.New(goe.Options{
 		WithMongoDB: true,
 		ConfigOverrides: map[string]any{
-			"MONGO_URI":     "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true",
+			"MONGO_URI":     uri,
 			"MONGO_DB_NAME": "goe_connect_integration",
 		},
 		Invokers: []any{
