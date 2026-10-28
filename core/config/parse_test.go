@@ -142,3 +142,53 @@ func TestLoadEnvFile_SingleQuotedIsLiteral(t *testing.T) {
 	assert.Equal(t, `a\nb`, data["RAW"])
 	assert.Equal(t, "first\nsecond", data["MULTI"])
 }
+
+const unbalancedQuotes = "Env file value has unbalanced quotes; read without its outer quotes"
+
+func loadEnvConfig(t *testing.T, content string) (*config, *warnRecorder) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(file, []byte(content), 0o600))
+	c := configWith(map[string]any{})
+	c.loadEnvFile(file)
+	rec := &warnRecorder{}
+	AttachLogger(c, rec)
+	return c, rec
+}
+
+func warnedKeys(rec *warnRecorder, msg string) []string {
+	var keys []string
+	for _, w := range rec.warns {
+		if w["msg"] == msg {
+			keys = append(keys, w["key"].(string))
+		}
+	}
+	return keys
+}
+
+// A quote that is never closed must not swallow the keys after it.
+func TestLoadEnvFile_UnclosedQuoteDoesNotSwallowKeys(t *testing.T) {
+	c, rec := loadEnvConfig(t, "A=\"oops\nB=1\nC=\"fine\"\nG='Hello\nX=2\nNAME=o'brien\n")
+	assert.Equal(t, map[string]any{
+		"A": "oops", "B": "1", "C": "fine", "G": "Hello", "X": "2", "NAME": "o'brien",
+	}, c.data)
+	assert.ElementsMatch(t, []string{"A", "G"}, warnedKeys(rec, unbalancedQuotes))
+}
+
+// Text after the closing quote means the line was never a quoted value: it
+// reads as it always did, so an existing secret does not change.
+func TestLoadEnvFile_TextAfterTheClosingQuoteReadsAsBefore(t *testing.T) {
+	c, rec := loadEnvConfig(t, `PASSWORD="p@ss"word"`+"\n"+`D='don't'`+"\n"+`J="{"k":"v"}"`+"\n"+
+		`H="abc"#def`+"\n") // a comment needs a space before it
+	assert.Equal(t, `p@ss"word`, c.data["PASSWORD"])
+	assert.Equal(t, `don't`, c.data["D"])
+	assert.Equal(t, `{"k":"v"}`, c.data["J"])
+	assert.Equal(t, `abc"#def`, c.data["H"])
+	assert.ElementsMatch(t, []string{"PASSWORD", "D", "J", "H"}, warnedKeys(rec, unbalancedQuotes))
+}
+
+func TestLoadEnvFile_CommentAfterTheClosingQuote(t *testing.T) {
+	c, rec := loadEnvConfig(t, `KEY="value" # where it comes from`+"\n")
+	assert.Equal(t, "value", c.data["KEY"])
+	assert.Empty(t, rec.warns)
+}

@@ -19,7 +19,7 @@ Environment files use standard `KEY=VALUE` format:
 # Comments start with #
 APP_NAME=My Application
 HTTP_PORT=8080
-DB_PASSWORD="password with spaces"
+DB_PASSWORD="password with spaces"  # a comment may follow the closing quote
 # Double quotes may span lines and understand \n \r \t \" \\
 JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
 MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA
@@ -28,9 +28,16 @@ MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA
 PATTERN='^\d+$'
 ```
 
-Unquoted values are trimmed. A value that does not parse as the type a setting
-needs — `SHUTDOWN_TIMEOUT=30` without a unit, `FLAG=yes` for a boolean — still
-falls back to the default, and is reported once at startup:
+Unquoted values are trimmed. A value whose quotes do not enclose it — the quote
+is never closed, or more than a comment follows it, as in `"p@ss"word"` — is
+read as files were read before quoting was understood, trimmed and without its
+outer quotes, and reported once at startup without its value:
+`Env file value has unbalanced quotes; read without its outer quotes` (with
+`key`, `file`). Single-quote such a value, or escape its inner double quotes.
+
+A value that does not parse as the type a setting needs — `SHUTDOWN_TIMEOUT=30`
+without a unit, `FLAG=yes` for a boolean — still falls back to the default, and
+is reported once at startup:
 `Config value does not parse; using the default` (with `key`, `value`, `type`).
 
 ---

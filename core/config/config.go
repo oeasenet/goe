@@ -23,7 +23,7 @@ type config struct {
 	// Values that failed to parse, reported once each through logger (kept
 	// pending until one is attached).
 	warnMu  sync.Mutex
-	warned  map[string]bool
+	warned  map[parseWarning]bool
 	pending []parseWarning
 	logger  contract.Logger
 }
@@ -69,8 +69,12 @@ func (c *config) loadEnvFile(filename string) {
 	if err != nil {
 		return // File doesn't exist, skip
 	}
-	for _, kv := range parseEnvFile(string(content)) {
+	values, unbalanced := parseEnvFile(string(content))
+	for _, kv := range values {
 		c.data[kv[0]] = kv[1]
+	}
+	for _, key := range unbalanced {
+		c.unbalancedQuotes(filename, key)
 	}
 }
 
