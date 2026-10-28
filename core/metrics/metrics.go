@@ -58,8 +58,7 @@ func newManager(config *Config, logger contract.Logger, registry *prometheus.Reg
 // that already holds an equal collector.
 func registerOnce(registry *prometheus.Registry, c prometheus.Collector) {
 	if err := registry.Register(c); err != nil {
-		var already prometheus.AlreadyRegisteredError
-		if !errors.As(err, &already) {
+		if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); !ok {
 			panic(err)
 		}
 	}

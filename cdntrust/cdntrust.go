@@ -286,8 +286,7 @@ func retryable(ctx context.Context, err error) bool {
 	if ctx.Err() != nil {
 		return false
 	}
-	var status *statusError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*statusError](err); ok {
 		return status.code >= http.StatusInternalServerError || status.code == http.StatusTooManyRequests
 	}
 	return true
