@@ -83,6 +83,16 @@ func TestGuard_RejectsDotSegments(t *testing.T) {
 		status, _ := raw(t, addr, get(path))
 		assert.Equal(t, fiber.StatusBadRequest, status, path)
 	}
+
+	// With UnescapePath, Fiber decodes %2F before routing, so the routed path
+	// no longer shows the segment; the guard reads the raw one.
+	t.Run("WithUnescapePath", func(t *testing.T) {
+		addr, _ := startGuarded(t, WithUnescapePath(true))
+		for _, path := range []string{"/a/..%2Fb", "/a/%2e%2e%2fb"} {
+			status, _ := raw(t, addr, get(path))
+			assert.Equal(t, fiber.StatusBadRequest, status, path)
+		}
+	})
 }
 
 func TestGuard_RoutesPathsWithoutDotSegments(t *testing.T) {
