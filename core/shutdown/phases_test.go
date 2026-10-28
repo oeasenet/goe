@@ -260,3 +260,18 @@ func TestNewManager_NoWarningForTheDefaults(t *testing.T) {
 	_ = NewManager(rec, 0, 0)
 	assert.Empty(t, rec.find("warn", "Drain timeout exceeds the shutdown budget"))
 }
+
+func TestManager_NoTaskWarningWhenNoTaskIsRunning(t *testing.T) {
+	rec := newRecorder(t)
+	m := NewManager(rec, 200*time.Millisecond, 0)
+	release := make(chan struct{})
+	defer close(release)
+	m.RegisterHook("hung", PriorityHTTP+10, func(context.Context) error {
+		<-release // eats the whole budget
+		return nil
+	})
+
+	require.NoError(t, m.Shutdown(context.Background()))
+	assert.Empty(t, rec.find("warn", "Background tasks still running"),
+		"no task was started, so there is nothing to report")
+}

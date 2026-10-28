@@ -228,7 +228,11 @@ func (m *Manager) awaitTasks(ctx context.Context) error {
 		slices.Sort(names)
 
 		m.cancelTasks()
-		m.logger.Warn("Background tasks still running", "tasks", names)
+		// The wait may start with the budget already gone (a hung hook used
+		// it up); with no task running there is nothing to report.
+		if len(names) > 0 {
+			m.logger.Warn("Background tasks still running", "tasks", names)
+		}
 	}
 	return nil
 }
