@@ -74,11 +74,11 @@ func New(opts ...Options) contract.Application {
 	if opt.MongoDB != nil {
 		opt.WithMongoDB = true
 	}
-	// Migration cannot run without MongoDB, so migrate options imply both
-	// modules. The plain WithMigrate flag keeps its explicit requirement.
 	if opt.Metrics != nil {
 		opt.WithMetrics = true
 	}
+	// Migration cannot run without MongoDB, so migrate options imply both
+	// modules. The plain WithMigrate flag keeps its explicit requirement.
 	if opt.Migrate != nil {
 		opt.WithMigrate = true
 		opt.WithMongoDB = true
