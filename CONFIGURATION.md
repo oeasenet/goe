@@ -1033,8 +1033,13 @@ Liveness/readiness endpoints. Enable with `WithHealth: true`.
 | `HEALTH_TIMEOUT` | duration | `5s` | Per-check timeout |
 
 **Readiness while stopping.** Once shutdown starts, readiness answers 503 (status
-`down`, one check `shutdown`: `shutting down`) without running its checkers, so a
-load balancer stops sending new requests while the server drains.
+`down`, one check `shutdown`: `shutting down`) without running its checkers. A
+load balancer sees it only while the server still serves — during `OnStop` hooks
+and shutdown hooks above `PriorityHTTP`: the drain stops accepting connections,
+and a probe on a new connection is refused. To have a load balancer take the
+instance out before the drain, wait for it in a pre-drain hook (see
+[Graceful Shutdown](#graceful-shutdown)) or delay the stop signal (a Kubernetes
+`preStop` sleep).
 
 **Liveness checkers.** Liveness is up unless a liveness checker says otherwise:
 
@@ -1113,6 +1118,18 @@ if err := engine.Run(); err != nil {
 // Pre-drain work: deregister while the server still serves.
 func(m *shutdown.Manager) {
     m.RegisterHook("deregister", shutdown.PriorityHTTP+10, registry.Deregister)
+}
+
+// Behind a load balancer that polls readiness: keep serving until it has seen
+// the 503 (about two probe intervals). The wait counts against the budget.
+func(m *shutdown.Manager) {
+    m.RegisterHook("lb-grace", shutdown.PriorityHTTP+10, func(ctx context.Context) error {
+        select {
+        case <-time.After(10 * time.Second):
+        case <-ctx.Done():
+        }
+        return nil
+    })
 }
 ```
 
