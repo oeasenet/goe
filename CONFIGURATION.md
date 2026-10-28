@@ -453,6 +453,7 @@ payload types and validation outside a request.
 |----------|------|---------|-------------|
 | `LOG_LEVEL` | string | `info` | Global log level (baseline for every module): `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | string | `text` | Log format: `text` (console) or `json` |
+| `OEASE_ENV` | string | - | With `LOG_FORMAT=json`, the `env` field on every line (falls back to `GOE_ENV`). `service` comes from `APP_NAME` and `version` from `APP_VERSION` (or `log.WithVersion`); unset values are left out |
 | `LOG_OUTPUT` | []string | `console` | Comma-separated outputs: `console` (or `stdout`), `stderr`, `file` (writes `app.log`). An unknown value logs to the console, with a warning naming it |
 | `LOG_CALLER` | bool | `false` | Include caller information in logs |
 | `LOG_STACKTRACE` | bool | `false` | Include stack traces for error logs |
@@ -484,7 +485,9 @@ listen address, "database connected", migrations applied, and graceful shutdown 
 Recoverable issues (slow SQL, job retries) are **Warn**; failures are **Error**.
 
 **HTTP access log** (`access` module): one line per request with fields `method`, `status`,
-`latency`, `ip`, `url`, `request_id` (plus `trace_id` when OpenTelemetry is active). The
+`route`, `host`, `latency`, `duration_ms`, `ip`, `url` (sensitive query values redacted),
+`request_id`, `bytesSent` (`streamed: true` instead for a streamed body), `trace_id` when a span
+is active, and `error` on 5xx lines; see [Access log](#access-log). The
 `/.well-known/{liveness,readiness,health}` URIs are skipped. Status maps to level: 2xx/3xx → Info,
 4xx → Warn, 5xx → Error.
 

@@ -28,7 +28,7 @@
 
 | Module | Status | Description |
 |--------|--------|-------------|
-| `http` | ✅ Stable | GoFiber v3 HTTP server with middleware |
+| `http` | ✅ Stable | GoFiber v3 HTTP server: middleware, request validation (Bind), SSE and streams, request guard |
 | `config` | ✅ Stable | Environment-based configuration |
 | `log` | ✅ Stable | Uber Zap structured logging |
 | `db` | ✅ Stable | GORM SQL database (MySQL, PostgreSQL, SQLite, SQL Server) |
@@ -40,7 +40,6 @@
 | `metrics` | ✅ Stable | Prometheus metrics |
 | `otel` | ✅ Stable | OpenTelemetry tracing |
 | `shutdown` | ✅ Stable | Graceful shutdown management |
-| `validation` | ✅ Stable | Request validation with struct tags |
 
 ---
 
@@ -52,10 +51,9 @@
   `null` into `RawMessage`); only the encoding of a replaced character differs
   (a literal U+FFFD instead of `�`). HTTP bodies use sonic. Moving the
   internal call sites to the v2 API is optional and has no user-visible effect.
-- **Goroutine-leak profile**: generally available in Go 1.27
-  (`runtime/pprof` profile `goroutineleak`). Consider surfacing
-  `/debug/pprof/goroutineleak` alongside the existing observability endpoints,
-  on an operator-only port.
+- **Goroutine-leak profile**: shipped in v2.8.0. `metrics.WithPprof` /
+  `METRICS_PPROF` serves `/debug/pprof/goroutineleak` with the other profiles,
+  on the separate metrics port only.
 
 ## Gap Analysis
 
