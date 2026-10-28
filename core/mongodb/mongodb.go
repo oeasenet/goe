@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -56,7 +57,9 @@ func NewDBModule(config contract.Config, logger contract.Logger, opts ...Option)
 	}
 }
 
-// DB returns the database instance, or nil before OnStart has run.
+// DB returns the database instance, or nil before Connect (or OnStart) ran.
+// Under goe.New, Connect runs while the app is built, so DB is ready for
+// providers and invokers.
 func (dbm *DatabaseModule) DB() *mongo.Database {
 	dbm.mu.RLock()
 	defer dbm.mu.RUnlock()
@@ -78,18 +81,37 @@ func (dbm *DatabaseModule) Name() string {
 // far from the cause, at request time. mongo.Connect performs no I/O, so the
 // ping (bounded by MONGO_PING_TIMEOUT, default 5s) is what actually proves
 // the deployment can reach its database.
+//
+// After Connect it keeps the connection Connect made.
 func (dbm *DatabaseModule) OnStart(ctx context.Context) error {
 	dbm.logger.Debug("MongoDB module starting")
+	if err := dbm.Connect(ctx); err != nil {
+		return err
+	}
+	dbm.logger.Info("MongoDB module started", "database", dbm.DB().Name())
+	return nil
+}
+
+// Connect establishes and verifies the connection, as OnStart does, so the
+// database is ready before the application starts: goe.New calls it while it
+// builds the app, which makes DB() usable from providers and invokers and stops
+// startup right there when the database is unreachable or an option was
+// invalid. With a connection in place it does nothing.
+func (dbm *DatabaseModule) Connect(ctx context.Context) error {
+	if len(dbm.optErrs) > 0 {
+		return fmt.Errorf("mongodb: %w", errors.Join(dbm.optErrs...))
+	}
 	dbm.mu.Lock()
 	defer dbm.mu.Unlock()
+	if dbm.db != nil {
+		return nil
+	}
 
 	db, err := dbm.connectAndVerify(ctx)
 	if err != nil {
 		return fmt.Errorf("mongodb: %w", err)
 	}
 	dbm.db = db
-
-	dbm.logger.Info("MongoDB module started", "database", db.Name())
 	return nil
 }
 

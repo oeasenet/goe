@@ -106,6 +106,11 @@ func (r *moduleRegistry) addMongoDB() {
 
 	if r.opt.WithMongoDB {
 		r.mongodb = mongodb.NewDBModule(instance.config, instance.logger, r.opt.MongoDB...)
+		// Connect now, like cache, job and lock: DB() is then ready for
+		// providers and invokers, and an unreachable database stops startup here.
+		if err := r.mongodb.Connect(context.Background()); err != nil {
+			instance.logger.Fatal("Failed to connect to MongoDB", "error", err)
+		}
 		instance.mongoDB = r.mongodb.Provide()
 
 		instance.logger.Debug("Registering MongoDB module")
