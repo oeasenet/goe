@@ -72,6 +72,9 @@ func New(config ...Config) fiber.Handler {
 
 		// Get the requested path
 		path := c.Path()
+		if excluded(cfg.Exclude, path) {
+			return c.Next()
+		}
 
 		// Check if this could be a file request (has extension or ends with /)
 		// This is a heuristic to avoid file system checks for obvious routes
@@ -86,7 +89,9 @@ func New(config ...Config) fiber.Handler {
 			if fileExists(fullPath) {
 				return serveStatic(c, fullPath)
 			}
-
+			if cfg.NotFoundForMissingFiles && strings.Contains(filepath.Base(path), ".") {
+				return fiber.ErrNotFound
+			}
 		}
 
 		// For SPA routing, serve the index file for all non-file routes
@@ -170,4 +175,16 @@ func fileExists(path string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+// excluded reports whether path is one of prefixes or below one of them,
+// segment by segment.
+func excluded(prefixes []string, path string) bool {
+	for _, prefix := range prefixes {
+		prefix = strings.TrimSuffix(prefix, "/")
+		if prefix == "" || path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }

@@ -2,6 +2,7 @@ package goe
 
 import (
 	"context"
+	"strings"
 
 	"go.oease.dev/goe/v2/core/mongodb/migrate"
 	"go.oease.dev/goe/v2/core/shutdown"
@@ -82,6 +83,14 @@ func IsRunning() bool {
 // GetEnvironment returns the current environment
 func GetEnvironment() string {
 	return App().Environment()
+}
+
+// IsProduction reports whether the application runs in production: its
+// environment (GOE_ENV) is "prod" or "production", in any case and ignoring
+// surrounding spaces.
+func IsProduction() bool {
+	env := strings.ToLower(strings.TrimSpace(GetEnvironment()))
+	return env == "prod" || env == "production"
 }
 
 // HTTP returns the global HTTP kernel instance

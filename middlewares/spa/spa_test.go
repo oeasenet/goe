@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -406,4 +407,61 @@ func Benchmark_SPA_WithNext(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func spaApp(t *testing.T, cfg Config) *fiber.App {
+	t.Helper()
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "assets"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>index</html>"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "assets", "app.js"), []byte("console.log(1)"), 0o644))
+	cfg.Root = root
+	app := fiber.New()
+	app.Use(New(cfg))
+	return app
+}
+
+func status(t *testing.T, app *fiber.App, path string) (int, string) {
+	t.Helper()
+	resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, path, nil))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
+}
+
+func TestSPA_DefaultBehaviourUnchanged(t *testing.T) {
+	app := spaApp(t, Config{})
+	code, body := status(t, app, "/assets/missing.js")
+	assert.Equal(t, fiber.StatusOK, code)
+	assert.Contains(t, body, "index", "by default a missing file still gets the index")
+	_, body = status(t, app, "/some/route")
+	assert.Contains(t, body, "index")
+}
+
+func TestSPA_MissingFileIs404WhenEnabled(t *testing.T) {
+	app := spaApp(t, Config{NotFoundForMissingFiles: true})
+
+	code, _ := status(t, app, "/assets/missing.js")
+	assert.Equal(t, fiber.StatusNotFound, code, "a stale hashed asset must not get HTML")
+
+	code, body := status(t, app, "/assets/app.js")
+	assert.Equal(t, fiber.StatusOK, code)
+	assert.Contains(t, body, "console.log")
+
+	_, body = status(t, app, "/some/route")
+	assert.Contains(t, body, "index", "client routes still get the index")
+}
+
+func TestSPA_ExcludedPrefixPassesThrough(t *testing.T) {
+	app := spaApp(t, Config{Exclude: []string{"/api"}})
+
+	code, body := status(t, app, "/api/unknown")
+	assert.Equal(t, fiber.StatusNotFound, code)
+	assert.NotContains(t, body, "index")
+	code, _ = status(t, app, "/api")
+	assert.Equal(t, fiber.StatusNotFound, code)
+
+	_, body = status(t, app, "/apiary")
+	assert.Contains(t, body, "index", "prefixes match whole segments")
 }

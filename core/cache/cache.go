@@ -278,6 +278,11 @@ func (c *cache) Pull(key string, value any) error {
 	return nil
 }
 
+// ErrKeyExists is returned by Add when the key is already present. Its text is
+// the one Add has always returned, so code matching on it keeps working; use
+// errors.Is instead.
+var ErrKeyExists = errors.New("key already exists")
+
 // Add stores a value only if key doesn't exist. On a native atomic store the
 // check-and-set is one server-side step shared across processes; on other
 // stores it is atomic within this process only.
@@ -296,7 +301,7 @@ func (c *cache) Add(key string, value any, ttl time.Duration) error {
 			return err
 		}
 		if !stored {
-			return errors.New("key already exists")
+			return ErrKeyExists
 		}
 		return nil
 	}
@@ -311,7 +316,7 @@ func (c *cache) Add(key string, value any, ttl time.Duration) error {
 		return err
 	}
 	if data != nil {
-		return errors.New("key already exists")
+		return ErrKeyExists
 	}
 
 	// Key doesn't exist, set it atomically
