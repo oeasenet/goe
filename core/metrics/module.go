@@ -48,10 +48,11 @@ func NewModule(cfg contract.Config, logger contract.Logger, opts ...Option) *Mod
 		registry = prometheus.NewRegistry()
 	}
 
+	logger = logger.With("module", "metrics")
 	return &Module{
 		manager:  newManager(config, logger, registry),
 		config:   config,
-		logger:   logger.With("module", "metrics"),
+		logger:   logger,
 		settings: s,
 		optErrs:  optErrs,
 	}

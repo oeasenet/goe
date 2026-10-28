@@ -16,6 +16,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.oease.dev/goe/v2/contract"
@@ -135,6 +136,27 @@ func TestModule_UsesTheInjectedRegistry(t *testing.T) {
 		names = append(names, f.GetName())
 	}
 	assert.Contains(t, names, "goe_build_info")
+}
+
+// The application's registry may hold collectors GOE registers too, set up
+// differently: its own build_info, a Go collector with more runtime metrics.
+// GOE keeps them, leaves its own out with a warning, and still serves.
+func TestModule_InjectedRegistryWithConflictingCollectors(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll)))
+	appInfo := prometheus.NewGauge(prometheus.GaugeOpts{Name: "goe_build_info", Help: "The app's own."})
+	reg.MustRegister(appInfo)
+	appInfo.Set(1)
+
+	rec := &warnRecorder{testLogger: &testLogger{t: t}}
+	var m *Module
+	require.NotPanics(t, func() { m = NewModule(newTestConfig(), rec, WithRegistry(reg)) })
+	m.Manager().Counter("orders_total", "Orders.").Inc()
+
+	body := scrape(t, m)
+	assert.Contains(t, body, "goe_orders_total 1")
+	assert.Contains(t, body, "goe_build_info 1", "the application's collector stays")
+	assert.Contains(t, rec.warns, "Metrics collector not registered; the registry holds a conflicting one")
 }
 
 func TestModule_BuildInfo(t *testing.T) {

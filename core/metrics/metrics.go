@@ -41,27 +41,34 @@ func newManager(config *Config, logger contract.Logger, registry *prometheus.Reg
 
 	// Register Go runtime metrics
 	if config.EnableGoMetrics() {
-		registerOnce(registry, collectors.NewGoCollector())
+		m.registerOnce(collectors.NewGoCollector())
 	}
 
 	// Register process metrics
 	if config.EnableProcessMetrics() {
-		registerOnce(registry, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		m.registerOnce(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	}
 
-	registerOnce(registry, newBuildInfo(config.Namespace(), config.AppVersion()))
+	m.registerOnce(newBuildInfo(config.Namespace(), config.AppVersion()))
 
 	return m
 }
 
 // registerOnce registers c, tolerating a registry — the application's own —
-// that already holds an equal collector.
-func registerOnce(registry *prometheus.Registry, c prometheus.Collector) {
-	if err := registry.Register(c); err != nil {
-		if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); !ok {
-			panic(err)
-		}
+// that already holds an equal collector. When it holds a conflicting one (its
+// own build_info, a Go collector set up differently), that one stays and c is
+// left out, with a warning.
+func (m *Manager) registerOnce(c prometheus.Collector) {
+	err := m.registry.Register(c)
+	if err == nil {
+		return
 	}
+	if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+		return
+	}
+	m.logger.Warn("Metrics collector not registered; the registry holds a conflicting one",
+		"error", err.Error(),
+	)
 }
 
 // Counter returns a counter metric by name, creating it if necessary

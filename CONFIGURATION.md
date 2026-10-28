@@ -1013,6 +1013,11 @@ from `APP_VERSION`). With HTTP enabled, streams served by `goehttp.SSE` /
 `SendStream` are recorded as `<namespace>_http_streams_active{route}` and
 `<namespace>_http_stream_duration_seconds{route,outcome}`.
 
+When your registry already holds a collector GOE registers — the Go or process
+collector, `<namespace>_build_info` — set up differently, yours stays and GOE's
+is left out, with the warning `Metrics collector not registered; the registry
+holds a conflicting one`.
+
 ---
 
 ## Health Checks
