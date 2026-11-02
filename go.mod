@@ -5,13 +5,13 @@ go 1.27.0
 require (
 	github.com/bytedance/sonic v1.15.5
 	github.com/go-playground/validator/v10 v10.30.5
-	github.com/gofiber/contrib/v3/zap v1.0.15
+	github.com/gofiber/contrib/v3/zap v1.0.16
 	github.com/gofiber/fiber/v3 v3.6.1
 	github.com/gofiber/storage/badger/v2 v2.2.4
 	github.com/gofiber/storage/bbolt/v2 v2.2.4
 	github.com/gofiber/storage/memory/v2 v2.1.2
 	github.com/gofiber/storage/redis/v3 v3.6.2
-	github.com/gofiber/template/html/v3 v3.0.11
+	github.com/gofiber/template/html/v3 v3.0.12
 	github.com/gofiber/utils/v2 v2.6.3
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/prometheus/client_golang v1.25.0
@@ -56,7 +56,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
 	github.com/gofiber/schema v1.9.1 // indirect
-	github.com/gofiber/template/v2 v2.1.4 // indirect
+	github.com/gofiber/template/v2 v2.1.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
