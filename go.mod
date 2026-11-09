@@ -13,7 +13,7 @@ require (
 	github.com/gofiber/storage/redis/v3 v3.6.2
 	github.com/gofiber/template/html/v3 v3.0.11
 	github.com/gofiber/utils/v2 v2.6.3
-	github.com/jackc/pgx/v5 v5.11.0
+	github.com/jackc/pgx/v5 v5.12.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/robfig/cron/v3 v3.0.1
